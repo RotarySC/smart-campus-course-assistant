@@ -120,7 +120,8 @@ async def test_three_tools_over_real_delegation(seeded, mcp_env):
     assert schedule["school_timezone"] == "Asia/Shanghai"
     assert schedule["items"] and schedule["items"][0]["student_id"] == student["id"]
 
-    # 2) search_course_docs：固定 EvidenceSet stub（Phase 2 未合并）
+    # 2) search_course_docs：Phase 2 已合并 → 真实 knowledge.search；
+    #    本用例库没有已发布资料，因此按契约返回 empty（不是失败，也不是 stub 假数据）
     search_result = await call_mcp_tool(
         mcp_env["mcp_url"],
         _headers(_delegation(chat, SCOPE_DOCS_SEARCH)),
@@ -129,9 +130,11 @@ async def test_three_tools_over_real_delegation(seeded, mcp_env):
     )
     assert search_result.is_error is False, search_result
     search = search_result.structured_content
-    assert search["status"] == "ok"
-    assert search["chunks"] and search["references"]
-    assert len(search["chunks"][0]["text"]) <= 20_000
+    assert search["status"] == "empty"
+    assert search["corpus_empty"] is True
+    assert search["chunks"] == [] and search["references"] == []
+    # 真实 EvidenceSet（ok 路径）→ SSE citations → /citations/{id} 展开见
+    # tests/test_assistant_e2e_knowledge.py
 
     # 3) save_study_plan：服务端签发 direct_instruction 许可并真实落库
     draft = await make_draft_row(

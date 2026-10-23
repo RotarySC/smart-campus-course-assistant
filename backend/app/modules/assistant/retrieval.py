@@ -1,8 +1,7 @@
 """``search_course_docs`` 的服务侧实现（PHASE-03 A3）。
 
-Phase 2 未合并前：使用**固定 EvidenceSet stub**（确定性、可复现，便于全链路测试）。
-Phase 2 合并后：自动改用 ``app.modules.knowledge.service.search`` 的真实实现，
-**不改** knowledge 模块。
+Phase 2 合并后：使用真实 ``knowledge.search``（``KnowledgeService`` 单例 + ``SearchQuery``），
+**不改** knowledge 模块；仅在 knowledge 不可导入的开发/评审环境回退到确定性 stub。
 
 无论来源，都强制：单项文本 ≤20,000 码点；只返回已发布/有效片段的权威引用。
 """
@@ -68,14 +67,26 @@ def reset_stub_evidence() -> None:
     set_stub_evidence(None)
 
 
-def _real_search():  # noqa: ANN202 - 可选依赖，签名由 Phase 2 决定
-    try:  # Phase 2 合并前 knowledge 只有 router/interface，没有 service
-        from app.modules.knowledge import service as knowledge_service
+def _real_search():  # noqa: ANN202 - 冻结接口由 Phase 2 提供
+    """返回 ``async (actor, query) -> EvidenceSet``；未合并时返回 None（走 stub）。"""
+    try:  # Phase 2 已合并：knowledge 暴露 KnowledgeService 单例与 SearchQuery
+        from app.modules.knowledge import SearchQuery, knowledge as knowledge_service
 
-        function = getattr(knowledge_service, "search", None)
+        method = getattr(knowledge_service, "search", None)
+        if callable(method):
+            async def _invoke(actor: ActorContext, query: str):
+                return await method(actor, SearchQuery(query=query))
+
+            return _invoke
+    except Exception:  # noqa: BLE001 - 未合并/导入失败时按 stub 处理
+        pass
+    try:  # 兜底：兼容模块级 search 函数形态
+        from app.modules.knowledge import service as knowledge_module
+
+        function = getattr(knowledge_module, "search", None)
         if callable(function):
             return function
-    except Exception:  # noqa: BLE001 - 未合并时按 stub 处理
+    except Exception:  # noqa: BLE001
         return None
     return None
 
@@ -92,7 +103,7 @@ async def search_course_docs(actor: ActorContext, query: str) -> EvidenceSet:
         except Exception:  # noqa: BLE001 - 真实实现不可用时以失败语义上抛
             logger.exception("knowledge.search failed; retrieval unavailable")
             raise
-    logger.debug("using deterministic stub evidence (Phase 2 not merged)")
+    logger.debug("knowledge module unavailable; using deterministic stub evidence")
     if _stub_override is not None:
         return _stub_override
     return _stub_evidence()
