@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -34,6 +35,8 @@ from app.adapters.model.gateway import (
 from app.config import get_settings
 from app.shared.context import ExecutionContext
 from app.shared.errors import ERROR_MESSAGE, ApiError
+
+logger = logging.getLogger("cca.mcp.client")
 
 TOOL_SCOPE: dict[str, str] = {
     "get_my_schedule": SCOPE_SCHEDULE_READ,
@@ -112,6 +115,13 @@ class McpToolClient:
         except ApiError as exc:
             return _failure(call, exc.code, exc.message)
         except Exception as exc:  # noqa: BLE001 - 技术故障统一映射
+            # 技术失败保留分类（不伪装 empty/成功），同时记录异常类型与栈便于定位。
+            # 注意：不记录工具返回正文/令牌。
+            logger.exception(
+                "mcp tool call failed tool=%s request_id=%s",
+                call.tool_name,
+                context.chat_request_id,
+            )
             return _failure(
                 call,
                 "MCP_UNAVAILABLE",

@@ -80,6 +80,89 @@ async def internal_url(monkeypatch):
         yield url
 
 
+@pytest.fixture
+async def mcp_url(internal_url):
+    """真实回环 MCP server（依赖已启动的内部 API）。"""
+    from app.entrypoints import mcp_server
+
+    async with serve_app(mcp_server.create_mcp_app()) as base:
+        yield f"{base}/mcp"
+
+
+DOC_TWO_NAME = "实验课评分补充说明.txt"
+DOC_TWO_CONTENT = (
+    "实验课评分与预习补充说明：补做实验同样需要提前提交预习报告，否则不得进入实验室。\n"
+    "实验课预习要求包括写明实验目的、步骤与预期结果，并在实验开始前完成提交。\n"
+)
+
+
+async def test_real_evidence_over_mcp_transport_into_citations(
+    client, seeded, internal_url, mcp_url
+):
+    """回归（Phase 5 缺陷）：真实 MCP 传输 + 多文档/多 chunk → tool_end ok + citations 可用。"""
+    from app.adapters.mcp.client import McpToolClient
+
+    await publish_batch(
+        client,
+        seeded["admin_headers"],
+        [
+            (DOC_NAME, txt_bytes(DOC_CONTENT)),
+            (DOC_TWO_NAME, txt_bytes(DOC_TWO_CONTENT)),
+        ],
+    )
+    runtime = Runtime(
+        provider=DeterministicProvider(),
+        executor=McpToolClient(url=mcp_url),
+    )
+    set_runtime(runtime)
+    try:
+        status, events = await read_stream(
+            client,
+            seeded["student_token"],
+            {
+                "client_request_id": "creq_e2e_mcp_multi",
+                "message": "实验课预习要求是什么？",
+            },
+        )
+        assert status == 200, events
+        validate_sse_events(events)
+
+        start = [
+            event
+            for event in events
+            if event["event"] == "tool_start"
+            and event["data"]["tool_name"] == "search_course_docs"
+        ]
+        assert len(start) == 1
+        tool_end = next(
+            event
+            for event in events
+            if event["event"] == "tool_end"
+            and event["data"]["tool_call_id"] == start[0]["data"]["tool_call_id"]
+        )
+        assert tool_end["data"]["success"] is True, tool_end
+        assert tool_end["data"]["result_status"] == "ok"
+        assert tool_end["data"].get("code") is None
+
+        done = events[-1]["data"]
+        assert done["state"] == "succeeded"
+        assert done["citations"], "真实 MCP 检索必须产生 citations（不得 MCP_UNAVAILABLE）"
+        assert {item["file_name"] for item in done["citations"]} <= {
+            DOC_NAME,
+            DOC_TWO_NAME,
+        }
+
+        citation = done["citations"][0]
+        expand = await client.get(
+            f"/api/v1/citations/{citation['reference_id']}",
+            headers=AUTH(seeded["student_token"]),
+        )
+        assert expand.status_code == 200
+        assert expand.json()["data"]["reference"]["reference_id"] == citation["reference_id"]
+    finally:
+        set_runtime(None)
+
+
 async def test_real_evidence_flows_into_sse_citations_and_expands(
     client, seeded, internal_url
 ):
