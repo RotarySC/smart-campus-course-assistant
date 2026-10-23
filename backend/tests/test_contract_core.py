@@ -492,30 +492,134 @@ async def test_error_body_never_leaks_sql(client, seeded):
         assert forbidden not in text
 
 
-async def test_unimplemented_endpoints_return_501_envelope(client, seeded):
-    student = seeded["student_headers"]
-    cases = [
-        ("post", "/api/v1/admin/document-batches", {}),
-        ("get", "/api/v1/admin/document-batches/bat_x", None),
-        ("get", "/api/v1/admin/documents", None),
-        ("get", "/api/v1/admin/documents/doc_x/text", None),
-        ("post", "/api/v1/admin/documents/doc_x/rebuild", {}),
-        ("delete", "/api/v1/admin/documents/doc_x", None),
-        ("post", "/api/v1/admin/documents/doc_x/cleanup-retry", {}),
-        ("get", "/api/v1/citations/cit_x", None),
-        ("post", "/api/v1/chat/stream", {}),
-        ("get", "/api/v1/chat/requests/req_x", None),
-        ("post", "/api/v1/chat/requests/req_x/cancel", {}),
-    ]
-    for method, path, body in cases:
-        response = await getattr(client, method)(
-            path, headers=student, **({"json": body} if body is not None else {})
+# Phase 2/3 已实现端点（P2/P3 合并后从 501 清单移出，改为真实契约断言）
+KNOWLEDGE_CONTRACT = [
+    ("post", "/api/v1/admin/document-batches", "uploadBatch", {"202"}),
+    ("get", "/api/v1/admin/document-batches/{id}", "getBatch", {"200"}),
+    ("get", "/api/v1/admin/documents", "listDocuments", {"200"}),
+    ("get", "/api/v1/admin/documents/{id}/text", "previewDocument", {"200"}),
+    ("post", "/api/v1/admin/documents/{id}/rebuild", "rebuildDocument", {"202"}),
+    ("delete", "/api/v1/admin/documents/{id}", "deleteDocument", {"202"}),
+    ("post", "/api/v1/admin/documents/{id}/cleanup-retry", "retryCleanup", {"202"}),
+    ("get", "/api/v1/citations/{reference_id}", "getCitation", {"200"}),
+]
+CHAT_CONTRACT = [
+    ("post", "/api/v1/chat/stream", "streamChat", {"200"}),
+    ("get", "/api/v1/chat/requests/{request_id}", "getChatState", {"200"}),
+    ("post", "/api/v1/chat/requests/{request_id}/cancel", "cancelChat", {"200"}),
+]
+STANDARD_ERROR_CODES = (
+    "400",
+    "401",
+    "403",
+    "404",
+    "409",
+    "410",
+    "413",
+    "415",
+    "422",
+    "429",
+    "500",
+    "503",
+    "504",
+)
+
+
+def _resolve_schema(spec: dict, schema: dict) -> dict:
+    while isinstance(schema, dict) and "$ref" in schema:
+        schema = spec["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]]
+    return schema
+
+
+async def test_knowledge_and_chat_endpoints_contract(client):
+    """P2/P3 已实现端点：路径/operationId/请求必填/成功状态码/错误响应集合。"""
+    spec = (await client.get("/api/v1/openapi.json")).json()
+    for method, path, op_id, success_codes in KNOWLEDGE_CONTRACT + CHAT_CONTRACT:
+        assert path in spec["paths"], path
+        operation = spec["paths"][path][method]
+        assert operation["operationId"] == op_id, (path, operation.get("operationId"))
+        statuses = set(operation["responses"])
+        assert success_codes <= statuses, (path, statuses)
+        assert "501" not in statuses, f"{path} 不应再是 501 桩"
+        for code in STANDARD_ERROR_CODES:
+            assert code in statuses, (path, code)
+            schema = operation["responses"][code]["content"]["application/json"]["schema"]
+            assert schema.get("$ref", "").endswith("/Error"), (path, code, schema)
+
+    # 请求体必填字段（与设计包一致）
+    upload_schema = spec["paths"]["/api/v1/admin/document-batches"]["post"]["requestBody"][
+        "content"
+    ]["multipart/form-data"]["schema"]
+    upload_schema = _resolve_schema(spec, upload_schema)
+    assert upload_schema["required"] == ["files"]
+    assert set(upload_schema["properties"]) == {"files", "allow_duplicate_names"}
+
+    rebuild_schema = _resolve_schema(
+        spec,
+        spec["paths"]["/api/v1/admin/documents/{id}/rebuild"]["post"]["requestBody"][
+            "content"
+        ]["application/json"]["schema"],
+    )
+    assert rebuild_schema["required"] == ["expected_version"]
+    assert set(rebuild_schema["properties"]) == {"expected_version"}
+
+    chat_schema = _resolve_schema(
+        spec,
+        spec["paths"]["/api/v1/chat/stream"]["post"]["requestBody"]["content"][
+            "application/json"
+        ]["schema"],
+    )
+    assert set(chat_schema["required"]) == {"client_request_id", "message"}
+    assert set(chat_schema["properties"]) == {
+        "client_request_id",
+        "conversation_id",
+        "message",
+        "history",
+    }
+    history_schema = _resolve_schema(spec, chat_schema["properties"]["history"])
+    if "anyOf" in history_schema:  # list[...] | None → 取数组分支
+        history_schema = next(
+            branch for branch in history_schema["anyOf"] if branch.get("type") == "array"
         )
-        assert response.status_code == 501, (method, path, response.text)
-        payload = response.json()
-        assert set(payload) == {"request_id", "error"}
-        assert payload["error"]["code"] == "INTERNAL_ERROR"
-        assert "尚未实现" in payload["error"]["message"]
+    item_schema = _resolve_schema(spec, history_schema["items"])
+    assert item_schema["properties"]["role"]["enum"] == ["user", "assistant"]
+
+
+async def test_internal_endpoints_not_in_public_openapi(client):
+    """内部端点只存在内部应用 OpenAPI；公共入口不暴露（404 信封）。"""
+    from app.main import create_internal_app
+
+    public = (await client.get("/api/v1/openapi.json")).json()
+    assert not any(path.startswith("/internal") for path in public["paths"])
+
+    internal = create_internal_app().openapi()
+    expected = {
+        "/internal/v1/delegations/exchange": ("post", "exchangeDelegation"),
+        "/internal/v1/tools/get-my-schedule": ("post", "internalSchedule"),
+        "/internal/v1/tools/search-course-docs": ("post", "internalSearch"),
+        "/internal/v1/tools/save-study-plan": ("post", "internalSave"),
+    }
+    for path, (method, op_id) in expected.items():
+        assert path in internal["paths"], path
+        assert internal["paths"][path][method]["operationId"] == op_id
+
+    response = await client.post("/internal/v1/tools/get-my-schedule", json={})
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+async def test_no_endpoint_returns_501_anymore(client):
+    """P2/P3 合并后公共 API 不应再有 501 桩端点。"""
+    spec = (await client.get("/api/v1/openapi.json")).json()
+    offenders = [
+        f"{method.upper()} {path}"
+        for path, operations in spec["paths"].items()
+        for method, operation in operations.items()
+        if method in ("get", "post", "patch", "delete")
+        and "501" in operation.get("responses", {})
+    ]
+    assert offenders == []
+
 
 
 async def test_runtime_openapi_exposes_contract(client):
