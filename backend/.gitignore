@@ -1,0 +1,9 @@
+# 后端本地产物（Phase 1 车道）
+.env
+.env.*
+!.env.example
+_scratch/
+.pytest_cache/
+__pycache__/
+*.pyc
+reports/*.log
