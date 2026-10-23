@@ -12,7 +12,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as meApi from '@/api/me'
 import type { AppError } from '@/api/errors'
-import type { Schedule } from '@/api/types.gen'
+import type { Schedule } from '@/api/types'
 import { useSessionStore } from './session'
 import { useUiStore } from './ui'
 

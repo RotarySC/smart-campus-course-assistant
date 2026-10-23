@@ -7,7 +7,7 @@
 
 import type { AuthSnapshot } from './client'
 import { request } from './client'
-import type { ChatInput, ChatState } from './types.gen'
+import type { ChatInput, ChatState } from './types'
 
 /** `GET /api/v1/chat/requests/{request_id}`（operationId `getChatState`） */
 export function getChatState(auth: AuthSnapshot, requestId: string): Promise<ChatState> {

@@ -16,7 +16,7 @@ import type {
   Schedule,
   SchedulePage,
   WriteOperation,
-} from '../types.gen'
+} from '../types'
 import { createChatResponse, buildScript } from './sse'
 import {
   MOCK_SCHEDULE_FAIL_DATE,
@@ -740,7 +740,7 @@ export async function handleMock(rawUrl: string, init: RequestInit): Promise<Res
       state: 'accepted',
       published: false,
       documents: [],
-      tasks: [{ task_id: `task_${Date.now().toString(36)}`, state: 'accepted', retryable: false }],
+      tasks: [{ task_id: `task_${Date.now().toString(36)}`, state: 'pending', retryable: false }],
     }
     batches.push(b)
     return accepted(b)

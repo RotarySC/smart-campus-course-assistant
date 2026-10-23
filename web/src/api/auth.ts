@@ -5,7 +5,7 @@
 
 import type { AuthSnapshot } from './client'
 import { request } from './client'
-import type { Login, User } from './types.gen'
+import type { Login, User } from './types'
 
 export interface LoginInput {
   account: string

@@ -18,7 +18,7 @@ import Notice from '@/components/base/Notice.vue'
 import { ICONS } from '@/components/base/icons'
 import { S11 } from '@/domain/copy'
 import { formatBytes, formatDateTime, formatFileType } from '@/domain/format'
-import type { Batch, Document } from '@/api/types.gen'
+import type { Batch, Document } from '@/api/types'
 
 const props = defineProps<{ documents: Document[]; batch?: Batch | null; caption: string }>()
 defineEmits<{ preview: [string]; retryCleanup: [string] }>()

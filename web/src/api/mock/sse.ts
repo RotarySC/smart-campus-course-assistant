@@ -11,7 +11,7 @@
  */
 
 import type { SseEventName } from '@/domain/constants'
-import type { Reference } from '../types.gen'
+import type { Reference } from '../types'
 import { MOCK_TODAY, references } from './db'
 
 export interface MockSseEvent {

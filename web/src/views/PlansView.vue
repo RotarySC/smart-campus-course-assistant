@@ -25,7 +25,7 @@ import { S09, S12 } from '@/domain/copy'
 import { planDeleteConfirmText } from '@/domain/mapError'
 import { formatDateRange, formatDateTime } from '@/domain/format'
 import { validatePlanForm } from '@/domain/validate'
-import type { Plan } from '@/api/types.gen'
+import type { Plan } from '@/api/types'
 import { usePlansStore } from '@/stores/plans'
 
 const router = useRouter()
