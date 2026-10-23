@@ -298,3 +298,63 @@ async def test_browser_origin_is_rejected(seeded, mcp_env):
             },
         )
     assert response.status_code != 200
+
+
+async def test_internal_api_requires_service_credential(seeded, mcp_env):
+    """内部 API 不接受浏览器 Bearer / 无凭据调用（D6 契约）。"""
+    import httpx
+
+    async with httpx.AsyncClient(base_url=mcp_env["internal_url"], trust_env=False) as client:
+        missing = await client.post(
+            "/internal/v1/tools/get-my-schedule", json={}
+        )
+        assert missing.status_code == 401
+        assert missing.json()["error"]["code"] == "AUTH_REQUIRED"
+
+        browser_only = await client.post(
+            "/internal/v1/tools/get-my-schedule",
+            json={},
+            headers={
+                "X-Service-Credential": get_settings().service_token,
+                "Authorization": f"Bearer {seeded['student_token']}",
+            },
+        )
+        assert browser_only.status_code == 401
+        assert browser_only.json()["error"]["code"] == "AUTH_REQUIRED"
+
+        wrong_service = await client.post(
+            "/internal/v1/tools/get-my-schedule",
+            json={},
+            headers={"X-Service-Credential": "wrong-token"},
+        )
+        assert wrong_service.status_code == 403
+        assert wrong_service.json()["error"]["code"] == "FORBIDDEN"
+
+
+async def test_exchange_rejects_wrong_audience(seeded, mcp_env):
+    """兑换端点只接受 aud=cca-mcp；aud=cca-internal 的凭据不得再次兑换。"""
+    import httpx
+
+    from app.adapters.mcp.delegation import AUD_INTERNAL
+
+    student = seeded["student"]
+    session_id = await session_id_for_token(seeded["student_token"])
+    chat = await make_chat_request(user_id=student["id"], session_id=session_id)
+    internal_token = mint_delegation(
+        audience=AUD_INTERNAL,
+        user_id=chat["user_id"],
+        session_id=chat["session_id"],
+        auth_version=1,
+        request_id=chat["request_id"],
+        conversation_id=chat["conversation_id"],
+        scope=[SCOPE_SCHEDULE_READ],
+        fence=chat["fence"],
+    )
+    async with httpx.AsyncClient(base_url=mcp_env["internal_url"], trust_env=False) as client:
+        response = await client.post(
+            "/internal/v1/delegations/exchange",
+            json={"delegation": internal_token},
+            headers={"X-Service-Credential": get_settings().service_token},
+        )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
