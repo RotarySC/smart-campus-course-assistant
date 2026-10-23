@@ -11,11 +11,12 @@ $env:DATABASE_URL="mysql+aiomysql://root:cca_dev_root@127.0.0.1:33061/cca_test_c
 pytest tests/test_security_isolation.py tests/test_release_migration.py -q
 ```
 
-**结果：12 passed / 3 xfailed / 1 failed（39.7s + 14.0s）**。唯一失败为真实缺陷 F-01（严格失败，未弱化断言）。
+**结果（修复前）**：12 passed / 3 xfailed / 1 failed（39.7s + 14.0s）——唯一失败为真实缺陷 F-01（严格失败，未弱化断言）。
+**结果（修复后）**：`test_security_isolation.py` 13 passed / 3 xfailed；Lead 指定的六文件车道 T1 = **49 passed, 3 xfailed（118.53s）**；另跑契约两文件 11 passed（原 47 项 Phase 1 测试无回归）。
 
 ---
 
-## F-01（真实缺陷，未修复）禁用提交后，在途敏感写入仍可落库
+## F-01（真实缺陷，已修复）禁用提交后，在途敏感写入仍可落库
 
 - **严重度**：中（跨切面一致性 / 账号禁用穿透）
 - **违反**：后端详细设计 §5.1「所有敏感写入先锁定当前操作者 User；……验证双方角色与启用状态」、§14.2-4「禁用与保存并发，提交顺序可解释；已提交不撤回，**新工具不穿透**」
@@ -42,7 +43,30 @@ pytest tests/test_security_isolation.py tests/test_release_migration.py -q
      ```
   2. 在敏感写入事务开头用 `await tx.lock_and_validate_actor(actor)` 替换 `lock_user(actor.user_id)`（涉及 identity/academics/planning 的写服务；涉及目标学生时仍按 ID 升序 `lock_users`，可在锁后复核目标 enabled）。
   3. 修复后本用例应转绿；不需要改测试断言。
-- **备注**：该用例在修复前保持严格失败（红），便于 Phase 5 门禁看到真实状态；未使用 xfail 弱化。
+
+### 修复实施（Lead 裁决 A）与语义说明
+
+- `app/adapters/db/uow.py`
+  - 新增 `_validate_actor_row(actor, user)`：锁内复核 `enabled`、`auth_version`、`role`，不一致抛 `SESSION_EXPIRED`（401）。
+  - 新增 `lock_and_validate_actor(actor)`：锁定操作者 User（§5.2 全局锁顺序第 1 位）后复核。
+  - 新增 `lock_users_and_validate_actor(actor, extra_ids)`：按 ID 升序锁定操作者+目标用户后复核操作者（顺序不变）。
+- 接入点（所有敏感写事务开头；认证依赖保持不变，这是“提交前二次校验”而非替代请求级认证）：
+
+| 模块 | 端点 / 服务 | 校验方式 |
+| --- | --- | --- |
+| identity | `POST /auth/logout` | `lock_and_validate_actor` |
+| identity | `POST /admin/students` | `lock_and_validate_actor` |
+| identity | `PATCH /admin/students/{id}` | `lock_users_and_validate_actor(actor,[target])` |
+| academics | `POST/PATCH /admin/courses` | `lock_and_validate_actor` |
+| academics | `POST/PATCH/DELETE /admin/schedules` | `lock_users_and_validate_actor(actor,[student])` |
+| planning | `POST /me/plans`（pending 意图 + 主事务） | `lock_and_validate_actor` |
+| planning | `PATCH/DELETE /me/plans/{id}` | `lock_and_validate_actor` |
+| planning | `PATCH /me/drafts/{id}` | `lock_and_validate_actor` |
+| planning | `POST /me/drafts/{id}/save`（pending 意图 + 主事务） | `lock_and_validate_actor` |
+
+- 错误码：统一 `SESSION_EXPIRED`（401），与既有认证矩阵一致（撤销/过期/禁用/auth_version 变化）。
+- 为什么必须阻断“已认证但在途写入”：认证依赖只在请求进入时检查一次；管理员可在“已认证 → 尚未提交”的窗口禁用账号。若不锁内复核，§14.2-4 的“新工具不穿透”只对新请求成立，禁用对学生已发出的在途写入无效，违反 §5.1“所有敏感写入先锁操作者 User 并验证启用状态”。锁内复核把“是否仍然启用”的线性化点放到提交边界：禁用一旦提交，任何尚未提交的敏感写入都会失败；已提交的写入不撤回（与取消/保存的提交点语义一致）。
+- 修复前后：修复前 F-01 返回 201 且落库 1 份计划（严格失败）；修复后返回 401 `SESSION_EXPIRED` 且 0 份计划，用例转绿，**断言未修改**。
 
 ---
 
@@ -74,6 +98,14 @@ pytest tests/test_security_isolation.py tests/test_release_migration.py -q
 | 二次 `upgrade head`（幂等） | 1.36s |
 | 恢复 `head`（finally） | 1.41s |
 | 12 类坏数据拒绝 | 8.7–18.6 ms/项 |
+
+### 破坏性前提（迁移测试）
+
+`test_release_migration.py` 会对 `DATABASE_URL` 指向的库执行 `alembic downgrade base`（清空全部业务表）再 upgrade。前提：
+
+- 只在专用测试库 `cca_test_core` 运行（`conftest.py` 对非 `_test_` 库直接拒绝启动）；
+- **不得与其他测试/进程并行**（pytest 默认串行；用例 `finally` 强制恢复 `head`，断言失败也会恢复）；
+- 不要指向开发库 `cca` 或 P2/P3/P4 的测试库；Phase 5 跑全量时它与其它用例同属串行执行。
 
 ### 备注（非缺陷）
 
