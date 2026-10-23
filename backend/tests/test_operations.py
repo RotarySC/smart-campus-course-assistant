@@ -153,5 +153,10 @@ async def test_outbox_noop_dispatch(db):
 async def test_worker_run_once_importable(db):
     from app.entrypoints.worker import run_once
 
-    # 空转一轮（无待派发事件时返回 0）
-    assert await run_once() == 0
+    # 空转一轮：Phase 2 起 run_once 返回结构化回执（processed/counters/recovered_leases），
+    # 不再返回整数；空队列时 processed == 0 且无成功计数。
+    result = await run_once(owner="test-worker")
+    assert isinstance(result, dict)
+    assert result["processed"] == 0
+    assert result["counters"] == {}
+    assert result["recovered_leases"] == 0
