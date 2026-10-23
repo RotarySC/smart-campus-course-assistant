@@ -1,0 +1,730 @@
+/* ============================================================================
+   校园课程智能助手 · 设计系统 token（方向 B）   tokens.css
+   ----------------------------------------------------------------------------
+   本文件由 design/system/generate.py 从 tokens.json 生成，**请勿手改**。
+   重新生成：$env:PYTHONIOENCODING="utf-8"; python design\system\generate.py
+
+   四层结构（层序即 :root 书写顺序，后者可安全覆盖前者）：
+     L1 primitive  --p-*                  原始值。唯一允许出现字面量的一层。
+     L2 semantic   --bg-* / --text-* / …  用途别名，只指向 L1。颜色语义在此收敛。
+     L3 component  --<组件>-<部位>-<属性>  组件属性。颜色必须经 L2，尺度类原语可直取 L1。
+                                          组件 CSS 规则只消费这一层。
+     L0 compat     --c-* / --sp-* / …     rb.css 变量名的兼容声明（deprecated）。
+                                          rb.css 的 75 个 :root 变量里有 25 个已由 L2/L3 同名承担
+                                          （24 个 L2 + L3 的 --root-scroll-offset），
+                                          不在此重复声明——重复会导致变量自引用而失效。
+
+   注意：本注释里**绝对不能出现「星号紧跟斜杠」两个字符**：那会提前终止注释，
+   让紧随其后的第一个 :root 块被并进一个永不匹配的垃圾选择器（品牌绿会整体失效，
+   而纯文本比对查不出来）。generate.py 已加 check_comment_safety() 守这条；
+   写 glob 通配时请用「星号 空格 斜杠」。
+
+   断点（min-width，mobile-first）：xs=480 / sm=768 / md=1024 / lg=1200 / xl=1440 / base=<480
+   媒体查询无法引用 CSS 变量，必须写字面量，取值只能来自上表。
+   ============================================================================ */
+
+
+/* ======================== L1 · primitive —— 原始值（唯一允许字面量的一层） ======================== */
+/* ---- color.brand　品牌墨绿。green-700 是主色，green-900 是强调/深色态，green-100 是浅底。 ---- */
+:root{
+  --p-green-900:#0F4A42;
+  --p-green-700:#14665B;
+  --p-green-100:#E3EDEB;
+}
+/* ---- color.pending　琥珀：**专用于「未保存 / 待确认」**，不得用于其他语义。 ---- */
+:root{
+  --p-amber-800:#8A4107;                                   /* 作为文字色使用（对比度达标） */
+  --p-amber-700:#B45309;                                   /* 仅作边框/虚下划线，不作为文字色 */
+  --p-amber-100:#FBF0DF;
+}
+/* ---- color.state　语义状态色。每族两个文字档（700 用于浅底上的文字，800 用于与浅底配对的最深文字）+ 一个浅底档。 ---- */
+:root{
+  --p-ok-800:#2F4A0D;
+  --p-ok-700:#3F6212;
+  --p-ok-100:#ECF2DF;
+  --p-danger-800:#7B0E2C;
+  --p-danger-700:#9F1239;
+  --p-danger-100:#FBE7EC;
+  --p-info-800:#164A5B;
+  --p-info-700:#1E5F74;
+  --p-info-100:#E3EEF2;
+}
+/* ---- color.neutral　暖灰中性阶。ink-400 及更深可用于 UI 边界；ink-300 只作装饰分隔线（不承担识别职责）。 ---- */
+:root{
+  --p-ink-900:#1C1917;
+  --p-ink-700:#44403C;
+  --p-ink-600:#5B544E;
+  --p-ink-500:#6B6259;
+  --p-ink-400:#78716C;
+  --p-ink-300:#C9C3BC;                                     /* 装饰分隔线；不可作为唯一识别手段 */
+  --p-ink-200:#E7E5E4;
+}
+/* ---- color.surface ---- */
+:root{
+  --p-white:#FFFFFF;
+  --p-sand-50:#FAF8F5;                                     /* 页面底：比卡片底更暖一档，形成近无边的分组感 */
+}
+/* ---- color.alpha　同色透明的原始值。必须由校验脚本做 alpha 合成后再判对比度。 ---- */
+:root{
+  --p-ink-900-a04:rgba(28,25,23,.04);                      /* 弱 hover 底 */
+  --p-ink-900-a03:rgba(28,25,23,.03);                      /* 只读控件底 */
+}
+/* ---- space.rhythm　布局节奏，6px 基准。方向 B 刻意避开 4 的倍数，形成密度身份。编号 n ⇒ n×6px。 ---- */
+:root{
+  --p-space-1:6px;
+  --p-space-2:12px;
+  --p-space-3:18px;
+  --p-space-4:24px;
+  --p-space-6:36px;
+  --p-space-8:48px;
+  --p-space-12:72px;
+}
+/* ---- space.micro　像素级微调，命名直接带 px 以区别于节奏档。只允许用于胶囊/单元格内边距与图标微对齐。 ---- */
+:root{
+  --p-space-2px:2px;
+  --p-space-3px:3px;
+  --p-space-5px:5px;
+  --p-space-8px:8px;
+  --p-space-10px:10px;
+}
+/* ---- font.family ---- */
+:root{
+  --p-font-sans:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --p-font-mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Consolas,monospace;
+}
+/* ---- font.size　字阶。正文 17px 是方向 B 的阅读舒适度选择（不是 14/16 的常规档）。 ---- */
+:root{
+  --p-fs-13:13px;                                          /* 辅助信息、胶囊、表头、字段名 */
+  --p-fs-15:15px;                                          /* 次级正文、表格内容 */
+  --p-fs-17:17px;                                          /* 正文基准 */
+  --p-fs-20:20px;
+  --p-fs-24:24px;                                          /* 登录页品牌名 */
+  --p-fs-32:32px;
+  --p-fs-code:0.92em;                                      /* 行内代码相对字号 */
+}
+/* ---- font.lineHeight ---- */
+:root{
+  --p-lh-body:1.75;
+  --p-lh-tight:1.35;                                       /* 标题 */
+  --p-lh-control:1.6;                                      /* 胶囊与文本域 */
+}
+/* ---- font.weight ---- */
+:root{
+  --p-fw-medium:500;
+  --p-fw-semibold:600;
+}
+/* ---- radius ---- */
+:root{
+  --p-radius-4:4px;                                        /* 焦点环圆角 */
+  --p-radius-6:6px;                                        /* 用户气泡的收角 */
+  --p-radius-7:7px;                                        /* 小标记方块 */
+  --p-radius-10:10px;                                      /* 控件 */
+  --p-radius-14:14px;                                      /* 卡片 */
+  --p-radius-pill:999px;
+}
+/* ---- border.width ---- */
+:root{
+  --p-bw-1:1px;
+  --p-bw-2:2px;
+  --p-bw-3:3px;
+  --p-bw-4:4px;
+}
+/* ---- elevation ---- */
+:root{
+  --p-shadow-1:0 1px 1px var(--p-ink-900-a04);             /* 唯一的层级：近平面，靠留白与边框分组而非投影 */
+}
+/* ---- motion ---- */
+:root{
+  --p-duration-spin:1100ms;
+  --p-easing-linear:linear;
+  --p-duration-fast:120ms;                                 /* 已定义未使用：交互过渡接入时用 */
+  --p-duration-base:200ms;                                 /* 已定义未使用：交互过渡接入时用 */
+  --p-easing-standard:cubic-bezier(.2,0,0,1);              /* 已定义未使用：交互过渡接入时用 */
+}
+/* ---- zIndex ---- */
+:root{
+  --p-z-composer:20;
+  --p-z-appbar:40;
+  --p-z-tabbar:40;
+  --p-z-skiplink:60;
+}
+/* ---- size ---- */
+:root{
+  --p-size-mark-sm:26px;                                   /* 顶栏品牌标记 */
+  --p-size-mark-lg:38px;                                   /* 登录页品牌标记 */
+  --p-size-appbar:56px;
+  --p-size-tabbar:56px;
+  --p-size-tap:44px;                                       /* 最小触控目标（WCAG 2.2 2.5.8 要求 24px，本设计取 44px） */
+  --p-size-textarea-min:120px;
+  --p-size-cellname-min:180px;                             /* 表格文件名列最小宽；小于此值 break-word 会把列压成 1 字符宽 */
+  --p-size-full:100%;
+  --p-offset-offscreen:-100px;                             /* 跳转链接未聚焦时移出视口的位置 */
+  --p-size-content-max:880px;
+  --p-size-assistant-max:720px;
+  --p-size-login-max:420px;
+  --p-size-prose-max:68ch;
+  --p-size-label-col:7.5em;                                /* 卡片化表格的字段名列 */
+  --p-size-kv-key-col:8em;
+  --p-size-bubble-max:88%;
+  --p-sr-clip-size:1px;                                    /* 仅供视觉隐藏（sr-only）使用，不是视觉设计尺寸 */
+  --p-sr-clip-offset:-1px;
+}
+/* ---- opacity ---- */
+:root{
+  --p-opacity-disabled:0.5;
+}
+
+
+/* ======================== L2 · semantic —— 用途别名（只指向 L1） ======================== */
+/* ---- surface ---- */
+:root{
+  --bg-page:var(--p-sand-50);                              /* 页面底 */
+  --bg-card:var(--p-white);                                /* 卡片/控件底 */
+  --bg-muted:var(--p-ink-200);                             /* 中性块底（默认胶囊、普通提示块） */
+  --bg-readonly:var(--p-ink-900-a03);                      /* 只读控件底（含 alpha，判对比度须先合成） */
+  --bg-hover-weak:var(--p-ink-900-a04);                    /* 弱 hover 底 */
+}
+/* ---- text ---- */
+:root{
+  --text-primary:var(--p-ink-900);                         /* 正文 */
+  --text-secondary:var(--p-ink-600);                       /* 次级正文 */
+  --text-muted:var(--p-ink-500);                           /* 弱化文字：字段名、说明、时间戳 */
+  --text-on-accent:var(--p-white);                         /* 主色底上的文字 */
+  --text-art:var(--p-ink-400);                             /* 空状态插图/装饰图标的颜色（不承载正文） */
+}
+/* ---- accent ---- */
+:root{
+  --accent:var(--p-green-700);                             /* 主色：主按钮底、品牌标记底 */
+  --accent-strong:var(--p-green-900);                      /* 深主色：链接、当前导航、浅底上的强调文字、焦点环 */
+  --accent-tint:var(--p-green-100);                        /* 主色浅底 */
+}
+/* ---- pending ---- */
+:root{
+  --pending:var(--p-amber-800);                            /* 未保存 / 待确认的文字色 */
+  --pending-tint:var(--p-amber-100);                       /* 未保存 / 待确认的浅底 */
+  --pending-border:var(--p-amber-700);                     /* 未保存 / 待确认的边框与虚下划线（不作文本色） */
+}
+/* ---- state ---- */
+:root{
+  --state-success:var(--p-ok-800);
+  --state-success-tint:var(--p-ok-100);
+  --state-warning:var(--p-amber-800);
+  --state-warning-tint:var(--p-amber-100);
+  --state-danger:var(--p-danger-800);
+  --state-danger-tint:var(--p-danger-100);
+  --state-info:var(--p-info-800);
+  --state-info-tint:var(--p-info-100);
+}
+/* ---- border ---- */
+:root{
+  --border:var(--p-ink-200);                               /* 装饰分隔线（卡片边、行分隔） */
+  --border-strong:var(--p-ink-300);                        /* 次级控件边（按钮、空状态虚线框） */
+  --border-field:var(--p-ink-400);                         /* 表单控件边界：唯一需满足 1.4.11 非文本对比 3:1 的边框 */
+  --danger-border:var(--p-danger-700);                     /* 危险态边框（比 --state-danger 浅一档，仅作边不作文） */
+  --focus:var(--p-green-900);                              /* 焦点环颜色 */
+}
+/* ---- a11y ---- */
+:root{
+  --focus-ring-w:var(--p-bw-3);                            /* 焦点环宽度 */
+  --focus-ring-offset:var(--p-space-2px);
+  --focus-ring-radius:var(--p-radius-4);
+}
+/* ---- layout ---- */
+:root{
+  --layout-content-max:var(--p-size-content-max);
+  --layout-assistant-max:var(--p-size-assistant-max);
+  --layout-prose-max:var(--p-size-prose-max);
+}
+/* ---- shell ---- */
+:root{
+  --shell-appbar-h:var(--p-size-appbar);
+  --shell-tabbar-h:var(--p-size-tabbar);
+  --size-control-min:var(--p-size-tap);                    /* 所有可点击控件的最小高度（按钮/导航/胶囊入口） */
+}
+/* ---- elevation ---- */
+:root{
+  --elevation-card:var(--p-shadow-1);
+}
+/* ---- motion ---- */
+:root{
+  --motion-spin-duration:var(--p-duration-spin);
+  --motion-spin-easing:var(--p-easing-linear);
+}
+
+
+/* ======================== L3 · component —— 组件属性（颜色经 L2，尺度类原语可直取 L1；组件规则只消费这一层） ======================== */
+/* ---- root ---- */
+:root{
+  --root-bg:var(--bg-page);
+  --root-fg:var(--text-primary);
+  --root-font:var(--p-font-sans);
+  --root-fs:var(--p-fs-17);
+  --root-lh:var(--p-lh-body);
+  --root-font-variant:tabular-nums;                        /* 等宽数字：时间/编号列对齐 */
+  --root-tabbar-reserve:var(--shell-tabbar-h);             /* 窄屏底部为标签栏留白，≥sm 归零 */
+  --root-scroll-offset:calc(var(--shell-appbar-h) + var(--p-space-1)); /* html 的 scroll-padding-top：顶栏 56px + 一个间距档 6px = 62px，锚点与 skip-link 跳转时目标不被 sticky 顶栏遮挡（rb.css:84 声明、rb.css:94 消费）。取值与 rb.css 的 `calc(var(--h-appbar) + var(--sp-1))` 解析后逐字相等；此处不写 `var(--appbar-min-h)`，因为 L3 之间互引是 verify-system.py B 项的 FAIL 级违规 */
+}
+/* ---- focus ---- */
+:root{
+  --focus-outline-w:var(--focus-ring-w);
+  --focus-outline-color:var(--focus);
+  --focus-outline-offset:var(--focus-ring-offset);
+  --focus-outline-radius:var(--focus-ring-radius);
+}
+/* ---- skiplink ---- */
+:root{
+  --skiplink-bg:var(--bg-card);
+  --skiplink-border-color:var(--focus);
+  --skiplink-border-w:var(--p-bw-2);
+  --skiplink-radius:var(--p-radius-10);
+  --skiplink-pad-y:var(--p-space-2);
+  --skiplink-pad-x:var(--p-space-3);
+  --skiplink-offset-x:var(--p-space-2);
+  --skiplink-offset-y-visible:var(--p-space-2);
+  --skiplink-offset-y-hidden:var(--p-offset-offscreen);
+  --skiplink-z:var(--p-z-skiplink);
+  --skiplink-fw:var(--p-fw-semibold);
+}
+/* ---- sr ---- */
+:root{
+  --sr-size:var(--p-sr-clip-size);
+  --sr-offset:var(--p-sr-clip-offset);
+}
+/* ---- appbar ---- */
+:root{
+  --appbar-bg:var(--bg-card);
+  --appbar-border-color:var(--border);
+  --appbar-border-w:var(--p-bw-1);
+  --appbar-min-h:var(--shell-appbar-h);
+  --appbar-pad-y:var(--p-space-1);
+  --appbar-pad-x:var(--p-space-3);
+  --appbar-gap:var(--p-space-3);
+  --appbar-nav-gap:var(--p-space-1);                       /* 内联导航项之间的间距（rb.css:136），与 --appbar-gap 不同 */
+  --appbar-nav-offset-x:var(--p-space-2);                  /* 导航区左侧偏移（rb.css:136 margin-left），把导航与品牌分开 */
+  --appbar-user-gap:var(--p-space-2);                      /* 用户区图标与身份标签的间距（rb.css:137） */
+  --appbar-z:var(--p-z-appbar);
+  --appbar-max-w:var(--layout-content-max);
+}
+/* ---- brand ---- */
+:root{
+  --brand-gap:var(--p-space-1);
+  --brand-fw:var(--p-fw-semibold);
+  --brand-mark-size:var(--p-size-mark-sm);
+  --brand-mark-radius:var(--p-radius-7);
+  --brand-mark-bg:var(--accent);
+  --brand-mark-fg:var(--accent-tint);
+  --brand-mark-size-lg:var(--p-size-mark-lg);
+  --brand-mark-radius-lg:var(--p-radius-10);
+  --brand-name-fs:var(--p-fs-24);
+}
+/* ---- navlink ---- */
+:root{
+  --navlink-min-h:var(--size-control-min);
+  --navlink-pad-x:var(--p-space-2);
+  --navlink-gap:var(--p-space-1);
+  --navlink-radius:var(--p-radius-10);
+  --navlink-fg:var(--text-secondary);
+  --navlink-fw:var(--p-fw-medium);
+  --navlink-bg-hover:var(--bg-hover-weak);
+  --navlink-current-bg:var(--accent-tint);
+  --navlink-current-fg:var(--accent-strong);
+  --navlink-current-fw:var(--p-fw-semibold);
+}
+/* ---- tabbar ---- */
+:root{
+  --tabbar-bg:var(--bg-card);
+  --tabbar-border-color:var(--border);
+  --tabbar-border-w:var(--p-bw-1);
+  --tabbar-cols:4;                                         /* 一级入口数：助手/课表/计划/管理 */
+  --tabbar-item-min-h:var(--shell-tabbar-h);
+  --tabbar-item-gap:var(--p-space-2px);
+  --tabbar-item-fs:var(--p-fs-13);
+  --tabbar-item-fg:var(--text-secondary);
+  --tabbar-item-current-fg:var(--accent-strong);
+  --tabbar-item-current-fw:var(--p-fw-semibold);
+  --tabbar-z:var(--p-z-tabbar);
+}
+/* ---- wrap ---- */
+:root{
+  --wrap-max:var(--layout-content-max);
+  --wrap-pad-y:var(--p-space-4);
+  --wrap-pad-x:var(--p-space-3);
+  --wrap-pad-y-sm:var(--p-space-6);                        /* ≥sm(768px) 的纵向内边距（rb.css:166）。 命名用 sm 而非 md：该规则写在 min-width:768px 档 */
+  --wrap-pad-x-sm:var(--p-space-4);                        /* ≥sm(768px) 的横向内边距（rb.css:166） */
+  --wrap-assistant-max:var(--layout-assistant-max);
+  --wrap-inner-pad-x:0;                                    /* 嵌套 .wrap（助手片段自带 wrap）时内层左右内边距归零，避免双重缩进 */
+}
+/* ---- card ---- */
+:root{
+  --card-bg:var(--bg-card);
+  --card-border-color:var(--border);
+  --card-border-w:var(--p-bw-1);
+  --card-radius:var(--p-radius-14);
+  --card-shadow:var(--elevation-card);
+  --card-head-pad-y:var(--p-space-3);
+  --card-head-pad-x:var(--p-space-3);
+  --card-head-pad-b:var(--p-space-2);
+  --card-head-gap:var(--p-space-2);
+  --card-body-pad:var(--p-space-3);
+  --card-foot-pad-t:var(--p-space-2);
+  --card-foot-pad-x:var(--p-space-3);
+  --card-foot-pad-b:var(--p-space-3);
+  --card-foot-gap:var(--p-space-2);
+  --card-row-gap:var(--p-space-3);
+}
+/* ---- btn ---- */
+:root{
+  --btn-bg:var(--bg-card);
+  --btn-fg:var(--text-primary);
+  --btn-border-color:var(--border-strong);
+  --btn-border-w:var(--p-bw-1);
+  --btn-min-h:var(--size-control-min);
+  --btn-pad-x:var(--p-space-3);
+  --btn-pad-x-sm:var(--p-space-2);
+  --btn-gap:var(--p-space-1);
+  --btn-radius:var(--p-radius-10);
+  --btn-fw:var(--p-fw-semibold);
+  --btn-fs-sm:var(--p-fs-15);
+  --btn-disabled-opacity:var(--p-opacity-disabled);
+  --btn-primary-bg:var(--accent);
+  --btn-primary-fg:var(--text-on-accent);
+  --btn-primary-border-color:var(--accent);
+  --btn-primary-bg-hover:var(--accent-strong);
+  --btn-danger-bg:var(--state-danger-tint);
+  --btn-danger-fg:var(--state-danger);
+  --btn-danger-border-color:var(--danger-border);
+  --btn-ghost-bg:transparent;
+  --btn-ghost-fg:var(--text-secondary);
+  --btn-ghost-border-color:transparent;
+}
+/* ---- pill ---- */
+:root{
+  --pill-bg:var(--bg-muted);
+  --pill-fg:var(--text-secondary);
+  --pill-fs:var(--p-fs-13);
+  --pill-fw:var(--p-fw-semibold);
+  --pill-lh:var(--p-lh-control);
+  --pill-pad-y:var(--p-space-2px);
+  --pill-pad-x:var(--p-space-10px);
+  --pill-gap:var(--p-space-5px);
+  --pill-radius:var(--p-radius-pill);
+  --pill-ok-bg:var(--state-success-tint);
+  --pill-ok-fg:var(--state-success);
+  --pill-warn-bg:var(--state-warning-tint);
+  --pill-warn-fg:var(--state-warning);
+  --pill-danger-bg:var(--state-danger-tint);
+  --pill-danger-fg:var(--state-danger);
+  --pill-info-bg:var(--state-info-tint);
+  --pill-info-fg:var(--state-info);
+  --pill-evidence-bg:var(--accent-tint);
+  --pill-evidence-fg:var(--accent-strong);
+  --pill-advice-bg:var(--bg-muted);
+  --pill-advice-fg:var(--text-secondary);
+}
+/* ---- notice ---- */
+:root{
+  --notice-bg:var(--bg-muted);
+  --notice-fg:var(--text-primary);
+  --notice-gap:var(--p-space-2);
+  --notice-pad:var(--p-space-3);
+  --notice-radius:var(--p-radius-10);
+  --notice-margin-b:var(--p-space-3);
+  --notice-ico-offset-y:var(--p-space-2px);
+  --notice-info-bg:var(--state-info-tint);
+  --notice-info-fg:var(--state-info);
+  --notice-warn-bg:var(--state-warning-tint);
+  --notice-warn-fg:var(--state-warning);
+  --notice-danger-bg:var(--state-danger-tint);
+  --notice-danger-fg:var(--state-danger);
+  --notice-ok-bg:var(--state-success-tint);
+  --notice-ok-fg:var(--state-success);
+  --notice-evidence-bg:var(--accent-tint);
+  --notice-evidence-fg:var(--accent-strong);
+}
+/* ---- chat ---- */
+:root{
+  --chat-gap:var(--p-space-3);
+  --msg-gap:var(--p-space-1);
+  --msg-who-fs:var(--p-fs-13);
+  --msg-who-fg:var(--text-muted);
+  --bubble-bg:var(--bg-card);
+  --bubble-fg:var(--text-primary);
+  --bubble-border-color:var(--border);
+  --bubble-border-w:var(--p-bw-1);
+  --bubble-radius:var(--p-radius-14);
+  --bubble-pad-y:var(--p-space-2);
+  --bubble-pad-x:var(--p-space-3);
+  --bubble-user-bg:var(--accent-tint);
+  --bubble-user-border-color:var(--accent-tint);
+  --bubble-user-tail-radius:var(--p-radius-6);
+  --bubble-max-w:var(--p-size-full);
+  --bubble-max-w-xs:var(--p-size-bubble-max);              /* ≥xs 限宽，避免长回答铺满整屏 */
+}
+/* ---- steps ---- */
+:root{
+  --steps-gap:var(--p-space-1);
+  --steps-rail-w:var(--p-bw-2);
+  --steps-rail-color:var(--border);
+  --steps-indent:var(--p-space-3);
+  --step-gap:var(--p-space-2);
+  --step-ico-offset-y:var(--p-space-3px);
+  --step-sub-fs:var(--p-fs-15);
+  --step-sub-fg:var(--text-secondary);
+  --step-failed-fg:var(--state-danger);
+  --steps-min-h:var(--size-control-min);
+  --steps-summary-fs:var(--p-fs-15);
+  --steps-summary-fg:var(--text-secondary);
+  --steps-summary-gap:var(--p-space-1);
+  --step-running-spin-duration:var(--p-duration-spin);     /* running 态图标旋转时长（rb.css:253）。必须放在 L3：组件规则只能消费 L3，而 --motion-spin-duration 在 L2，跨层取不到——这是收口时补入的原因 */
+  --step-running-spin-easing:var(--p-easing-linear);       /* running 态旋转缓动（rb.css:253） */
+}
+/* ---- composer ---- */
+:root{
+  --composer-bg:var(--bg-page);
+  --composer-border-color:var(--border);
+  --composer-border-w:var(--p-bw-1);
+  --composer-pad-y:var(--p-space-2);
+  --composer-gap:var(--p-space-2);
+  --composer-count-fs:var(--p-fs-13);
+  --composer-count-fg:var(--text-muted);
+  --composer-z:var(--p-z-composer);
+  --composer-bottom:var(--shell-tabbar-h);                 /* 窄屏吸附在标签栏之上；≥sm 归零 */
+}
+/* ---- cite ---- */
+:root{
+  --cite-bg:var(--bg-card);
+  --cite-border-color:var(--border);
+  --cite-border-w:var(--p-bw-1);                           /* 三边实线宽度；__body 的上分隔线用同宽虚线 */
+  --cite-accent-w:var(--p-bw-4);                           /* 左侧主色条——已验证引用的视觉标记 */
+  --cite-accent-color:var(--accent);
+  --cite-radius:var(--p-radius-10);
+  --cite-pad-y:var(--p-space-2);
+  --cite-pad-x:var(--p-space-3);
+  --cite-margin-t:var(--p-space-2);
+  --cite-head-gap:var(--p-space-1);                        /* 行间距（rb.css:279 的 gap 第一值） */
+  --cite-head-gap-x:var(--p-space-2);                      /* 列间距（rb.css:279 的 gap 第二值）；与行间距不同，不可合并成一个 token */
+  --cite-head-fs:var(--p-fs-15);
+  --cite-loc-fs:var(--p-fs-13);
+  --cite-loc-fg:var(--text-muted);
+  --cite-body-fs:var(--p-fs-15);
+  --cite-body-fg:var(--text-secondary);
+  --cite-body-margin-t:var(--p-space-1);
+  --cite-body-pad-t:var(--p-space-1);
+  --cite-invalid-border-color:var(--danger-border);
+  --cite-invalid-bg:var(--state-danger-tint);
+  --cite-invalid-fg:var(--state-danger);
+  --cite-mark-pending-color:var(--pending);
+  --cite-mark-pending-underline:var(--pending-border);     /* 未验证引用标记：虚下划线，与已验证引用必须可区分 */
+}
+/* ---- draft ---- */
+:root{
+  --draft-bg:var(--bg-card);
+  --draft-border-w:var(--p-bw-2);
+  --draft-border-color:var(--pending-border);              /* 未保存态：虚线琥珀边 */
+  --draft-radius:var(--p-radius-14);
+  --draft-pad:var(--p-space-3);
+  --draft-head-gap:var(--p-space-2);
+  --draft-head-margin-b:var(--p-space-2);
+  --draft-kv-key-col:auto;
+  --draft-kv-gap-y:var(--p-space-1);
+  --draft-kv-gap-x:var(--p-space-2);
+  --draft-kv-key-fs:var(--p-fs-13);
+  --draft-kv-key-fg:var(--text-muted);
+  --draft-saved-border-color:var(--border);
+}
+/* ---- empty ---- */
+:root{
+  --empty-pad-y:var(--p-space-6);
+  --empty-pad-x:var(--p-space-3);
+  --empty-border-w:var(--p-bw-1);
+  --empty-border-color:var(--border-strong);
+  --empty-radius:var(--p-radius-14);
+  --empty-bg:var(--bg-card);
+  --empty-art-fg:var(--text-art);
+  --empty-art-margin-b:var(--p-space-2);
+  --empty-title-margin-b:var(--p-space-1);
+  --empty-hint-fs:var(--p-fs-15);
+  --empty-hint-fg:var(--text-secondary);
+  --empty-error-border-color:var(--danger-border);
+  --empty-error-bg:var(--state-danger-tint);
+  --empty-error-fg:var(--state-danger);
+}
+/* ---- field ---- */
+:root{
+  --field-gap:var(--p-space-1);
+  --field-label-fs:var(--p-fs-15);
+  --field-label-fw:var(--p-fw-semibold);
+  --field-req-fg:var(--state-danger);
+  --field-req-fs:var(--p-fs-13);
+  --field-hint-fs:var(--p-fs-13);
+  --field-hint-fg:var(--text-muted);
+  --field-error-fs:var(--p-fs-13);
+  --field-error-fg:var(--state-danger);
+  --field-error-gap:var(--p-space-5px);
+  --field-grid-gap:var(--p-space-3);
+}
+/* ---- control ---- */
+:root{
+  --control-bg:var(--bg-card);
+  --control-fg:var(--text-primary);
+  --control-border-color:var(--border-field);
+  --control-border-w:var(--p-bw-1);
+  --control-radius:var(--p-radius-10);
+  --control-min-h:var(--size-control-min);
+  --control-pad-y:var(--p-space-10px);
+  --control-pad-x:var(--p-space-2);
+  --control-textarea-min-h:var(--p-size-textarea-min);
+  --control-textarea-lh:var(--p-lh-control);
+  --control-readonly-bg:var(--bg-readonly);
+  --control-readonly-border-color:var(--border);
+  --control-readonly-fg:var(--text-secondary);
+  --control-disabled-opacity:var(--p-opacity-disabled);
+  --control-invalid-border-color:var(--danger-border);
+  --control-invalid-ring:0 0 0 var(--p-bw-3) var(--state-danger-tint);
+  --errorsummary-border-color:var(--danger-border);
+  --errorsummary-border-w:var(--p-bw-1);
+  --errorsummary-bg:var(--state-danger-tint);
+  --errorsummary-radius:var(--p-radius-10);
+  --errorsummary-pad-y:var(--p-space-2);
+  --errorsummary-pad-x:var(--p-space-3);
+  --errorsummary-margin-b:var(--p-space-3);
+  --errorsummary-fg:var(--state-danger);
+}
+/* ---- table ---- */
+:root{
+  --table-bg:var(--bg-card);
+  --table-border-color:var(--border);
+  --table-border-w:var(--p-bw-1);
+  --table-radius:var(--p-radius-14);
+  --table-fs:var(--p-fs-15);
+  --table-caption-fs:var(--p-fs-13);
+  --table-caption-fg:var(--text-muted);
+  --table-caption-pad-t:var(--p-space-2);
+  --table-caption-pad-x:var(--p-space-3);
+  --table-cell-pad-y:var(--p-space-2);
+  --table-cell-pad-x:var(--p-space-3);
+  --table-head-fs:var(--p-fs-13);
+  --table-head-fg:var(--text-secondary);
+  --table-cellname-min-w:var(--p-size-cellname-min);
+  --table-compact-fs:var(--p-fs-13);
+  --table-compact-pad-y:var(--p-space-8px);
+  --table-compact-pad-x:var(--p-space-2);
+  --table-stack-label-col:var(--p-size-label-col);
+  --table-stack-row-pad-y:var(--p-space-2);
+  --table-stack-row-pad-x:var(--p-space-3);
+  --table-stack-cell-pad-y:var(--p-space-5px);
+  --table-stack-label-fs:var(--p-fs-13);
+  --table-stack-label-fg:var(--text-muted);
+  --table-stack-label-fw:var(--p-fw-semibold);
+  --table-stack-name-fs:var(--p-fs-17);
+  --table-stack-name-pad-b:var(--p-space-8px);
+  --table-stack-name-label-margin-b:var(--p-space-2px);    /* 卡片标题单元格里 ::before 字段名的下边距（rb.css:372）。与 --table-stack-name-pad-b(8px) 是两处不同的值，不可互相借用 */
+  --table-stack-caption-pad-b:var(--p-space-2);
+}
+/* ---- kv ---- */
+:root{
+  --kv-gap:var(--p-space-1);
+  --kv-row-key-col:var(--p-size-kv-key-col);
+  --kv-row-gap:var(--p-space-2);
+  --kv-key-fs:var(--p-fs-15);
+  --kv-key-fg:var(--text-muted);
+}
+/* ---- chip ---- */
+:root{
+  --chip-min-h:var(--size-control-min);
+  --chip-pad-x:var(--p-space-3);
+  --chip-gap:var(--p-space-1);
+  --chip-radius:var(--p-radius-pill);
+  --chip-bg:var(--bg-card);
+  --chip-fg:var(--text-primary);
+  --chip-border-color:var(--border-strong);
+  --chip-border-w:var(--p-bw-1);
+  --chip-fw:var(--p-fw-medium);
+  --chip-hover-border-color:var(--accent);
+  --chip-hover-fg:var(--accent-strong);
+  --chips-gap:var(--p-space-1);
+}
+/* ---- prose　正文排版族。 这是一个**语义归组而非作用域**：7 个 token 里只有 --prose-max 真正绑在 .prose（rb.css:170），其余 6 个描述的是全局的 h1–h4/p/a/code（rb.css:106-109）——rb.css 里并不存在 `.prose p` 这类后代选择器。Vue 阶段若把这些样式收进 scoped 样式块，.prose 内会丢样式，必须放在全局层。 ---- */
+:root{
+  --prose-max:var(--layout-prose-max);
+  --prose-para-margin-b:var(--p-space-3);
+  --prose-h-fw:var(--p-fw-semibold);
+  --prose-h-lh:var(--p-lh-tight);
+  --prose-link-fg:var(--accent-strong);
+  --prose-code-font:var(--p-font-mono);
+  --prose-code-fs:var(--p-fs-code);                        /* 行内代码字号（0.92em） */
+}
+/* ---- login ---- */
+:root{
+  --login-max-w:var(--p-size-login-max);
+  --login-gap:var(--p-space-3);
+  --login-brand-gap:var(--p-space-2);
+  --login-sub-fs:var(--p-fs-15);
+  --login-sub-fg:var(--text-secondary);
+  --login-foot-fs:var(--p-fs-13);
+  --login-foot-fg:var(--text-muted);
+}
+/* ---- utility ---- */
+:root{
+  --stack-gap:var(--p-space-2);
+  --row-gap:var(--p-space-2);
+  --muted-fg:var(--text-muted);
+  --small-fs:var(--p-fs-13);
+}
+
+
+/* ======================== L0 · compat —— rb.css 兼容层（deprecated，新代码不得引用） ======================== */
+:root{
+  /* L0 兼容层（deprecated）。保留 rb.css 的 :root 变量名中不与 L2/L3 重名的 50 个，值必须与 rb.css 逐值等价，使已独立验证的响应式原型零改动继续工作。新代码不得引用本层。 语义层已用同名定义的 24 个变量 + L3 的 `--root-scroll-offset`（第 25 个）不在此重复声明（重复会让变量自引用而失效）。 */
+  --c-green-900:var(--p-green-900);
+  --c-green-700:var(--p-green-700);
+  --c-green-100:var(--p-green-100);
+  --c-amber-800:var(--p-amber-800);
+  --c-amber-700:var(--p-amber-700);
+  --c-amber-100:var(--p-amber-100);
+  --c-ok-800:var(--p-ok-800);
+  --c-ok-700:var(--p-ok-700);
+  --c-ok-100:var(--p-ok-100);
+  --c-danger-800:var(--p-danger-800);
+  --c-danger-700:var(--p-danger-700);
+  --c-danger-100:var(--p-danger-100);
+  --c-info-800:var(--p-info-800);
+  --c-info-700:var(--p-info-700);
+  --c-info-100:var(--p-info-100);
+  --c-ink-900:var(--p-ink-900);
+  --c-ink-700:var(--p-ink-700);
+  --c-ink-600:var(--p-ink-600);
+  --c-ink-500:var(--p-ink-500);
+  --c-ink-400:var(--p-ink-400);
+  --c-ink-300:var(--p-ink-300);
+  --c-ink-200:var(--p-ink-200);
+  --c-bg-page:var(--p-sand-50);
+  --c-bg-card:var(--p-white);
+  --sp-1:var(--p-space-1);
+  --sp-2:var(--p-space-2);
+  --sp-3:var(--p-space-3);
+  --sp-4:var(--p-space-4);
+  --sp-6:var(--p-space-6);
+  --sp-8:var(--p-space-8);
+  --sp-12:var(--p-space-12);
+  --fs-13:var(--p-fs-13);
+  --fs-15:var(--p-fs-15);
+  --fs-17:var(--p-fs-17);
+  --fs-20:var(--p-fs-20);
+  --fs-24:var(--p-fs-24);
+  --fs-32:var(--p-fs-32);
+  --lh-body:var(--p-lh-body);
+  --lh-tight:var(--p-lh-tight);
+  --r-card:var(--p-radius-14);
+  --r-control:var(--p-radius-10);
+  --r-pill:var(--p-radius-pill);
+  --shadow-hair:var(--p-shadow-1);
+  --w-content:var(--p-size-content-max);
+  --w-assistant:var(--p-size-assistant-max);
+  --h-appbar:var(--p-size-appbar);
+  --h-tabbar:var(--p-size-tabbar);
+  --tap:var(--p-size-tap);
+  --font-sans:var(--p-font-sans);
+  --font-mono:var(--p-font-mono);
+}
+

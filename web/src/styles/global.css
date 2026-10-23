@@ -1,0 +1,91 @@
+/* ============================================================================
+   global.css —— 元素级全局规则（前端详细设计 §8.5）
+   ----------------------------------------------------------------------------
+   内容**严格限定**为：html / body / * / h1–h4 / p / a / code / .mono /
+   :focus-visible / prefers-reduced-motion / scroll-padding-top。
+
+   允许消费 L3：`--root-*`（root 族）、`--focus-outline-*`（focus 族）、`--prose-*`（prose 族）。
+   **不得**在这里写组件族样式（那些在 base.css），也**不得**写裸 hex / 裸长度。
+
+   `.prose p` 这类规则**必须留在这里**：若搬进 `Prose.vue` 的 scoped 样式，
+   `.prose` 内的段落节奏、标题字重、链接色、行内代码字体会静默丢失
+   （design/system/components/03-conversation.md §Prose 第 5 节「诚实说明」）。
+   锚点：rb.css:93–118、106–110、111、170。
+   ============================================================================ */
+
+/* rb.css:93 */
+* {
+  box-sizing: border-box;
+}
+
+/* rb.css:94–104 */
+html {
+  -webkit-text-size-adjust: 100%;
+  /* W1（必修项）：锚点与 skip-link 跳转后目标被 sticky 顶栏遮挡 56.4–56.7px。
+     修法由阶段 A 落到 token 层：`root` 组新增 `--root-scroll-offset`
+     （= calc(--appbar-min-h + --sp-1) = 62px），组件与全局样式**都不得硬编码这个 calc**。
+     前端详细设计 §8.4 W1 的验收判据：`#main.getBoundingClientRect().top >= 62 - 0.5`。 */
+  scroll-padding-top: var(--root-scroll-offset);
+}
+
+body {
+  margin: 0;
+  background: var(--root-bg);
+  color: var(--root-fg);
+  font: var(--root-fs) / var(--root-lh) var(--root-font);
+  font-variant-numeric: var(--root-font-variant);
+  /* 窄屏底部标签栏占位；≥sm 由媒体查询归零。 */
+  padding-bottom: calc(var(--root-tabbar-reserve) + env(safe-area-inset-bottom, 0px));
+}
+
+/* rb.css:104 */
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 0;
+  }
+}
+
+/* rb.css:106–109（prose 族的全局元素规则 —— 必须留在 global.css） */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  line-height: var(--prose-h-lh);
+  font-weight: var(--prose-h-fw);
+}
+
+p {
+  margin: 0 0 var(--prose-para-margin-b);
+}
+
+a {
+  color: var(--prose-link-fg);
+}
+
+code,
+.mono {
+  font-family: var(--prose-code-font);
+  font-size: var(--prose-code-fs);
+}
+
+/* rb.css:110（focus 族）—— 组件**不得**覆盖 outline */
+:focus-visible {
+  outline: var(--focus-outline-w) solid var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+  border-radius: var(--focus-outline-radius);
+}
+
+/* rb.css:111 —— 全局**唯一一处** prefers-reduced-motion 重置。
+   依据（前端详细设计 §8.3 / L1723）：本方向唯一动效是 `.step--running .step__ico` 的旋转
+   （rb.css:252–253，时长/缓动由 L3 `--step-running-spin-duration` / `-easing` 承载）。
+   组件层**不得**再写第二处 reduced-motion 块；
+   流式回答的「打字机」效果一律不做（无 token，§8.3 明文）。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

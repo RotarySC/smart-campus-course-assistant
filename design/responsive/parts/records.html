@@ -1,0 +1,286 @@
+<!-- ============================================================================
+     方向 B · 响应式原型 · 学生业务区片段（S07–S09）
+     文件：design/responsive/parts/records.html
+     样式契约：design/responsive/rb.css（唯一样式来源）
+     文案契约：design/directions/shared/content-spec.md
+     约束：纯 markup 片段 —— 无 <style>、无媒体查询、无裸 hex、无内联样式、无 emoji、
+           图标一律内联 SVG（24×24 / stroke-width=1.75 / fill=none / stroke=currentColor）。
+     本片段只用 rb.css 已登记的 class，未发明新 class。
+     ============================================================================ -->
+
+<!-- ===================== S07 我的课表 · 有课 ===================== -->
+<section class="view" id="v-S07" aria-labelledby="s07-title">
+  <h2 class="sr-only" id="s07-title">我的课表 · 有课</h2>
+  <div class="view__head">
+    <span class="view__id">S07</span>
+    <span class="view__cap">我的课表 · 有课 · 2026-10-22 周四 · 按开始时间升序</span>
+  </div>
+  <p class="view__note">列表 / 卡片两种呈现由同一个表格负责：≥768 是表格，&lt;768 自动折叠成卡片，字段名来自 data-label，因此窄屏不需要横向滚动。</p>
+
+  <div class="card">
+    <div class="card__head">
+      <button class="btn btn--sm" type="button" aria-label="查看前一天">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <strong class="mono">2026-10-22 周四</strong>
+      <button class="btn btn--sm" type="button" aria-label="查看后一天">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <button class="btn btn--sm" type="button">今天</button>
+      <span class="pill pill--advice">单次最多查询 31 天</span>
+    </div>
+
+    <div class="card__body">
+      <div class="table-wrap table-wrap--stackable">
+        <table class="table table--stack table--compact">
+          <caption>2026-10-22 周四 · 共 2 条课表记录，按开始时间升序。窄屏下每行折叠为一张卡片，字段名由 data-label 提供。</caption>
+          <thead>
+            <tr>
+              <th scope="col">时间</th>
+              <th scope="col">课程</th>
+              <th scope="col">地点</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num" data-label="时间">08:00–09:40</td>
+              <td class="cell-name" data-label="课程">数据结构</td>
+              <td data-label="地点">主楼 A-305</td>
+            </tr>
+            <tr>
+              <td class="num" data-label="时间">10:00–11:40</td>
+              <td class="cell-name" data-label="课程">大学英语</td>
+              <td data-label="地点">文科楼 B-102</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card__foot">
+      <span class="small muted">时间为学校时区 Asia/Shanghai</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== S08 我的课表 · 两种空状态（并列、视觉可区分） ===================== -->
+<section class="view" id="v-S08" aria-labelledby="s08-title">
+  <h2 class="sr-only" id="s08-title">我的课表 · 两种空状态</h2>
+  <div class="view__head">
+    <span class="view__id">S08</span>
+    <span class="view__cap">我的课表 · 两种空状态 · 查询成功但无记录 ≠ 服务异常</span>
+  </div>
+  <p class="view__note">PRD/SRS 硬验收点：这两态必须并列、必须一眼可分，禁止把它们合并成同一个中性提示。①是查询成功后的中性空结果；②是读取失败，必须保留「未知」语义，不得改写成「没有课」。</p>
+
+  <div class="card-row card-row--2">
+
+    <!-- ① 查询成功但无记录：中性色，不得使用错误色 -->
+    <div class="empty">
+      <p class="empty__art">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      </p>
+      <p class="empty__title">2026-10-22（周四）没有课程安排。</p>
+      <p class="empty__hint">查询成功 · 无记录：当天确实没有课程安排，不是读取失败。</p>
+      <p class="empty__hint">查询条件是完整的日期，可核对。</p>
+      <p>
+        <button class="btn" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          换个日期
+        </button>
+      </p>
+    </div>
+
+    <!-- ② 服务异常：危险语义 + 警告三角，与 ① 明显不同 -->
+    <div class="empty empty--error" role="alert">
+      <p class="empty__art">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.3 4.3 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </p>
+      <p class="empty__title">课表数据暂时无法读取，这不代表当天没有课。</p>
+      <p class="empty__hint">服务异常 · 无法判断有无课：读取失败保留了「未知」语义，不能显示成「没有课」。</p>
+      <p>
+        <button class="btn btn--primary" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+          重试
+        </button>
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===================== S09 学习计划 · 列表 + 详情编辑 ===================== -->
+<section class="view" id="v-S09" aria-labelledby="s09-title">
+  <h2 class="sr-only" id="s09-title">学习计划 · 列表 + 详情编辑</h2>
+  <div class="view__head">
+    <span class="view__id">S09</span>
+    <span class="view__cap">学习计划 · 列表 + 详情编辑 · 按更新时间倒序</span>
+  </div>
+  <p class="view__note">列表与空态都要有；详情表单含只读「来源」、日期校验失败、409 版本冲突与删除二次确认。</p>
+
+  <!-- ---------- 列表 ---------- -->
+  <div class="card">
+    <div class="card__head">
+      <div class="field">
+        <label class="field__label" for="s09-q">按标题筛选</label>
+        <input class="input" id="s09-q" type="search" name="q" autocomplete="off">
+        <span class="field__hint" id="s09-q-hint">按计划标题做包含匹配，留空显示全部。</span>
+      </div>
+      <button class="btn btn--primary spacer" type="button">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        新建计划
+      </button>
+    </div>
+
+    <div class="card__body">
+      <div class="table-wrap table-wrap--stackable">
+        <table class="table table--stack">
+          <caption>学习计划列表，按更新时间倒序。来源由服务端在创建时固定，学生不可修改；窄屏下每行折叠为一张卡片。</caption>
+          <thead>
+            <tr>
+              <th scope="col">标题</th>
+              <th scope="col">覆盖日期</th>
+              <th scope="col">来源</th>
+              <th scope="col">更新时间</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cell-name" data-label="标题">实验二排序算法预习计划</td>
+              <td class="num" data-label="覆盖日期">2026-10-22 → 2026-10-24</td>
+              <td data-label="来源">助手生成</td>
+              <td class="num" data-label="更新时间">2026-10-21 17:20</td>
+              <td data-label="操作">
+                <div class="row">
+                  <button class="btn btn--sm" type="button" aria-label="打开计划：实验二排序算法预习计划">打开</button>
+                  <button class="btn btn--sm btn--danger" type="button" aria-label="删除计划：实验二排序算法预习计划">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    删除
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="cell-name" data-label="标题">期末复习总纲</td>
+              <td class="num" data-label="覆盖日期">未设置日期</td>
+              <td data-label="来源">手动创建</td>
+              <td class="num" data-label="更新时间">2026-10-20 09:05</td>
+              <td data-label="操作">
+                <div class="row">
+                  <button class="btn btn--sm" type="button" aria-label="打开计划：期末复习总纲">打开</button>
+                  <button class="btn btn--sm btn--danger" type="button" aria-label="删除计划：期末复习总纲">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    删除
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- 空列表态（非错误：中性） ---------- -->
+  <div class="empty">
+    <p class="empty__art">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+    </p>
+    <p class="empty__title">还没有学习计划。</p>
+    <p class="empty__hint">列表为空 · 非错误：可以手动新建，也可以让助手起草。</p>
+    <p>
+      <button class="btn btn--primary" type="button">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>
+        手动新建
+      </button>
+    </p>
+  </div>
+
+  <!-- ---------- 详情 / 编辑表单 ---------- -->
+  <div class="card">
+    <div class="card__head">
+      <h3>详情 / 编辑</h3>
+      <span class="pill pill--evidence">plan_7Q2F9K</span>
+    </div>
+
+    <div class="card__body">
+      <div class="error-summary" role="alert" tabindex="-1" id="s09-conflict">
+        <p>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.3 4.3 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <b>版本冲突（HTTP 409）</b>
+        </p>
+        <p>这份计划已被其他标签页修改，请重新加载后再提交；你未提交的编辑会保留。</p>
+        <p><a href="#s09-start">重新加载前请核对「开始日期 / 结束日期」</a></p>
+      </div>
+
+      <div class="form-grid form-grid--2">
+
+        <div class="field field--wide">
+          <label class="field__label" for="s09-plan-title">标题 <span class="field__req">必填</span></label>
+          <input class="input" id="s09-plan-title" name="title" type="text" value="实验二排序算法预习计划" maxlength="100" aria-describedby="s09-title-hint">
+          <span class="field__hint" id="s09-title-hint">标题上限 100 字。助手生成的标题可以改写。</span>
+        </div>
+
+        <div class="field field--wide">
+          <label class="field__label" for="s09-goal">目标</label>
+          <textarea class="textarea" id="s09-goal" name="goal" maxlength="500" aria-describedby="s09-goal-hint">实验前完成排序算法预习并提交预习报告</textarea>
+          <span class="field__hint" id="s09-goal-hint">目标上限 500 字。写清「做到什么算完成」，不要写周次或节次。</span>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="s09-start">开始日期</label>
+          <input class="input" id="s09-start" name="start" type="date" value="2026-10-24" aria-describedby="s09-date-hint s09-date-err">
+          <span class="field__hint" id="s09-date-hint">开始与结束日期要么都填，要么都不填（都不填即「未设置日期」）。</span>
+        </div>
+
+        <div class="field field--invalid">
+          <label class="field__label" for="s09-end">结束日期</label>
+          <input class="input" id="s09-end" name="end" type="date" value="2026-10-22" aria-describedby="s09-date-hint s09-date-err" aria-invalid="true">
+          <span class="field__error" id="s09-date-err" role="alert">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+            开始与结束日期需要同时填写，且开始日期不能晚于结束日期。
+          </span>
+        </div>
+
+        <div class="field field--wide">
+          <label class="field__label" for="s09-body">正文 <span class="field__req">必填</span></label>
+          <textarea class="textarea" id="s09-body" name="body" maxlength="10000" aria-describedby="s09-body-hint">1) 10-22 课后通读实验二讲义；2) 10-23 手写快排与归并分区过程；3) 10-24 完成不少于 500 字的预习报告并提交。</textarea>
+          <span class="field__hint" id="s09-body-hint">正文上限 10,000 字。按可执行的条目写，一条一行。</span>
+        </div>
+
+        <div class="field field--wide">
+          <label class="field__label" for="s09-source">来源</label>
+          <input class="input" id="s09-source" name="source" type="text" value="助手生成" readonly aria-describedby="s09-source-hint">
+          <span class="field__hint" id="s09-source-hint">只读：创建来源由服务端固定，编辑不会改写来源。</span>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card__foot">
+      <button class="btn btn--primary" type="button">保存修改</button>
+      <button class="btn" type="button">重新加载</button>
+    </div>
+  </div>
+
+  <!-- ---------- 删除二次确认（危险操作，与主操作分离） ---------- -->
+  <div class="card" role="alertdialog" aria-modal="false" aria-labelledby="s09-del-title" aria-describedby="s09-del-desc">
+    <div class="card__head">
+      <h3 id="s09-del-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.3 4.3 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        删除确认
+      </h3>
+      <span class="pill pill--danger">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        不可恢复
+      </span>
+    </div>
+    <div class="card__body">
+      <p id="s09-del-desc">删除「实验二排序算法预习计划」？删除后无法恢复。助手对话不受影响。</p>
+    </div>
+    <div class="card__foot">
+      <button class="btn btn--danger" type="button">确认删除</button>
+      <button class="btn btn--ghost" type="button">取消</button>
+    </div>
+  </div>
+</section>

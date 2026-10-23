@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>信息架构草图 · 校园课程智能助手</title>
+<style>
+  /* ============================================================
+     语义 token（唯一颜色来源；组件内不写裸 hex）
+     ============================================================ */
+  :root{
+    --c-bg:#f6f7f9;
+    --c-surface:#ffffff;
+    --c-surface-2:#eef1f5;
+    --c-ink:#12171f;
+    --c-ink-2:#4b5563;
+    --c-ink-3:#697586;
+    --c-line:#d7dce4;
+    --c-line-strong:#b6bfcc;
+    --c-accent:#1c4f8f;
+    --c-accent-soft:#e6eef8;
+    --c-accent-ink:#123a6b;
+    --c-ok:#186a41;
+    --c-ok-soft:#e3f2ea;
+    --c-ok-line:#8dc9ab;
+    --c-warn:#7a4b06;
+    --c-warn-soft:#fdf1dc;
+    --c-warn-line:#e0b878;
+    --c-danger:#9c2233;
+    --c-danger-soft:#fbe9ec;
+    --c-danger-line:#e0a3ad;
+    --c-neutral:#33415c;
+    --c-neutral-soft:#e9ecf2;
+    --c-neutral-line:#c2c9d6;
+    --c-code:#f1f3f7;
+    --c-on-dark:#ffffff;
+    --c-on-dark-2:#cdd6e4;
+    --c-on-dark-3:#b9c4d6;
+    --c-on-dark-link:#a9c4e8;
+    --c-dark-raised:#2a3444;
+    --c-dark-line:#3d4a5e;
+    --c-accent-line:#b9d0ea;
+    --c-accent-line-2:#c6d8ee;
+    --c-row-hover:#fafbfc;
+    --c-mono:"Consolas","SFMono-Regular","Menlo",monospace;
+    --r-sm:4px; --r-md:8px; --r-lg:12px;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
+    --sh-1:0 1px 2px rgba(18,23,31,.06),0 1px 3px rgba(18,23,31,.05);
+    --maxw:1380px;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--c-bg);color:var(--c-ink);
+    font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:15px;line-height:1.65;
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  :focus-visible{outline:3px solid var(--c-accent);outline-offset:2px;}
+  a{color:var(--c-accent);}
+  code,kbd,.mono{font-family:var(--c-mono);font-size:.9em;}
+  code{background:var(--c-code);border:1px solid var(--c-line);border-radius:var(--r-sm);padding:1px 5px;overflow-wrap:anywhere;}
+  h1,h2,h3,h4{line-height:1.3;margin:0;}
+  h2{font-size:1.5rem;margin-bottom:var(--sp-2);}
+  h3{font-size:1.08rem;margin:var(--sp-5) 0 var(--sp-2);}
+  h4{font-size:.98rem;margin:var(--sp-4) 0 var(--sp-2);}
+  p{margin:var(--sp-2) 0;}
+  ul,ol{margin:var(--sp-2) 0;padding-left:1.3em;}
+  li{margin:2px 0;}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--sp-5) var(--sp-6);}
+  .lede{color:var(--c-ink-2);max-width:96ch;}
+
+  /* ---------- 顶部 ---------- */
+  header.top{background:var(--c-ink);color:var(--c-on-dark);padding:var(--sp-5) 0 var(--sp-4);}
+  header.top .wrap{padding-bottom:0;}
+  .kicker{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--c-on-dark-3);margin:0;}
+  header.top h1{font-size:1.75rem;margin:var(--sp-1) 0 var(--sp-2);color:var(--c-on-dark);}
+  header.top .sub{color:var(--c-on-dark-2);max-width:92ch;margin:0;}
+  .meta-line{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-4);margin-top:var(--sp-3);font-size:.82rem;color:var(--c-on-dark-3);}
+  .meta-line span{display:inline-flex;align-items:center;gap:6px;}
+
+  /* ---------- 粘性导航 ---------- */
+  nav.toc{
+    position:sticky;top:0;z-index:50;background:var(--c-surface);
+    border-bottom:1px solid var(--c-line);box-shadow:var(--sh-1);
+  }
+  nav.toc .wrap{padding:0 var(--sp-5);}
+  nav.toc ul{display:flex;flex-wrap:wrap;gap:var(--sp-1);list-style:none;margin:0;padding:var(--sp-1) 0;}
+  nav.toc a{
+    display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 var(--sp-3);
+    border-radius:var(--r-md);text-decoration:none;color:var(--c-ink-2);font-size:.86rem;
+  }
+  nav.toc a:hover{background:var(--c-surface-2);color:var(--c-ink);}
+  nav.toc a b{font-weight:600;color:var(--c-ink-3);}
+
+  /* ---------- 区块 ---------- */
+  section.block{
+    background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-lg);
+    margin-top:var(--sp-5);padding:var(--sp-5);box-shadow:var(--sh-1);
+  }
+  .block-head{border-bottom:1px solid var(--c-line);padding-bottom:var(--sp-3);margin-bottom:var(--sp-3);}
+  .block-head .num{
+    display:inline-block;font-size:.74rem;letter-spacing:.1em;color:var(--c-accent);
+    background:var(--c-accent-soft);border:1px solid var(--c-accent-line);border-radius:999px;
+    padding:1px 10px;margin-bottom:var(--sp-2);
+  }
+  .block-head .anchors{font-size:.8rem;color:var(--c-ink-3);margin-top:var(--sp-1);}
+
+  /* ---------- 通用卡片/胶囊 ---------- */
+  .pill{
+    display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px;
+    font-size:.76rem;font-weight:600;white-space:nowrap;border:1px solid transparent;
+  }
+  .pill svg{width:13px;height:13px;flex:none;}
+  .pill-ok{background:var(--c-ok-soft);color:var(--c-ok);border-color:var(--c-ok-line);}
+  .pill-warn{background:var(--c-warn-soft);color:var(--c-warn);border-color:var(--c-warn-line);}
+  .pill-danger{background:var(--c-danger-soft);color:var(--c-danger);border-color:var(--c-danger-line);}
+  .pill-neutral{background:var(--c-neutral-soft);color:var(--c-neutral);border-color:var(--c-neutral-line);}
+  .pill-accent{background:var(--c-accent-soft);color:var(--c-accent-ink);border-color:var(--c-accent-line);}
+
+  .callout{border-left:4px solid var(--c-accent);background:var(--c-accent-soft);border-radius:0 var(--r-md) var(--r-md) 0;padding:var(--sp-3) var(--sp-4);margin:var(--sp-3) 0;}
+  .callout.warn{border-color:var(--c-warn);background:var(--c-warn-soft);}
+  .callout.danger{border-color:var(--c-danger);background:var(--c-danger-soft);}
+  .callout.ok{border-color:var(--c-ok);background:var(--c-ok-soft);}
+  .callout h4{margin-top:0;}
+  .callout .quote{font-weight:600;color:var(--c-ink);}
+
+  /* ---------- 表格 ---------- */
+  .table-scroll{overflow-x:auto;border:1px solid var(--c-line);border-radius:var(--r-md);background:var(--c-surface);}
+  table{border-collapse:collapse;width:100%;font-size:.85rem;}
+  caption{text-align:left;padding:var(--sp-2) var(--sp-3);color:var(--c-ink-3);font-size:.8rem;border-bottom:1px solid var(--c-line);}
+  th,td{border-bottom:1px solid var(--c-line);padding:7px 10px;text-align:left;vertical-align:top;}
+  thead th{background:var(--c-surface-2);color:var(--c-ink-2);font-weight:600;position:sticky;top:0;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--c-row-hover);}
+  td.path,th.path{white-space:nowrap;font-family:var(--c-mono);font-size:.82rem;}
+  td.num-col{white-space:nowrap;}
+  .sub{color:var(--c-ink-3);font-size:.82rem;}
+
+  /* ---------- 站点地图（纯 CSS 树） ---------- */
+  .tree{margin:var(--sp-4) 0 0;}
+  .tree ul{list-style:none;margin:0;padding:0;}
+  .tree .tier{display:grid;gap:var(--sp-4);margin-top:var(--sp-5);}
+  .tier-1{grid-template-columns:1fr;justify-items:center;}
+  .tier-2{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .tier-admin{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .tier-3{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .tree li{position:relative;padding-top:var(--sp-5);}
+  .tree .tier-1 > li{padding-top:0;}
+  .tree li::before,.tree li::after{content:"";position:absolute;top:0;width:50%;height:var(--sp-5);border-top:2px solid var(--c-line-strong);}
+  .tree li::before{right:50%;}
+  .tree li::after{left:50%;border-left:2px solid var(--c-line-strong);}
+  .tree li:first-child::before,.tree li:last-child::after{border:0;}
+  .tree li:last-child::before{border-right:2px solid var(--c-line-strong);border-radius:0 var(--r-sm) 0 0;}
+  .tree li:first-child::after{border-radius:var(--r-sm) 0 0 0;}
+  .tree .tier-1 > li::before,.tree .tier-1 > li::after{display:none;}
+  .tree .has-group{padding-bottom:var(--sp-5);}
+  .tree .has-group::after{height:calc(var(--sp-5) + var(--sp-5));}
+
+  .node{
+    background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-md);
+    padding:var(--sp-3);box-shadow:var(--sh-1);height:100%;
+  }
+  .node .node-title{display:flex;align-items:center;gap:7px;font-weight:700;font-size:.95rem;}
+  .node .node-title svg{width:17px;height:17px;color:var(--c-accent);flex:none;}
+  .node .route{font-family:var(--c-mono);font-size:.78rem;color:var(--c-accent-ink);background:var(--c-accent-soft);border:1px solid var(--c-accent-line-2);border-radius:var(--r-sm);display:inline-block;padding:0 6px;margin-top:5px;overflow-wrap:anywhere;}
+  .node .api{margin-top:var(--sp-2);display:flex;flex-direction:column;gap:3px;}
+  .node .api .api-row{font-family:var(--c-mono);font-size:.72rem;color:var(--c-ink-2);overflow-wrap:anywhere;}
+  .node .api .api-row .verb{display:inline-block;min-width:46px;font-weight:700;color:var(--c-ink);}
+  .node .screens{margin-top:var(--sp-2);font-size:.75rem;color:var(--c-ink-3);}
+  .node-root{background:var(--c-ink);border-color:var(--c-ink);}
+  .node-root .node-title,.node-root .route{color:var(--c-on-dark);}
+  .node-root .route{background:var(--c-dark-raised);border-color:var(--c-dark-line);}
+  .node-root .screens{color:var(--c-on-dark-3);}
+  .node-admin{border-color:var(--c-line-strong);background:var(--c-neutral-soft);}
+  .node-admin .node-title svg{color:var(--c-neutral);}
+  .node-admin .route{background:var(--c-surface);border-color:var(--c-neutral-line);color:var(--c-neutral);}
+  .node-child .node-title{font-size:.88rem;}
+  .node-child .node-title svg{width:15px;height:15px;}
+  .node-badge{margin-top:var(--sp-2);}
+
+  /* ---------- 导航模型示意 ---------- */
+  .mock-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--sp-4);margin-top:var(--sp-3);}
+  .mock{border:1px solid var(--c-line);border-radius:var(--r-md);overflow:hidden;background:var(--c-surface);}
+  .mock > figcaption{background:var(--c-surface-2);border-bottom:1px solid var(--c-line);padding:5px var(--sp-3);font-size:.78rem;color:var(--c-ink-2);}
+  .chrome{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2) var(--sp-3);border-bottom:1px solid var(--c-line);background:var(--c-surface);}
+  .chrome .brand{font-weight:700;font-size:.85rem;white-space:nowrap;}
+  .chrome .nav-items{display:flex;gap:2px;flex-wrap:wrap;}
+  .chrome .nav-items a{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:0 10px;border-radius:var(--r-sm);text-decoration:none;color:var(--c-ink-2);font-size:.82rem;border-bottom:3px solid transparent;}
+  .chrome .nav-items a svg{width:15px;height:15px;}
+  .chrome .nav-items a.current{color:var(--c-accent-ink);background:var(--c-accent-soft);border-bottom-color:var(--c-accent);font-weight:700;}
+  .chrome .me{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--c-ink-3);}
+  .drawer{border-top:1px solid var(--c-line);background:var(--c-surface-2);padding:var(--sp-3);}
+  .drawer h5{margin:0 0 var(--sp-2);font-size:.78rem;color:var(--c-ink-2);font-weight:600;}
+  .drawer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;}
+  .drawer li a{display:flex;align-items:center;gap:7px;min-height:34px;padding:0 8px;border-radius:var(--r-sm);text-decoration:none;color:var(--c-ink-2);font-size:.82rem;}
+  .drawer li a.current{background:var(--c-accent-soft);color:var(--c-accent-ink);font-weight:700;}
+  .phone{width:390px;max-width:100%;margin:0 auto;border:1px solid var(--c-line-strong);border-radius:var(--r-lg);background:var(--c-surface);overflow:hidden;}
+  .phone .status-bar{display:flex;justify-content:space-between;padding:4px var(--sp-3);font-size:.68rem;color:var(--c-ink-3);background:var(--c-surface-2);}
+  .phone .p-head{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-bottom:1px solid var(--c-line);}
+  .phone .p-head .brand{font-weight:700;font-size:.86rem;}
+  .phone .p-head .burger{margin-left:auto;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--c-line);border-radius:var(--r-sm);}
+  .phone .p-body{padding:var(--sp-3);font-size:.8rem;color:var(--c-ink-2);}
+  .phone .tabbar{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--c-line);}
+  .phone .tabbar a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;font-size:.66rem;color:var(--c-ink-3);text-decoration:none;}
+  .phone .tabbar a svg{width:18px;height:18px;}
+  .phone .tabbar a.current{color:var(--c-accent-ink);font-weight:700;}
+  .tabbar-note{font-size:.72rem;color:var(--c-ink-3);text-align:center;padding:4px var(--sp-2);border-top:1px dashed var(--c-line);}
+
+  /* ---------- 流程图 ---------- */
+  .flow{border:1px solid var(--c-line);border-radius:var(--r-md);padding:var(--sp-4);margin-top:var(--sp-4);background:var(--c-surface);}
+  .flow > header{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-2);border-bottom:1px dashed var(--c-line);padding-bottom:var(--sp-2);margin-bottom:var(--sp-3);}
+  .flow > header h3{margin:0;}
+  .flow .src{font-size:.76rem;color:var(--c-ink-3);}
+  .chain{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);}
+  .fnode{
+    border:1px solid var(--c-line);background:var(--c-surface);border-radius:var(--r-md);
+    padding:7px 11px;font-size:.82rem;max-width:330px;box-shadow:var(--sh-1);
+  }
+  .fnode .t{font-weight:600;display:block;}
+  .fnode .d{display:block;color:var(--c-ink-3);font-size:.75rem;margin-top:1px;overflow-wrap:anywhere;}
+  .fnode .ep{display:block;font-family:var(--c-mono);font-size:.72rem;color:var(--c-accent-ink);margin-top:2px;overflow-wrap:anywhere;}
+  .fnode.start{background:var(--c-ink);border-color:var(--c-ink);color:var(--c-on-dark);}
+  .fnode.start .d{color:var(--c-on-dark-2);}
+  .fnode.start .ep{color:var(--c-on-dark-link);}
+  .fnode.dec{background:var(--c-accent-soft);border-color:var(--c-accent-line);}
+  .fnode.good{border-color:var(--c-ok-line);background:var(--c-ok-soft);}
+  .fnode.warn{border-color:var(--c-warn-line);background:var(--c-warn-soft);}
+  .fnode.bad{border-color:var(--c-danger-line);background:var(--c-danger-soft);}
+  .fnode.dead{background:var(--c-neutral-soft);border-color:var(--c-neutral-line);}
+  .arrow{color:var(--c-line-strong);font-weight:700;font-size:1rem;flex:none;}
+  .branch{display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-2);}
+  .branch-item{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);}
+  .branch-label{font-size:.75rem;font-weight:700;color:var(--c-ink-2);min-width:74px;}
+  .indent{margin-left:var(--sp-5);border-left:3px solid var(--c-line);padding-left:var(--sp-4);}
+  .hard-note{margin-top:var(--sp-3);font-size:.8rem;color:var(--c-danger);font-weight:600;}
+
+  /* ---------- 生命周期 SVG ---------- */
+  figure.diagram{margin:var(--sp-4) 0 0;}
+  figure.diagram svg{width:100%;height:auto;display:block;border:1px solid var(--c-line);border-radius:var(--r-md);background:var(--c-surface);}
+  figure.diagram figcaption{font-size:.78rem;color:var(--c-ink-3);margin-top:var(--sp-2);}
+
+  /* ---------- 对齐表/清单 ---------- */
+  .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:var(--sp-4);}
+  .card{border:1px solid var(--c-line);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);background:var(--c-surface);}
+  .card.keep{border-color:var(--c-ok-line);background:var(--c-ok-soft);}
+  .card.drop{border-color:var(--c-danger-line);background:var(--c-danger-soft);}
+  .card h4{margin-top:0;}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px var(--sp-3);font-size:.84rem;}
+  .kv dt{color:var(--c-ink-3);}
+  .kv dd{margin:0;}
+  footer.bottom{margin-top:var(--sp-5);padding:var(--sp-4) 0;color:var(--c-ink-3);font-size:.8rem;border-top:1px solid var(--c-line);}
+
+  @media (max-width:1000px){
+    .tree li::before,.tree li::after{display:none;}
+    .tree li{padding-top:var(--sp-3);}
+    .tree .tier{gap:var(--sp-3);}
+    .tier-2,.tier-3,.tier-admin{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+  @media (max-width:640px){
+    .wrap{padding:0 var(--sp-3) var(--sp-5);}
+    section.block{padding:var(--sp-4) var(--sp-3);}
+    .tier-2,.tier-3,.tier-admin{grid-template-columns:1fr;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+    *{animation:none!important;transition:none!important;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="kicker">设计评审输入 · task-4</p>
+    <h1>信息架构草图 · 校园课程智能助手</h1>
+    <p class="sub">站点地图、路由与守卫、导航模型、四条关键流程、对话请求生命周期、状态→界面呈现映射、会话生命周期。
+      本文件是<strong>评审用 IA 草图</strong>，不是实现代码；所有端点路径以 <code>docs/backend/openapi_v0.1.json</code> 为准，所有错误码以 SRS §8 为准。</p>
+    <div class="meta-line">
+      <span>单文件 · 内联 CSS · 零外部请求</span>
+      <span>屏幕块编号对齐 <code>design/directions/shared/content-spec.md</code>（S00–S14）</span>
+      <span>依据：PRD §3/§5、SRS §6/§7/§8、HLD §3.2/§7.3、后端详细设计 §12.1</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="本文件章节导航">
+  <div class="wrap">
+    <ul>
+      <li><a href="#p0"><b>0</b>设计理由与取舍</a></li>
+      <li><a href="#p1"><b>1</b>站点地图</a></li>
+      <li><a href="#p2"><b>2</b>路由与守卫</a></li>
+      <li><a href="#p3"><b>3</b>导航模型</a></li>
+      <li><a href="#p4"><b>4</b>四条关键流程</a></li>
+      <li><a href="#p5"><b>5</b>对话请求生命周期</a></li>
+      <li><a href="#p6"><b>6</b>状态→UI 呈现总表</a></li>
+      <li><a href="#p7"><b>7</b>会话生命周期</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ============================== 0 ============================== -->
+<section class="block" id="p0" data-screen="S00">
+  <div class="block-head">
+    <span class="num">第 0 部分 · 设计理由与取舍</span>
+    <h2>这份 IA 做了什么判断</h2>
+    <p class="anchors">对应 content-spec 的 <code>data-screen-ref="S00"</code>「设计理由与取舍」卡。</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>一句话定位</h4>
+      <p>四个一级页面承载全部业务：<strong>课程助手</strong>（对话式入口）、<strong>我的课表</strong>（只读事实）、<strong>学习计划</strong>（显式授权后落库）、<strong>管理中心</strong>（管理员专用，与助手完全分离的第二条权限路径）。</p>
+      <h4>适用场景</h4>
+      <p>封闭试点的桌面浏览器（≥1366×768）与 390×844 窄屏学生主流程；单一学校时区 <code>Asia/Shanghai</code>。</p>
+      <h4>不适用场景</h4>
+      <p>需要跨设备历史、会话分享链接、周课表、提醒推送、OCR、教务同步的场景——本期均未承诺，IA 不为其预留入口。</p>
+    </div>
+    <div class="card">
+      <h4>优点</h4>
+      <ul>
+        <li>路由只有 11 个，学生侧 4 个，可逐条写出守卫规则与越权行为。</li>
+        <li>助手与管理中心在<strong>权限路径上物理分离</strong>：管理员向助手提问也只拿到本人的课表（PRD §3），不存在"管理数据从对话泄漏"的路径。</li>
+        <li>课表、计划、后台全部可深链可分享可回退；只有助手对话刻意不深链，取舍理由单列（见第 2 部分）。</li>
+        <li>"空结果"与"读取失败"在 IA 层就是两条不同分支（S08 ①②），不会在实现时被合并成一个"暂无数据"。</li>
+      </ul>
+      <h4>代价</h4>
+      <ul>
+        <li>刷新助手页会丢失本轮对话（DEC-01 / HLD-D03 / CHAT-03），用户感知是"退步"；必须用显式提示兑现诚实，而不是伪装恢复。</li>
+        <li>管理中心在窄屏只能横向滚动表格（NFR-COMP-001 允许），不额外做移动端管理 IA。</li>
+        <li>对话过程只能展示<strong>可核实动作</strong>，不能展示模型推理，过程区的信息量天然比"AI 思考流"少。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h4>与 content-spec 屏幕块的对应关系（IA 不重定义屏幕，只给它们落位）</h4>
+    <div class="table-scroll">
+      <table>
+        <caption>屏幕块 S00–S14 → 路由 / IA 章节对照（编号与名称严格沿用 content-spec.md，未新增、未合并、未改名）</caption>
+        <thead><tr><th scope="col">屏幕块</th><th scope="col">名称</th><th scope="col">落位路由</th><th scope="col">本文件章节</th></tr></thead>
+        <tbody>
+          <tr><td class="path">S00</td><td>设计理由与取舍</td><td class="path">—（文档级）</td><td>第 0 部分</td></tr>
+          <tr><td class="path">S01</td><td>登录</td><td class="path">/login</td><td>§1 / §2 / §7</td></tr>
+          <tr><td class="path">S02</td><td>助手 · 空闲态（登录后默认页）</td><td class="path">/assistant</td><td>§1 / §2 / §5 / §7</td></tr>
+          <tr><td class="path">S03</td><td>助手 · 执行中</td><td class="path">/assistant（request 态）</td><td>§5 / §6</td></tr>
+          <tr><td class="path">S04</td><td>助手 · 有据回答 + 引用展开</td><td class="path">/assistant（succeeded 态）</td><td>§4.2 / §6</td></tr>
+          <tr><td class="path">S05</td><td>助手 · 依据不足 / 检索失败</td><td class="path">/assistant（empty / failed 态）</td><td>§4.2 / §6</td></tr>
+          <tr><td class="path">S06</td><td>助手 · 草稿未保存 → 保存成功 / 结果待确认</td><td class="path">/assistant（草稿卡，<strong>不入 URL</strong>）</td><td>§2 / §4.3 / §6</td></tr>
+          <tr><td class="path">S07</td><td>我的课表 · 有课</td><td class="path">/schedule?date=YYYY-MM-DD</td><td>§1 / §2 / §4.1</td></tr>
+          <tr><td class="path">S08</td><td>我的课表 · 两种空状态</td><td class="path">/schedule（empty / error 态）</td><td>§4.1 / §6</td></tr>
+          <tr><td class="path">S09</td><td>学习计划 · 列表 + 详情编辑</td><td class="path">/plans、/plans/new、/plans/:id</td><td>§1 / §2 / §4.3</td></tr>
+          <tr><td class="path">S10</td><td>管理中心 · 课程管理</td><td class="path">/admin/courses</td><td>§1 / §2 / §4.3</td></tr>
+          <tr><td class="path">S11</td><td>管理中心 · 文档与批次</td><td class="path">/admin/documents、/admin/document-batches/{id}</td><td>§1 / §2 / §4.4 / §6</td></tr>
+          <tr><td class="path">S12</td><td>管理中心 · 课表维护（含重叠冲突确认）</td><td class="path">/admin/schedules</td><td>§1 / §2 / §6</td></tr>
+          <tr><td class="path">S13</td><td>窄屏 390 × 844</td><td class="path">全部页面（窄屏形态）</td><td>§3</td></tr>
+          <tr><td class="path">S14</td><td>设计 token 表</td><td class="path">—（文档级，非路由）</td><td>方向稿底部，不占 IA 路由</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-bottom:0">S14 是各方向稿文件底部的 token 表，不是用户可达页面，因此 IA 不给它路由；这一点在评审时需要显式说明，避免被误读为"漏了 S14"。</p>
+  </div>
+</section>
+
+<!-- ============================== 1 ============================== -->
+<section class="block" id="p1" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 1 部分 · 站点地图</span>
+    <h2>登录 → 四个一级页面 → 管理中心四模块</h2>
+    <p class="anchors">端点基路径为 <code>/api/v1</code>（省略写法，与后端详细设计 §12.1「公共路径（省略 /api/v1）」一致）；每行前缀 <code>GET</code>/<code>POST</code>/… 为 HTTP 方法，全部取自 <code>openapi_v0.1.json</code>。</p>
+  </div>
+
+  <div class="tree">
+    <ul class="tier tier-1">
+      <li>
+        <div class="node node-root">
+          <span class="node-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 10h8M8 14h5"/></svg>
+            S01 登录
+          </span>
+          <span class="route">/login</span>
+          <div class="api">
+            <span class="api-row"><span class="verb">POST</span>/auth/login</span>
+            <span class="api-row"><span class="verb">POST</span>/auth/logout</span>
+            <span class="api-row"><span class="verb">GET</span>/me（登录后取身份、菜单能力、时区、会话到期）</span>
+          </div>
+          <p class="screens">登录成功 → 默认重定向 <code>/assistant</code>；凭据错误与账号禁用使用统一文案，不区分原因。</p>
+        </div>
+
+        <ul class="tier tier-2">
+          <li>
+            <div class="node">
+              <span class="node-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.5-5A8 8 0 1 1 21 12Z"/></svg>
+                课程助手
+              </span>
+              <span class="route">/assistant</span>
+              <div class="api">
+                <span class="api-row"><span class="verb">POST</span>/chat/stream（Fetch + 认证头，SSE）</span>
+                <span class="api-row"><span class="verb">GET</span>/chat/requests/{request_id}</span>
+                <span class="api-row"><span class="verb">POST</span>/chat/requests/{request_id}/cancel</span>
+                <span class="api-row"><span class="verb">GET</span>/citations/{reference_id}</span>
+                <span class="api-row"><span class="verb">GET</span>/me/drafts/{draft_id}</span>
+                <span class="api-row"><span class="verb">PATCH</span>/me/drafts/{draft_id}</span>
+                <span class="api-row"><span class="verb">POST</span>/me/drafts/{draft_id}/save</span>
+                <span class="api-row"><span class="verb">GET</span>/me/write-operations/{operation_id}</span>
+              </div>
+              <p class="screens">S02 / S03 / S04 / S05 / S06 · 登录后默认页 · <strong>刻意不可深链</strong></p>
+              <p class="node-badge"><span class="pill pill-danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>对话不入 URL</span></p>
+            </div>
+          </li>
+          <li>
+            <div class="node">
+              <span class="node-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                我的课表
+              </span>
+              <span class="route">/schedule?date=YYYY-MM-DD</span>
+              <div class="api">
+                <span class="api-row"><span class="verb">GET</span>/me/schedules（from_date、to_date；单次跨度 ≤ 31 天）</span>
+              </div>
+              <p class="screens">S07 / S08 · 学生只读 · 可深链可分享</p>
+              <p class="node-badge"><span class="pill pill-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>可深链</span></p>
+            </div>
+          </li>
+          <li>
+            <div class="node">
+              <span class="node-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+                学习计划
+              </span>
+              <span class="route">/plans · /plans/new · /plans/:id</span>
+              <div class="api">
+                <span class="api-row"><span class="verb">GET</span>/me/plans</span>
+                <span class="api-row"><span class="verb">POST</span>/me/plans（Idempotency-Key）</span>
+                <span class="api-row"><span class="verb">GET</span>/me/plans/{id}</span>
+                <span class="api-row"><span class="verb">PATCH</span>/me/plans/{id}（expected_version）</span>
+                <span class="api-row"><span class="verb">DELETE</span>/me/plans/{id}（expected_version）</span>
+              </div>
+              <p class="screens">S09 · 仅本人计划 · 可深链可分享</p>
+              <p class="node-badge"><span class="pill pill-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>可深链</span></p>
+            </div>
+          </li>
+          <li class="has-group">
+            <div class="node node-admin">
+              <span class="node-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4Z"/></svg>
+                管理中心〔仅管理员〕
+              </span>
+              <span class="route">/admin/*</span>
+              <p class="screens">S10 / S11 / S12 · 学生不可见；学生直接输入 /admin/* → 通用拒绝页，不透露资源是否存在</p>
+              <p class="node-badge"><span class="pill pill-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>仅管理员角色</span></p>
+            </div>
+
+            <ul class="tier tier-3">
+              <li>
+                <div class="node node-child">
+                  <span class="node-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M9 12h6M9 16h4"/></svg>
+                    课程管理
+                  </span>
+                  <span class="route">/admin/courses</span>
+                  <div class="api">
+                    <span class="api-row"><span class="verb">GET</span>/admin/courses</span>
+                    <span class="api-row"><span class="verb">POST</span>/admin/courses</span>
+                    <span class="api-row"><span class="verb">PATCH</span>/admin/courses/{id}</span>
+                  </div>
+                  <p class="screens">S10 · 课程代码创建后不可修改（只读态）</p>
+                </div>
+              </li>
+              <li>
+                <div class="node node-child">
+                  <span class="node-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    课表管理
+                  </span>
+                  <span class="route">/admin/schedules</span>
+                  <div class="api">
+                    <span class="api-row"><span class="verb">GET</span>/admin/schedules（student_id、起止日期）</span>
+                    <span class="api-row"><span class="verb">POST</span>/admin/schedules</span>
+                    <span class="api-row"><span class="verb">PATCH</span>/admin/schedules/{id}</span>
+                    <span class="api-row"><span class="verb">DELETE</span>/admin/schedules/{id}</span>
+                  </div>
+                  <p class="screens">S12 · 与助手"查本人课表"是两条不同权限路径</p>
+                </div>
+              </li>
+              <li>
+                <div class="node node-child">
+                  <span class="node-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                    文档管理
+                  </span>
+                  <span class="route">/admin/documents</span>
+                  <span class="route">/admin/document-batches/{id}</span>
+                  <div class="api">
+                    <span class="api-row"><span class="verb">POST</span>/admin/document-batches（202）</span>
+                    <span class="api-row"><span class="verb">GET</span>/admin/document-batches/{id}</span>
+                    <span class="api-row"><span class="verb">GET</span>/admin/documents</span>
+                    <span class="api-row"><span class="verb">GET</span>/admin/documents/{id}/text</span>
+                    <span class="api-row"><span class="verb">POST</span>/admin/documents/{id}/rebuild</span>
+                    <span class="api-row"><span class="verb">DELETE</span>/admin/documents/{id}</span>
+                    <span class="api-row"><span class="verb">POST</span>/admin/documents/{id}/cleanup-retry</span>
+                  </div>
+                  <p class="screens">S11 · 整批可见或整批不可见</p>
+                </div>
+              </li>
+              <li>
+                <div class="node node-child">
+                  <span class="node-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 11h4M19 9v4"/></svg>
+                    用户管理
+                  </span>
+                  <span class="route">/admin/students</span>
+                  <div class="api">
+                    <span class="api-row"><span class="verb">GET</span>/admin/students</span>
+                    <span class="api-row"><span class="verb">POST</span>/admin/students（服务端固定 role=student）</span>
+                    <span class="api-row"><span class="verb">PATCH</span>/admin/students/{id}（display_name / enabled）</span>
+                  </div>
+                  <p class="screens">账号唯一且不可改；不提供授予管理员、删除用户、自助注册</p>
+                </div>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="callout warn">
+    <h4>站点地图的两条边界（评审时容易被追问）</h4>
+    <ul style="margin-bottom:0">
+      <li><strong>管理中心不是"助手的第五个标签"</strong>：它是独立权限路径，入口由 <code>GET /me</code> 返回的能力集合决定是否渲染；隐藏菜单只承担界面引导，真正的拒绝发生在服务端（403 FORBIDDEN）。</li>
+      <li><strong>站点地图里没有的东西同样重要</strong>：无选课、成绩、考勤、作业提交、提醒推送、OCR、周课表、教务同步、跨设备历史。这些不是"待补"，而是 PRD 未承诺，IA 不预留入口。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================== 2 ============================== -->
+<section class="block" id="p2" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 2 部分 · 路由与守卫表</span>
+    <h2>11 条路由、可见角色、深链策略、越权与未登录行为</h2>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <caption>角色缩写：学生 = student，管理员 = admin。所有 <code>/admin/*</code> 与 <code>/me/*</code> 的最终判定都在服务端；本表描述的是客户端守卫与呈现。</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="path">path</th>
+          <th scope="col">页面</th>
+          <th scope="col">可见角色</th>
+          <th scope="col">默认进入</th>
+          <th scope="col">可否深链</th>
+          <th scope="col">未登录行为</th>
+          <th scope="col">越权行为</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="path">/</td><td>无独立页面</td><td>两者</td><td>重定向至 <code>/assistant</code></td>
+          <td>—</td>
+          <td>重定向 <code>/login</code>，原目标 <code>/</code> 记录为登录后目标</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="path">/login</td><td>S01 登录</td><td>未登录</td><td>—</td>
+          <td>可深链</td>
+          <td>就是本页</td>
+          <td>已登录访问 → 重定向 <code>/assistant</code>（不显示登录表单）</td>
+        </tr>
+        <tr>
+          <td class="path">/assistant</td><td>S02 助手空闲态（登录后默认页）</td><td>两者（管理员用于测试资料检索）</td><td><strong>登录后默认重定向目标</strong></td>
+          <td><strong>刻意不可深链（含理由，见下方 2.1）</strong></td>
+          <td>重定向 <code>/login?redirect=/assistant</code>，登录后回到本页</td>
+          <td>—（角色不构成差异；<code>GET /me/schedules</code> 只返回本人数据）</td>
+        </tr>
+        <tr>
+          <td class="path">/schedule?date=YYYY-MM-DD</td><td>S07 我的课表 · 有课 / S08 两种空状态</td><td>两者（各自只看本人）</td><td><code>date</code> 缺省 → 今天（<code>Asia/Shanghai</code>）</td>
+          <td>可深链、可分享、可回退</td>
+          <td>重定向 <code>/login?redirect=/schedule%3Fdate%3D…</code>，登录后带原查询参数返回</td>
+          <td>—（不存在他人课表路由；<code>from_date</code>/<code>to_date</code> 跨度 &gt; 31 天 → 422 VALIDATION_FAILED 页内提示）</td>
+        </tr>
+        <tr>
+          <td class="path">/plans</td><td>S09 学习计划列表</td><td>两者（各自只看本人）</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/plans</code></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td class="path">/plans/new</td><td>S09 手动新建计划表单</td><td>两者（各自只看本人）</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/plans/new</code></td>
+          <td>—（<code>source</code>、<code>user_id</code> 由服务端固定，客户端不可传）</td>
+        </tr>
+        <tr>
+          <td class="path">/plans/:id</td><td>S09 计划详情 / 编辑</td><td>仅本人（<code>:id</code> 归属校验）</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/plans/:id</code></td>
+          <td>非本人的 <code>:id</code> → 404 RESOURCE_NOT_FOUND 整页，<strong>不透露该计划是否存在</strong></td>
+        </tr>
+        <tr>
+          <td class="path">/admin/courses</td><td>S10 课程管理</td><td>仅管理员</td><td>管理中心默认落地页（一级导航「管理中心」直接指向本页，不设独立入口页）</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/admin/courses</code></td>
+          <td>学生 → 通用拒绝页；<code>POST /admin/courses</code> 代码重复 → 409 DUPLICATE_COURSE 字段错误</td>
+        </tr>
+        <tr>
+          <td class="path">/admin/schedules</td><td>S12 课表维护</td><td>仅管理员</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/admin/schedules</code></td>
+          <td>学生 → 通用拒绝页；冲突 → 409 SCHEDULE_OVERLAP 抽屉确认</td>
+        </tr>
+        <tr>
+          <td class="path">/admin/documents</td><td>S11 文档列表 + 上传区</td><td>仅管理员</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/admin/documents</code></td>
+          <td>学生 → 通用拒绝页；超限 → 413 UPLOAD_TOO_LARGE / 类型 → 415 UNSUPPORTED_FILE_TYPE</td>
+        </tr>
+        <tr>
+          <td class="path">/admin/document-batches/{id}</td><td>S11 批次详情（逐文件状态与发布规则）</td><td>仅管理员</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/admin/document-batches/{id}</code></td>
+          <td>学生 → 通用拒绝页；不存在的批次 → 404，不区分"不存在"与"无权"</td>
+        </tr>
+        <tr>
+          <td class="path">/admin/students</td><td>用户管理</td><td>仅管理员</td><td>—</td>
+          <td>可深链</td>
+          <td>重定向 <code>/login?redirect=/admin/students</code></td>
+          <td>学生 → 通用拒绝页；账号重复 → 409 DUPLICATE_ACCOUNT 字段错误</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>2.1 通用准则与本项目约束的冲突：深链 vs 临时会话</h3>
+
+  <div class="grid-2">
+    <div class="card keep">
+      <h4>通用 UI/UX 准则（我们遵守的那一半）</h4>
+      <p><strong>Deep Linking：URL 应反映当前状态，便于分享与浏览器前进/后退。</strong></p>
+      <p>本项目在<strong>持久状态页面</strong>上完全遵守它：</p>
+      <ul>
+        <li>课表 <code>/schedule?date=2026-10-22</code> —— 日期进 URL，可分享"周四的课表"，后退回到上一个日期。</li>
+        <li>计划 <code>/plans/:id</code>、<code>/plans/new</code> —— 计划是持久资源，URL 指向的必须是刷新后仍存在的实体。</li>
+        <li>管理中心各页 <code>/admin/courses</code>、<code>/admin/schedules</code>、<code>/admin/documents</code>、<code>/admin/document-batches/{id}</code>、<code>/admin/students</code> —— 可深链、可收藏、可回退；批次详情尤其需要可分享，便于管理员互相核对。</li>
+      </ul>
+      <p style="margin-bottom:0">判据：<strong>URL 里出现的东西，刷新后必须仍然成立。</strong>课表日期、计划 id、批次 id 都满足这一条。</p>
+    </div>
+    <div class="card drop">
+      <h4>刻意不遵守的那一半（含理由）</h4>
+      <p><strong>助手对话不进入 URL。</strong>以下临时标识一律不进地址栏：<code>conversation_id</code>、草稿 <code>draft_id</code> / <code>draft_version</code>、本轮 <code>request_id</code> / <code>operation_id</code>、以及对话正文与引用列表。</p>
+      <p><strong>理由：</strong>会话只存在于当前浏览器标签页的内存里，刷新、关闭、退出后不保证恢复（<code>DEC-01 临时上下文</code>；<code>HLD-D03</code> 浏览器仅内存保存不透明 Bearer 会话、刷新需重新登录、不自动续期；<code>PRD CHAT-03</code> 临时会话边界；<code>HLD-D11</code> 对话正文只驻留浏览器与运行内存）。把 <code>conversation_id</code> 写进 URL，等于向用户<strong>承诺一个不存在的恢复能力</strong>：刷新之后 URL 还在，看起来"这段对话还在那儿"，但内容已经不可恢复。用户会把它当 bug，也会把它当"服务端应该存着"的证据。</p>
+      <p style="margin-bottom:0">这比"URL 不反映状态"更糟：前者是<strong>诚实的能力缺口</strong>，后者是<strong>虚假的能力承诺</strong>。所以这里宁可违反通用准则。</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h4>替代方案：把"可回退 / 可分享"的诉求在助手页部分兑现（不尝试恢复对话）</h4>
+    <ol>
+      <li><strong>URL 保持 <code>/assistant</code>，不带任何会话参数。</strong>刷新后落到<strong>助手空闲态</strong>（S02），而不是"加载中"或空白页。</li>
+      <li><strong>空闲态顶部给一句明确提示</strong>（对应 content-spec S02 边界提示条的语义）："对话只保存在当前浏览器标签页，刷新或关闭后不会恢复；已保存的计划不受影响。" 刷新后额外给一次性提示："<strong>上次对话未保存，刷新后无法恢复。</strong>" —— 说明发生了什么，而不是暗示可以恢复。</li>
+      <li><strong>把"想留住"的内容路由到持久资源</strong>：对话里产出的计划，唯一可靠的留存路径是显式保存为计划（S06 → <code>POST /me/drafts/{draft_id}/save</code>），保存成功后给 <code>plan_id</code> 与「打开计划」按钮，跳转到可深链的 <code>/plans/:id</code>。这样"可分享"的诉求被转移到计划页，而不是留在对话页。</li>
+      <li><strong>浏览器后退不等于退出助手</strong>：在助手页内不产生历史条目（不使用 hash/query 记录轮次），后退离开助手页时按常规导航处理；不做"返回上一轮对话"的伪历史。</li>
+      <li><strong>断线/刷新时的核实入口</strong>：若刷新发生在执行中，UI 不假设结果，提示"本轮结果尚未确认"，并提供「查询写入状态」（<code>GET /me/write-operations/{operation_id}</code>）；<code>operation_id</code> 留在内存，不进 URL。</li>
+    </ol>
+    <p style="margin-bottom:0"><strong>评审结论：</strong>这是一处<strong>有意识的取舍</strong>，不是遗漏。判据是"URL 里出现的东西刷新后必须仍然成立"，助手对话不满足该判据，因此不进入 URL；同时用"明确提示 + 把留存诉求转移到计划页"补偿可用性。</p>
+  </div>
+
+  <h3>2.2 未登录与越权的统一处理</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>守卫行为与后端错误码的对应；前端不自行编造错误码，全部按 SRS §8 语义呈现。</caption>
+      <thead><tr><th scope="col">情形</th><th scope="col">客户端守卫动作</th><th scope="col">服务端对应</th><th scope="col">界面呈现</th></tr></thead>
+      <tbody>
+        <tr><td>未登录访问受保护路由</td><td>跳 <code>/login</code>，把原目标（含查询串）存入内存中的 <code>redirect</code>；登录成功后原样返回</td><td>401 AUTH_REQUIRED</td><td>整页登录页 + 顶部一句"请先登录后继续"</td></tr>
+        <tr><td>会话过期（2 小时到点）或令牌被撤销</td><td>立即停止后续请求，清空内存中的身份、对话与草稿引用，跳 <code>/login</code></td><td>401 SESSION_EXPIRED</td><td>整页登录页 + "登录会话已到期，请重新登录"</td></tr>
+        <tr><td>学生访问 <code>/admin/*</code></td><td>渲染<strong>通用拒绝页</strong>：不回显目标 path 的语义、不提示"该页面存在但无权限"、不提供"申请权限"入口</td><td>403 FORBIDDEN</td><td>整页拒绝页（中性色，非错误红）："你没有访问该页面的权限。"</td></tr>
+        <tr><td>访问不属于本人的 <code>/plans/:id</code>，或不存在 id</td><td>不区分两种情况，同一页面同一文案</td><td>404 RESOURCE_NOT_FOUND</td><td>整页未找到："没有找到这个页面或内容。"</td></tr>
+        <tr><td>流式对话中身份失效（过期/撤销/禁用）</td><td>终止连接，不展示任何私有内容；不再发送后续请求</td><td>SSE error 只返回通用认证错误（AUTH_REQUIRED / SESSION_EXPIRED）</td><td>对话区替换为整块认证失效提示 + 「重新登录」</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub"><strong>为什么越权用通用拒绝页而不是"权限不足，请联系管理员"的详情页：</strong>404 与 403 的区别本身就会泄漏资源是否存在（SRS §8：404「不显示目标是否真实存在」）。统一拒绝页把"不存在"和"无权"合并成同一个对外观感，避免通过路由探测后台结构。</p>
+</section>
+
+<!-- ============================== 3 ============================== -->
+<section class="block" id="p3" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 3 部分 · 导航模型</span>
+    <h2>主/次导航分层、角色决定菜单、管理入口呈现、390px 形态</h2>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <caption>导航分层：一级导航最多 4 项；管理中心作为独立分组，不与学生页面混排。</caption>
+      <thead><tr><th scope="col">层级</th><th scope="col">内容</th><th scope="col">可见角色</th><th scope="col">当前项高亮方式</th><th scope="col">决定权</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>一级（主导航）</td>
+          <td>课程助手 <code>/assistant</code> · 我的课表 <code>/schedule</code> · 学习计划 <code>/plans</code> · 管理中心 <code>/admin/courses</code></td>
+          <td>前 3 项：两者；第 4 项：仅管理员</td>
+          <td>三重标记：<strong>底色</strong>（accent-soft）+ <strong>底部 3px 下划线</strong>（accent）+ <strong>字重 700</strong>，并带 <code>aria-current="page"</code>。不依赖颜色单一维度。</td>
+          <td>菜单项集合来自 <code>GET /me</code> 返回的能力集合，不由前端硬编码角色字符串</td>
+        </tr>
+        <tr>
+          <td>二级（管理中心内）</td>
+          <td>课程管理 · 课表管理 · 文档管理 · 用户管理</td>
+          <td>仅管理员</td>
+          <td>左侧 3px 竖条 + 底色 + 字重；与一级导航使用同一套 token，但形态不同（竖条 vs 下划线）以区分层级</td>
+          <td>同上；<code>role !== admin</code> 时整个管理中心分组不渲染</td>
+        </tr>
+        <tr>
+          <td>三级（页内锚点）</td>
+          <td>如文档管理的"上传区 / 批次卡 / 文档列表"，批次详情的逐文件行</td>
+          <td>按页面</td>
+          <td>页内标签页（tabs）或滚动定位；不进入全局 URL（除批次详情本身 <code>/admin/document-batches/{id}</code>）</td>
+          <td>页面内部状态</td>
+        </tr>
+        <tr>
+          <td>助手页内</td>
+          <td>无导航项；"清空对话"是页内次级操作，不是导航</td>
+          <td>两者</td>
+          <td>—</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mock-row">
+    <figure class="mock" style="margin:0">
+      <figcaption>桌面形态（≥1366px）：顶部一级导航 + 管理中心二级侧栏</figcaption>
+      <div class="chrome">
+        <span class="brand">校园课程智能助手</span>
+        <span class="nav-items">
+          <a href="#p3" class="current" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.5-5A8 8 0 1 1 21 12Z"/></svg>课程助手</a>
+          <a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>我的课表</a>
+          <a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M8 9h8"/></svg>学习计划</a>
+          <a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4Z"/></svg>管理中心</a>
+        </span>
+        <span class="me">学生 · 张同学</span>
+      </div>
+      <div class="drawer">
+        <h5>管理中心（二级）</h5>
+        <ul>
+          <li><a href="#p3" class="current" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/></svg>课程管理</a></li>
+          <li><a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>课表管理</a></li>
+          <li><a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 16V4M8 8l4-4 4 4"/></svg>文档管理</a></li>
+          <li><a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>用户管理</a></li>
+        </ul>
+      </div>
+    </figure>
+
+    <figure class="mock" style="margin:0">
+      <figcaption>窄屏 390 × 844：底部 tab 栏（S13）</figcaption>
+      <div class="phone">
+        <div class="status-bar"><span>390 × 844</span><span>Asia/Shanghai</span></div>
+        <div class="p-head">
+          <span class="brand">校园课程智能助手</span>
+          <span class="burger" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
+        </div>
+        <div class="p-body">
+          <p style="margin:0"><strong>我的课表</strong></p>
+          <p style="margin:4px 0 0">‹ 2026-10-22 周四 › ·「今天」</p>
+          <p style="margin:4px 0 0">08:00–09:40 · 数据结构 · 主楼 A-305<br>10:00–11:40 · 大学英语 · 文科楼 B-102</p>
+          <p class="sub" style="margin:6px 0 0">卡片式单列，无横向滚动</p>
+        </div>
+        <div class="tabbar">
+          <a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.5-5A8 8 0 1 1 21 12Z"/></svg>助手</a>
+          <a href="#p3" class="current" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>课表</a>
+          <a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M8 9h8"/></svg>计划</a>
+          <a href="#p3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>更多</a>
+        </div>
+        <p class="tabbar-note">学生登录时「更多」内含「退出登录」；管理员额外含「管理中心」四项</p>
+      </div>
+    </figure>
+  </div>
+
+  <div class="grid-2" style="margin-top:var(--sp-4)">
+    <div class="card">
+      <h4>桌面（≥1366×768）</h4>
+      <ul>
+        <li>顶部粘性主导航，4 项平铺；管理员的"管理中心"是第 4 项，视觉上与前三项同权重但用锁形图标暗示受限。</li>
+        <li>管理中心采用「顶部主导航 + 页内二级标签条」；不引入第二套左侧栏，避免与一级导航争夺注意力。</li>
+        <li>助手页：过程区在回答区左侧或上方常驻，输入区吸底；引用卡片在正文右侧或正文内展开。</li>
+        <li>焦点可见：粘性栏下方留 <code>scroll-margin-top</code>，保证 <code>:focus-visible</code> 的 3px 轮廓不被粘性栏遮挡。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>窄屏 390×844（S13）</h4>
+      <ul>
+        <li><strong>导航形态差异</strong>：顶部粘性主导航 → <strong>底部 tab 栏</strong>（助手 / 课表 / 计划 / 更多），触控目标 ≥44×44。</li>
+        <li>管理中心不在 tab 栏占位，收进「更多」抽屉：学生看不到该入口，管理员看到四项二级菜单。</li>
+        <li>助手：单列；过程区折叠为一行摘要（"正在检索课程资料 · 进行中"），可展开；输入区吸底；三个示例入口换行或横滑（点击只填入输入框，不自动提交）。</li>
+        <li>我的课表：卡片式单列，<strong>无横向滚动</strong>。</li>
+        <li>管理中心：<strong>允许表格横向滚动</strong>（NFR-COMP-001 明确允许），但保留表头 sticky 与首列（课程代码 / 文件名）固定，避免滚动后失去参照。</li>
+        <li>角色决定菜单这条规则在两种形态下完全一致，只改承载控件（顶栏 ↔ tab 栏 / 抽屉）。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 4 ============================== -->
+<section class="block" id="p4" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 4 部分 · 四条关键流程</span>
+    <h2>学生查课表 / 资料问答 / 生成并保存计划 / 管理员批量入库</h2>
+    <p class="anchors">流程图用纯 HTML/CSS 盒模型绘制（无 Mermaid、无外部库）。<code class="mono">▸</code> 表示顺序，分支用带标签的并列项表示。</p>
+  </div>
+
+  <!-- 4.1 -->
+  <div class="flow">
+    <header>
+      <h3>4.1 学生查课表</h3>
+      <span class="src">对应 S07 / S08；<code>GET /me/schedules</code>；PRD §5.2；SRS UC-01</span>
+    </header>
+
+    <div class="chain">
+      <span class="fnode start"><span class="t">① 输入</span><span class="d">在助手输入"明天有什么课"，或在 /schedule 点日期导航。输入非空、≤2000 码点。</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode dec"><span class="t">② 日期解析</span><span class="d">相对日期锚定<strong>请求接受时刻</strong>（DEC-10），时区 Asia/Shanghai；"明天" → 2026-10-22。只传一个日期视为单日；跨度 &gt;31 自然日 → 422 VALIDATION_FAILED。</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode"><span class="t">③ 读取</span><span class="d">以当前认证身份查询本人记录，不接受可替换的 user_id。</span><span class="ep">GET /me/schedules?from_date=2026-10-22&amp;to_date=2026-10-22</span></span>
+    </div>
+
+    <div class="branch indent">
+      <div class="branch-item">
+        <span class="branch-label">有课</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode good"><span class="t">S07 列表（按开始时间升序）</span><span class="d">08:00–09:40 · 数据结构 · 主楼 A-305；10:00–11:40 · 大学英语 · 文科楼 B-102。页脚注明学校时区 Asia/Shanghai。</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">当天无安排</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode warn"><span class="t">S08 ① 查询成功但无记录</span><span class="d">文案：「2026-10-22（周四）没有课程安排。」+「换个日期」。中性图标，<strong>不得使用错误色</strong>。语义是 status=empty 的正常结果。</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">读取失败</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode bad"><span class="t">S08 ② 服务异常</span><span class="d">文案：「课表数据暂时无法读取，<strong>这不代表当天没有课</strong>。」+「重试」。错误/警告语义，与 ① 明显不同。</span></span>
+      </div>
+    </div>
+
+    <p class="hard-note">硬验收点：②与③的"当天无安排"和"读取失败"是<strong>两条不同分支，不得合并</strong>。前者是成功且为空的业务结果，后者是依赖异常；SRS INV-05 明确"查询失败不得转换成业务空结果"。在 IA 层就把它们画成两个节点，是为了让实现阶段没有合并的机会。</p>
+    <p class="sub" style="margin-bottom:0">读取失败的可能来源（各自错误码）：<code>RETRIEVAL_UNAVAILABLE</code> / <code>STORAGE_UNAVAILABLE</code>（503）、<code>MCP_UNAVAILABLE</code>（503，工具链路）、<code>EXECUTION_TIMEOUT</code>（504）。UI 统一呈现为同一条"课表数据暂时无法读取"，但日志与埋点保留具体码。</p>
+  </div>
+
+  <!-- 4.2 -->
+  <div class="flow">
+    <header>
+      <h3>4.2 资料问答</h3>
+      <span class="src">对应 S04 / S05；工具 <code>search_course_docs</code>；<code>GET /citations/{reference_id}</code>；PRD §6.6 QA</span>
+    </header>
+
+    <div class="chain">
+      <span class="fnode start"><span class="t">① 提问</span><span class="d">如"根据资料回答问题"。本轮保存意图只从当前 message 的可信用户指令识别（DEC-06）。</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode dec"><span class="t">② 检索共享知识库</span><span class="d">只命中同时满足"批次已发布 + shared + active"的片段（INV-04）。</span><span class="ep">tool: search_course_docs</span></span>
+    </div>
+
+    <div class="branch indent">
+      <div class="branch-item">
+        <span class="branch-label">有依据</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode good"><span class="t">S04 回答 + 引用卡</span><span class="d">正文带引用标记〔资料 1〕；引用卡折叠态显示"资料 1 · 数据结构实验指导书（2026 秋）.pdf · 第 12 页 · 展开片段"，展开显示片段原文。页码抽不到时只显示文件名与位置（给出"无页码"样例）。内容性质标签「课程规定」与「一般学习建议」必须视觉区分。</span><span class="ep">GET /citations/{reference_id}（每次复核仍可共享且版本有效）</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">依据不足</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode warn"><span class="t">S05 依据不足</span><span class="d">检索成功但无足够依据：「已检索共享资料，但没有找到足以回答这项要求的内容。」+「换个问法」/「联系管理员补充材料」。不得使用成功色。</span><span class="ep">tool result_status = empty</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">检索失败</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode bad"><span class="t">S05 检索失败</span><span class="d">依赖异常：「课程资料暂时无法查询，请稍后重试。」+ 主按钮「重试」。与"依据不足"在视觉上一眼可分。</span><span class="ep">RETRIEVAL_UNAVAILABLE（503）</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">全库为空</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode dead"><span class="t">S05 全库为空</span><span class="d">「管理员还没有上传可检索的课程资料。」中性色，不是错误，也不给「重试」（重试没有意义）。</span><span class="ep">tool result_status = empty（来源清单为空）</span></span>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-bottom:0"><strong>引用失效是第五种呈现</strong>（不在检索分支里，而在已展示的引用卡上）：用户展开或重新校验时，若资料已被删除 → <code>410 CITATION_UNAVAILABLE</code>，引用卡就地变为失效态：「这条引用已失效（资料已被删除），依据可能已变化。」正文不清空，但依据标记降级为不可信。同一轮的正文里，未校验的标记〔资料 1〕以"待验证"样式显示，校验通过后才变为已验证样式。</p>
+  </div>
+
+  <!-- 4.3 -->
+  <div class="flow">
+    <header>
+      <h3>4.3 生成并保存计划</h3>
+      <span class="src">对应 S06 / S09；<code>/me/drafts/{draft_id}</code>、<code>/me/drafts/{draft_id}/save</code>、<code>/me/write-operations/{operation_id}</code>；PRD §5.3、PLAN；SRS §7.3</span>
+    </header>
+
+    <div class="chain">
+      <span class="fnode start"><span class="t">① 草稿「未保存」</span><span class="d">助手生成草稿卡，同时有<strong>文字</strong>与<strong>视觉</strong>两重"未保存"标记；依据类型显式标注（本人课表 / 课程资料〔资料 1〕）。</span><span class="ep">status 事件返回 draft_id + draft_version</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode dec"><span class="t">② 保存许可</span><span class="d">只有当前用户<strong>可确定的直接指令</strong>才授予许可（DEC-06）："保存为我的计划"按钮或明确的"保存刚才这份"。歧义、否定、引用内容不授权。改草稿正文会生成新版本，旧许可失效。</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode"><span class="t">③ 幂等写入</span><span class="d">同一用户同一创建操作最多一份计划（INV-02）；无有效许可的助手请求产生零份持久计划（INV-03）。</span><span class="ep">POST /me/drafts/{draft_id}/save（draft_version + Idempotency-Key）</span></span>
+    </div>
+
+    <div class="branch indent">
+      <div class="branch-item">
+        <span class="branch-label">成功</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode good"><span class="t">S06 保存成功</span><span class="d">「已保存 · 计划编号 plan_7Q2F9K」+ 主按钮「打开计划」→ 跳 <code>/plans/:id</code>（可深链的持久资源）。对勾图标 + 文字，不能只靠绿色。</span><span class="ep">status = created</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">幂等命中</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode"><span class="t">同一份计划，不新建</span><span class="d">重复提交同一操作只得到同一份计划；提示小字"重复提交同一操作只会得到同一份计划"。同轮第二次创建 → <code>409 SAVE_LIMIT_REACHED</code>。</span><span class="ep">status = existing（plan_id 与首次一致）</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">许可不成立</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode warn"><span class="t">保留草稿，不写入</span><span class="d">草稿维持「未保存」，「保存为我的计划」按钮保持可用（用户可显式再点）。</span><span class="ep">422 SAVE_NOT_AUTHORIZED</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">结果待确认</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode bad"><span class="t">S06 结果待确认</span><span class="d">「正在确认是否保存…」+「写入结果尚未确认，请勿重复创建；可稍后查询状态。」+ 次级按钮「查询写入状态」。<strong>不得显示为失败，也不得自动重放写操作。</strong></span><span class="ep">GET /me/write-operations/{operation_id} → pending / resolution=recovering</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">冲突</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode bad"><span class="t">同键异内容</span><span class="d">展示已有结果，不新建。草稿过期（30 分钟）→ 410 DRAFT_EXPIRED，需重新生成草稿。</span><span class="ep">409 IDEMPOTENCY_CONFLICT / 410 DRAFT_EXPIRED</span></span>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-bottom:0"><strong>为什么"待确认"必须是一个独立分支而不是失败分支：</strong>SRS §7.3 规定提交异常导致结果未知时对外显示 pending 或 recovering，并<strong>通过持久数据库状态核实</strong>；后端详细设计 §12.2 补充"数据库不可用且不能核实时返回 503，客户端仍显示待确认，不将其转换为 failed"。IA 上把它画成独立节点，是为了让"重试"永远不会被实现成一个新的幂等键。</p>
+  </div>
+
+  <!-- 4.4 -->
+  <div class="flow">
+    <header>
+      <h3>4.4 管理员批量入库</h3>
+      <span class="src">对应 S11；<code>POST /admin/document-batches</code>、<code>GET /admin/document-batches/{id}</code>、<code>POST /admin/documents/{id}/cleanup-retry</code>；DEC-05、SRS §7.2</span>
+    </header>
+
+    <div class="chain">
+      <span class="fnode start"><span class="t">① 选择文件</span><span class="d">TXT / MD / 含文字层的 PDF / DOCX；单文件 ≤20 MiB；单批 ≤10 个、合计 ≤50 MiB。拖拽区或「选择文件」。</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode dec"><span class="t">② 校验与受理</span><span class="d">超限 → 413 UPLOAD_TOO_LARGE；类型不支持 → 415 UNSUPPORTED_FILE_TYPE；同名待处理 → 409 DUPLICATE_FILENAME。</span><span class="ep">POST /admin/document-batches → 202 + batch_id（accepted）</span></span>
+      <span class="arrow" aria-hidden="true">▸</span>
+      <span class="fnode"><span class="t">③ 整批处理</span><span class="d">逐文件解析 / 切块 / Embedding。批次状态：accepted → processing。列表额外信息：原名、类型、大小、上传时间、批次、错误原因（<strong>不得出现服务器磁盘路径</strong>）。</span><span class="ep">GET /admin/document-batches/{id}</span></span>
+    </div>
+
+    <div class="branch indent">
+      <div class="branch-item">
+        <span class="branch-label">全部成功</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode good"><span class="t">一次发布，整批可见</span><span class="d">processing → published。文件状态 → <strong>可检索</strong>。发布屏障要求全部 ready 后才发布（DEC-05：整批可见或整批不可见）。</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">任一失败</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode bad"><span class="t">整批不发布 + 补偿清理</span><span class="d">processing → compensating → failed。提示：「本批 1 个文件失败，整批未发布；其他批次不受影响。」失败原因示例（S11 第 3 行）：「未提取到文字，可能是扫描件；本期不支持 OCR。」</span><span class="ep">task_error_code：NO_TEXT_EXTRACTED / DOCUMENT_ENCRYPTED / PARSE_FAILED / EMBEDDING_FAILED</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">清理可重试</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode warn"><span class="t">删除失败 → 「重试清理」</span><span class="d">清理未完成保持 compensating 并标记超时，<strong>不伪报清理完成</strong>；删除标记不因清理失败反转。重试不能使文档恢复可见。</span><span class="ep">POST /admin/documents/{id}/cleanup-retry</span></span>
+      </div>
+      <div class="branch-item">
+        <span class="branch-label">并发变更</span>
+        <span class="arrow" aria-hidden="true">▸</span>
+        <span class="fnode dead"><span class="t">等待或独立上传</span><span class="d">文档变更并行 → 409 DOCUMENT_BUSY；同名待处理 → 明确按独立文档上传。重建期间显示"可用，正在重建"，旧 active 版本仍可查。</span><span class="ep">409 DOCUMENT_BUSY / 409 VERSION_CONFLICT</span></span>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-bottom:0"><strong>五种文件状态必须在同一屏内可分辨</strong>（S11 硬要求）：可检索 / 处理中（带进度）/ 失败（带原因）/ 删除中 / 删除失败（带「重试清理」）。注意 200 返回的是<strong>可读任务状态，不是入库成功</strong>；批次查询接口本身失败与单个文件失败是两件事。</p>
+  </div>
+</section>
+
+<!-- ============================== 5 ============================== -->
+<section class="block" id="p5" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 5 部分 · 对话请求生命周期</span>
+    <h2>accepted → running → succeeded / failed / cancelled</h2>
+    <p class="anchors">状态名严格取自 <code>openapi_v0.1.json</code> 的 <code>ChatState.state</code> 与 <code>sse_events_v0.1.schema.json</code>；生命周期图用内联 SVG 绘制。</p>
+  </div>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 1180 470" role="img" aria-label="对话请求生命周期状态图：accepted 到 running，再到 succeeded、failed、cancelled 三个终态；并标出断线后经状态接口核实的分支。">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--c-line-strong)"/>
+        </marker>
+        <marker id="ahd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--c-danger)"/>
+        </marker>
+      </defs>
+
+      <!-- 主链 -->
+      <rect x="18" y="60" width="150" height="62" rx="10" fill="var(--c-ink)"/>
+      <text x="93" y="86" text-anchor="middle" font-size="16" font-weight="700" fill="var(--c-on-dark)">accepted</text>
+      <text x="93" y="105" text-anchor="middle" font-size="12" fill="var(--c-on-dark-2)">已受理</text>
+
+      <rect x="230" y="60" width="150" height="62" rx="10" fill="var(--c-accent-soft)" stroke="var(--c-accent-line)"/>
+      <text x="305" y="86" text-anchor="middle" font-size="16" font-weight="700" fill="var(--c-accent-ink)">running</text>
+      <text x="305" y="105" text-anchor="middle" font-size="12" fill="var(--c-ink-2)">执行中</text>
+
+      <rect x="450" y="16" width="200" height="58" rx="10" fill="var(--c-ok-soft)" stroke="var(--c-ok-line)"/>
+      <text x="550" y="40" text-anchor="middle" font-size="15" font-weight="700" fill="var(--c-ok)">succeeded</text>
+      <text x="550" y="58" text-anchor="middle" font-size="11" fill="var(--c-ink-2)">done（唯一成功终态）</text>
+
+      <rect x="450" y="106" width="200" height="58" rx="10" fill="var(--c-danger-soft)" stroke="var(--c-danger-line)"/>
+      <text x="550" y="130" text-anchor="middle" font-size="15" font-weight="700" fill="var(--c-danger)">failed</text>
+      <text x="550" y="148" text-anchor="middle" font-size="11" fill="var(--c-ink-2)">error（唯一失败终态）</text>
+
+      <rect x="450" y="196" width="200" height="58" rx="10" fill="var(--c-warn-soft)" stroke="var(--c-warn-line)"/>
+      <text x="550" y="220" text-anchor="middle" font-size="15" font-weight="700" fill="var(--c-warn)">cancelled</text>
+      <text x="550" y="238" text-anchor="middle" font-size="11" fill="var(--c-ink-2)">done（state=cancelled）</text>
+
+      <line x1="168" y1="91" x2="222" y2="91" stroke="var(--c-line-strong)" stroke-width="2" marker-end="url(#ah)"/>
+      <line x1="380" y1="82" x2="442" y2="48" stroke="var(--c-line-strong)" stroke-width="2" marker-end="url(#ah)"/>
+      <line x1="380" y1="91" x2="442" y2="133" stroke="var(--c-line-strong)" stroke-width="2" marker-end="url(#ah)"/>
+      <line x1="380" y1="100" x2="442" y2="222" stroke="var(--c-line-strong)" stroke-width="2" marker-end="url(#ah)"/>
+
+      <!-- accepted 的直接终态 -->
+      <path d="M93 122 C 93 300, 380 320, 442 226" fill="none" stroke="var(--c-line-strong)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+      <text x="150" y="252" font-size="11" fill="var(--c-ink-3)">受理即被取消 / 受理即失败</text>
+
+      <!-- 终态自环说明 -->
+      <text x="676" y="40" font-size="12" font-weight="700" fill="var(--c-ink)">终态不可改写</text>
+      <text x="676" y="58" font-size="11" fill="var(--c-ink-3)">一个请求只有一个持久终态（INV-07）；</text>
+      <text x="676" y="74" font-size="11" fill="var(--c-ink-3)">重启后无法恢复的 running → failed</text>
+      <text x="676" y="90" font-size="11" fill="var(--c-ink-3)">（terminal_reason = SERVICE_RESTARTED）。</text>
+
+      <text x="676" y="130" font-size="12" font-weight="700" fill="var(--c-ink)">取消不是立即生效</text>
+      <text x="676" y="148" font-size="11" fill="var(--c-ink-3)">先置 cancel_requested=true，由执行器在</text>
+      <text x="676" y="164" font-size="11" fill="var(--c-ink-3)">可中止边界提交 cancelled；若完成先提交，</text>
+      <text x="676" y="180" font-size="11" fill="var(--c-ink-3)">取消返回当前完成状态。</text>
+      <text x="676" y="196" font-size="11" fill="var(--c-ink-3)">客户端中止连接 ≠ 调取消接口。</text>
+
+      <text x="676" y="240" font-size="12" font-weight="700" fill="var(--c-ink)">计划写入与对话终态解耦</text>
+      <text x="676" y="258" font-size="11" fill="var(--c-ink-3)">是否有计划已保存，一律查 WriteOperation，</text>
+      <text x="676" y="274" font-size="11" fill="var(--c-ink-3)">不从对话终态推断（INV-07）。</text>
+
+      <!-- 断线分支 -->
+      <rect x="18" y="316" width="1144" height="132" rx="10" fill="var(--c-danger-soft)" stroke="var(--c-danger-line)" stroke-dasharray="6 5"/>
+      <text x="36" y="342" font-size="14" font-weight="700" fill="var(--c-danger)">断线 / HTTP 连接关闭 ≠ 终态</text>
+      <text x="36" y="364" font-size="12" fill="var(--c-ink)">fetch 流被中断时，客户端<tspan font-weight="700">不得</tspan>假定请求已失败或已停止；UI 进入「结果待确认」，不重放工具、不新建幂等键。</text>
+      <text x="36" y="384" font-size="12" fill="var(--c-ink)">核实路径：GET /chat/requests/{request_id} 取真实 state；若本轮涉及保存，再查 GET /me/write-operations/{operation_id}。</text>
+      <text x="36" y="404" font-size="12" fill="var(--c-ink)">Last-Event-ID 不重放模型或工具，本期不承诺正文续传；客户端以 request_id + seq 去重。</text>
+      <text x="36" y="424" font-size="12" fill="var(--c-ink-3)">同一连接最多一个 done 或 error；建立流前的错误走普通 HTTP 错误，建立流后只能走 error 事件，不改写 HTTP 状态码。</text>
+      <line x1="305" y1="122" x2="305" y2="308" stroke="var(--c-danger)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ahd)"/>
+      <text x="316" y="200" font-size="11" fill="var(--c-danger)">流中断</text>
+    </svg>
+    <figcaption>状态集合与转换取自 SRS §7.1；终态唯一性与写入解耦取自 SRS §7.4（INV-07）与 HLD §7.3。</figcaption>
+  </figure>
+
+  <h3>5.1 每个状态 UI 显示什么</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>事件名取自 <code>sse_events_v0.1.schema.json</code>：status / tool_start / tool_end / token / done / error。</caption>
+      <thead><tr><th scope="col">state</th><th scope="col">来源事件</th><th scope="col">UI 显示</th><th scope="col">可做操作</th><th scope="col">不可做</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="path">accepted</td><td><code>status</code>（首次 status 返回服务端确认的 <code>conversation_id</code>）</td>
+          <td>顶部状态行「正在处理 · 最长 60 秒」；过程区显示第一条待执行动作；正文区空。</td>
+          <td>「停止」；输入框禁用（同会话单轮互斥）</td>
+          <td>再次发送（<code>409 CHAT_IN_PROGRESS</code>）</td>
+        </tr>
+        <tr>
+          <td class="path">running</td><td><code>status</code> / <code>tool_start</code> / <code>tool_end</code> / <code>token</code></td>
+          <td>S03：过程区逐条显示<strong>可核实动作</strong>（正在读取课表 → 完成 · 2 条记录；正在检索课程资料 → 完成 · 3 个片段；正在拟定计划草稿 → 进行中，唯一进行中项）；正文按 <code>answer_block_id</code> 归并流入；未校验引用标记显示为「待验证」样式。</td>
+          <td>「停止」；展开已完成步骤的详情</td>
+          <td>展示"正在思考 / AI 推理中"；把 tool_start 当作已完成</td>
+        </tr>
+        <tr>
+          <td class="path">succeeded</td><td><code>done</code>（state=succeeded，含 <code>citations[]</code>，可选 <code>plan_id</code> / <code>operation_id</code>）</td>
+          <td>过程区全部落定为完成；引用标记转为已验证，引用卡可展开；若有 <code>plan_id</code> → 草稿卡转「已保存 · 计划编号 …」+「打开计划」。</td>
+          <td>展开引用、打开计划、继续追问（同一 conversation_id 内存续）</td>
+          <td>重复追加同一段正文（按 seq 去重）</td>
+        </tr>
+        <tr>
+          <td class="path">failed</td><td><code>error</code>（state=failed，含 <code>code</code>、<code>message</code>，可选已确认 <code>plan_id</code> / <code>operation_id</code>）</td>
+          <td>过程区：失败的那一步单独画成失败态，<strong>不显示完成勾</strong>；错误按第 6 部分映射呈现；若已确认有计划保存，仍给出计划引用，避免误判"未保存"。</td>
+          <td>按错误类型给「重试」/「换个问法」/「查询写入状态」</td>
+          <td>把失败渲染成成功色；把认证类失败附上私有资源标识</td>
+        </tr>
+        <tr>
+          <td class="path">cancelled</td><td><code>done</code>（state=cancelled，可选原因）</td>
+          <td>状态行变为「已停止」；已流入的正文保留但标注"本轮已停止，内容可能不完整"；过程区标出在哪个动作处停止。</td>
+          <td>重新提问（只读请求可直接重发；涉及保存的必须复用原写入标识并先查状态）</td>
+          <td>把取消当作失败；自动重放写操作</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout danger">
+    <h4>三条"UI 不能撒谎"的硬规则</h4>
+    <ol style="margin-bottom:0">
+      <li><strong>HTTP 连接关闭不等于终态。</strong>done / error 是唯一可信终态；连接断了只能进「结果待确认」，然后查 <code>GET /chat/requests/{request_id}</code>。</li>
+      <li><strong>过程区只展示可核实动作。</strong>禁止"正在思考""AI 推理中"；tool_start 只代表"已被调度"，tool_end 才代表实际结束，失败不伪装成功。</li>
+      <li><strong>认证失效后的流只返回通用认证错误</strong>，不再附带任何私有资源标识或内容；UI 直接替换为重新登录提示。</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================== 6 ============================== -->
+<section class="block" id="p6" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 6 部分 · 状态 → UI 呈现总表</span>
+    <h2>HTTP 状态与业务错误码如何落到具体界面手段</h2>
+    <p class="anchors">错误码全部取自 SRS §8 与 <code>openapi_v0.1.json</code> 的 <code>Error.error.code</code> 枚举，<strong>未新增任何码</strong>。呈现手段限定为五类：页内提示 / 字段错误 / 引用卡失效 / 胶囊（状态徽标）/ 抽屉 / 整页。</p>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <caption>HTTP 状态列中的 <code>400</code> 是 OpenAPI 声明的通用错误响应位；SRS §8 未给它分配独立业务码，因此 UI 不为其设计专门文案，按 <code>INTERNAL_ERROR</code> 的安全文案兜底并携带 request_id。</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="path">HTTP</th>
+          <th scope="col" class="path">code</th>
+          <th scope="col">触发条件（SRS §8）</th>
+          <th scope="col">界面呈现手段</th>
+          <th scope="col">具体呈现 / 文案锚点</th>
+          <th scope="col">用户下一步</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="path">401</td><td class="path">AUTH_REQUIRED</td><td>无有效会话</td>
+          <td>整页</td><td>跳登录页；保留原目标；顶部一句"请先登录后继续"</td><td>登录</td>
+        </tr>
+        <tr>
+          <td class="path">401</td><td class="path">SESSION_EXPIRED</td><td>会话过期或撤销</td>
+          <td>整页</td><td>跳登录页 + "登录会话已到期，请重新登录"；清空内存中的对话与草稿引用</td><td>重新登录（不自动续期）</td>
+        </tr>
+        <tr>
+          <td class="path">403</td><td class="path">FORBIDDEN</td><td>角色无权操作管理能力</td>
+          <td>整页</td><td>通用拒绝页：「你没有访问该页面的权限。」不回显目标资源、不提供"申请权限"</td><td>返回可访问页面，不重试</td>
+        </tr>
+        <tr>
+          <td class="path">404</td><td class="path">RESOURCE_NOT_FOUND</td><td>不存在或不属于当前用户</td>
+          <td>整页</td><td>「没有找到这个页面或内容。」两种情况同一文案，不透露目标是否真实存在</td><td>返回上一页</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">DUPLICATE_ACCOUNT</td><td>账号唯一键冲突</td>
+          <td>字段错误</td><td>账号字段下方：「该账号已存在，请更换。」+ 顶部错误摘要，焦点移到摘要</td><td>修改输入</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">DUPLICATE_COURSE</td><td>课程代码唯一键冲突</td>
+          <td>字段错误</td><td>课程代码字段下方：「该课程代码已存在，请更换。」（S10）</td><td>修改输入</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">DUPLICATE_SCHEDULE</td><td>精确重复（同学生同日同时段同课）</td>
+          <td>页内提示</td><td>「该学生在同一天已有完全相同时间段的这门课，不能重复保存。」（S12）；精确重复<strong>始终拒绝</strong>，不提供确认绕过</td><td>修改时间或课程</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">VERSION_CONFLICT</td><td>更新版本不匹配（计划 / 课程 / 学生 / 文档重建）</td>
+          <td>页内提示</td><td>「这份计划已被其他标签页修改，请重新加载后再提交；<strong>你未提交的编辑会保留</strong>。」（S09）</td><td>重新加载，保留未提交编辑供核对</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">SCHEDULE_OVERLAP</td><td>时间重叠未确认</td>
+          <td>抽屉（冲突确认面板）</td><td>「与 2026-10-22 10:00–11:40 大学英语 时间重叠。」+ 重叠记录摘要（学生/课程/日期/起止/地点）+ 原因（<strong>必填</strong>，≤500 字）+「确认保存」/「取消」（S12）</td><td>填写原因后确认，或取消</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">CHAT_IN_PROGRESS</td><td>同会话已有运行中的请求</td>
+          <td>页内提示 + 胶囊</td><td>输入框禁用并显示胶囊「本轮执行中」；提示"请先等待本轮结束或点停止"，不新建第二轮</td><td>停止当前轮，或查询原请求状态</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">REQUEST_ALREADY_EXISTS</td><td>相同 client_request_id 重复提交</td>
+          <td>页内提示</td><td>不重复执行；提示"该请求已在处理，正在为你查询原请求状态"</td><td>查询原请求状态</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">IDEMPOTENCY_CONFLICT</td><td>同键异内容</td>
+          <td>页内提示</td><td>「这个操作已经用同一标识提交过，内容不一致。」展示已有结果，不新建</td><td>展示已有结果，不新建</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">SAVE_LIMIT_REACHED</td><td>同轮第二次创建计划</td>
+          <td>页内提示</td><td>「本轮已经保存过一份计划。」+「打开计划」；不产生第二份</td><td>打开已有计划</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">DOCUMENT_BUSY</td><td>文档变更并行</td>
+          <td>页内提示 + 胶囊</td><td>文件行胶囊「处理中」；提示"该文档正在被其他操作占用，请稍后重试"</td><td>等待后重试</td>
+        </tr>
+        <tr>
+          <td class="path">409</td><td class="path">DUPLICATE_FILENAME</td><td>同名文件待处理</td>
+          <td>字段错误（批次上传区）</td><td>文件名下方：「同名文件正在处理中。」并给出"按独立文档上传"的明确选择</td><td>等待，或明确按独立文档上传</td>
+        </tr>
+        <tr>
+          <td class="path">410</td><td class="path">DRAFT_EXPIRED</td><td>草稿过期（30 分钟）或服务重启失效</td>
+          <td>页内提示 + 胶囊</td><td>草稿卡转为「草稿已过期」；「保存为我的计划」禁用并说明"需要重新生成草稿"；已保存的计划不受影响</td><td>重新生成草稿</td>
+        </tr>
+        <tr>
+          <td class="path">410</td><td class="path">CITATION_UNAVAILABLE</td><td>引用失效（资料已被删除或版本不再有效）</td>
+          <td>引用卡失效</td><td>引用卡就地变为失效态：「这条引用已失效（资料已被删除），依据可能已变化。」（S04）正文不清空，依据标记降级</td><td>重新检索</td>
+        </tr>
+        <tr>
+          <td class="path">413</td><td class="path">UPLOAD_TOO_LARGE</td><td>单文件 &gt;20 MiB 或整批 &gt;50 MiB</td>
+          <td>字段错误（批次上传区）</td><td>逐文件列出超限项，并复述限额"单文件 ≤ 20 MiB；单批 ≤ 10 个、合计 ≤ 50 MiB"（S11）</td><td>提示限额后重新选择</td>
+        </tr>
+        <tr>
+          <td class="path">415</td><td class="path">UNSUPPORTED_FILE_TYPE</td><td>类型不受支持</td>
+          <td>字段错误（批次上传区）</td><td>「不支持这种文件类型。」并列出允许类型：TXT / MD / 含文字层的 PDF / DOCX</td><td>选择允许文件</td>
+        </tr>
+        <tr>
+          <td class="path">422</td><td class="path">VALIDATION_FAILED</td><td>字段错误、日期错误（含 <code>field_errors</code>）</td>
+          <td>字段错误 + 顶部摘要</td><td>逐字段就近显示（如「开始与结束日期需要同时填写，且开始日期不能晚于结束日期。」S09；「结束时间必须晚于开始时间，且不支持跨日记录。」S12），<code>aria-describedby</code> 关联；提交失败同时给顶部摘要并把焦点移到摘要</td><td>修正输入</td>
+        </tr>
+        <tr>
+          <td class="path">422</td><td class="path">SAVE_NOT_AUTHORIZED</td><td>保存许可不成立（歧义、否定、引用内容）</td>
+          <td>页内提示 + 胶囊</td><td>草稿维持胶囊「未保存」；「保存为我的计划」保持可用；提示"需要你明确说要保存"（DEC-06）</td><td>展示未保存草稿，等待用户明确指令</td>
+        </tr>
+        <tr>
+          <td class="path">429</td><td class="path">CAPACITY_LIMITED</td><td>达到部署并发保护上限</td>
+          <td>页内提示</td><td>「当前使用人数较多，请稍后重试。」<strong>不自动重放写操作</strong>；已提交的写入改走"查询写入状态"</td><td>稍后重试（读操作可手动重试）</td>
+        </tr>
+        <tr>
+          <td class="path">503</td><td class="path">MODEL_UNAVAILABLE</td><td>模型依赖失败</td>
+          <td>页内提示</td><td>「回答服务暂时不可用，请稍后重试。」助手页保留课表/计划/后台入口（HLD §3.2）</td><td>稍后重试</td>
+        </tr>
+        <tr>
+          <td class="path">503</td><td class="path">RETRIEVAL_UNAVAILABLE</td><td>检索依赖失败</td>
+          <td>页内提示</td><td>「课程资料暂时无法查询，请稍后重试。」+ 主按钮「重试」（S05）；<strong>与"依据不足"视觉区分</strong></td><td>重试</td>
+        </tr>
+        <tr>
+          <td class="path">503</td><td class="path">MCP_UNAVAILABLE</td><td>工具链路不可用</td>
+          <td>页内提示</td><td>过程区对应步骤画为失败态；课表读取失败时用 S08 ② 文案「课表数据暂时无法读取，这不代表当天没有课。」</td><td>重试（只读请求可直接重发）</td>
+        </tr>
+        <tr>
+          <td class="path">503</td><td class="path">STORAGE_UNAVAILABLE</td><td>存储依赖失败</td>
+          <td>页内提示</td><td>读：按对应页面空/失败态呈现；写：结果待确认 + 「查询写入状态」，不转成 failed</td><td>核实写入结果后再决定</td>
+        </tr>
+        <tr>
+          <td class="path">504</td><td class="path">EXECUTION_TIMEOUT</td><td>单轮 60 秒调度时限耗尽</td>
+          <td>页内提示 + 胶囊</td><td>状态行胶囊「已超时」；「本轮处理超时，已停止。」若涉及保存 → 结果待确认 + 「查询写入状态」</td><td>核实写入结果后再决定后续操作</td>
+        </tr>
+        <tr>
+          <td class="path">504</td><td class="path">CALL_LIMIT_REACHED</td><td>模型决策或工具调用预算耗尽</td>
+          <td>页内提示</td><td>「本轮执行步骤已达上限，已停止。」保留已完成步骤的真实结果，不补一个假的完成态</td><td>核实写入结果后再决定后续操作</td>
+        </tr>
+        <tr>
+          <td class="path">500</td><td class="path">INTERNAL_ERROR</td><td>未预期系统错误</td>
+          <td>整页或页内提示</td><td>安全文案 + request_id（"请把编号提供给支持人员"）；不回传堆栈或数据库异常</td><td>提供 request_id 给支持</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.1 同类码的补充说明（避免评审认为"漏了"）</h3>
+  <div class="grid-2">
+    <div class="card">
+      <h4>异步文档任务的 <code>task_error_code</code> 不是 HTTP 错误</h4>
+      <p style="margin-bottom:0">SRS §8 末尾明确：<code>NO_TEXT_EXTRACTED</code>、<code>DOCUMENT_ENCRYPTED</code>、<code>PARSE_FAILED</code>、<code>EMBEDDING_FAILED</code>、<code>CLEANUP_FAILED</code>、<code>SERVICE_RESTARTED</code> 是<strong>文件级任务错误码</strong>，其存在不意味着批次查询接口本身失败；200 返回的是可读任务状态，不是入库成功。它们的 UI 呈现是<strong>文件行上的失败胶囊 + 错误原因</strong>（S11 第 3、5 行），而不是页面级错误。</p>
+    </div>
+    <div class="card">
+      <h4><code>SERVICE_RESTARTED</code> 的两个落点</h4>
+      <p style="margin-bottom:0">① 对话侧：重启后无法恢复的 <code>running</code> 请求转为 <code>failed</code>，<code>terminal_reason = SERVICE_RESTARTED</code>，UI 呈现为失败态且说明"服务重启，本轮未完成"；② 文档侧：作为文件级任务错误码出现在失败胶囊上。两处都<strong>不推断计划是否已保存</strong>——那要查 <code>WriteOperation</code>。</p>
+    </div>
+  </div>
+
+  <h3>6.2 content-spec 的五类"坏消息"必须一眼可分（映射复核）</h3>
+  <div class="table-scroll">
+    <table>
+      <caption>对应 content-spec §4 评审问题 2；这是 IA 层面对"空结果 vs 失败"的最终对照。</caption>
+      <thead><tr><th scope="col">坏消息</th><th scope="col">屏幕块</th><th scope="col">语义来源</th><th scope="col">颜色语义</th><th scope="col">可用动作</th></tr></thead>
+      <tbody>
+        <tr><td>空结果（当天无课）</td><td class="path">S08 ①</td><td>成功 + empty</td><td>中性（<strong>不得用错误色</strong>）</td><td>「换个日期」</td></tr>
+        <tr><td>读取失败（课表）</td><td class="path">S08 ②</td><td>依赖异常 503/504</td><td>错误/警告</td><td>「重试」</td></tr>
+        <tr><td>依据不足</td><td class="path">S05</td><td>检索成功 + empty</td><td>警告（不用成功色）</td><td>「换个问法」/「联系管理员补充材料」</td></tr>
+        <tr><td>检索失败</td><td class="path">S05</td><td>RETRIEVAL_UNAVAILABLE</td><td>错误</td><td>「重试」</td></tr>
+        <tr><td>结果待确认</td><td class="path">S06</td><td>pending / recovering</td><td>警告（<strong>不是失败</strong>）</td><td>「查询写入状态」</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">另加第六种：<strong>全库为空</strong>（S05 第三态），中性色，不给「重试」——因为重试不会改变结果。它与"依据不足"的区别是来源清单是否为空。</p>
+</section>
+
+<!-- ============================== 7 ============================== -->
+<section class="block" id="p7" data-screen-ref="S00">
+  <div class="block-head">
+    <span class="num">第 7 部分 · 会话生命周期</span>
+    <h2>2 小时不续期、令牌仅内存、刷新重登、切号清空、清空对话不删计划、禁用即时失效</h2>
+    <p class="anchors">依据：HLD-D03 / DEC-07 / DEC-01 / CHAT-03 / HLD §3.2 / SRS FR-AUTH-002。</p>
+  </div>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 1180 210" role="img" aria-label="会话时间线：登录后 0 到 2 小时为有效会话且不自动续期，2 小时到点后会话失效，需要重新登录。">
+      <line x1="60" y1="110" x2="1120" y2="110" stroke="var(--c-line-strong)" stroke-width="2"/>
+      <rect x="60" y="96" width="700" height="28" fill="var(--c-ok-soft)" stroke="var(--c-ok-line)"/>
+      <rect x="760" y="96" width="240" height="28" fill="var(--c-danger-soft)" stroke="var(--c-danger-line)"/>
+      <line x1="760" y1="70" x2="760" y2="150" stroke="var(--c-danger)" stroke-width="2" stroke-dasharray="5 4"/>
+      <text x="410" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="var(--c-ok)">会话有效 · 令牌仅存内存 · 不自动续期</text>
+      <text x="880" y="115" text-anchor="middle" font-size="13" font-weight="700" fill="var(--c-danger)">已失效 · 必须重新登录</text>
+      <text x="60" y="88" font-size="12" fill="var(--c-ink-2)">登录成功（t=0）</text>
+      <text x="760" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="var(--c-danger)">t = 2 小时（硬边界）</text>
+      <text x="1120" y="88" text-anchor="end" font-size="12" fill="var(--c-ink-2)">时间</text>
+      <text x="60" y="170" font-size="12" fill="var(--c-ink-3)">任何时刻刷新页面 → 内存中的令牌与对话丢失 → 回到 /login，登录后默认进入 /assistant（不承诺恢复对话与草稿引用）。</text>
+      <text x="60" y="192" font-size="12" fill="var(--c-ink-3)">2 小时内不发生任何续期请求；到点后业务接口返回 401 SESSION_EXPIRED，UI 立即停止后续请求。</text>
+    </svg>
+    <figcaption>会话有效期初始值 2 小时、本期不自动续期，取自 SRS §3.2 初始配置表；令牌不写入 localStorage 或持久化缓存，取自 HLD §3.2。</figcaption>
+  </figure>
+
+  <div class="table-scroll" style="margin-top:var(--sp-4)">
+    <table>
+      <caption>六条生命周期规则 → 界面后果 → 依据。</caption>
+      <thead><tr><th scope="col">规则</th><th scope="col">界面后果（IA 层）</th><th scope="col">依据</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>2 小时不自动续期</strong></td>
+          <td>登录页页脚明示"登录会话有效期 2 小时，到期后需要重新登录"（S01）；不出现"会话即将过期，是否续期"的对话框；到点后任何页面直接跳登录页，不做静默续期。</td>
+          <td>SRS §3.2（登录会话有效期 2 小时；本期不自动续期）；HLD-D03</td>
+        </tr>
+        <tr>
+          <td><strong>令牌仅内存</strong></td>
+          <td>不使用 localStorage / sessionStorage / IndexedDB / Cookie 持久化令牌与对话；因此<strong>没有"记住我"、没有跨标签页共享登录态</strong>的入口，新开标签页需重新登录。这也直接决定了"助手对话不入 URL"（见 §2.1）。</td>
+          <td>HLD §3.2（令牌、问答和草稿不写入 localStorage 或持久化缓存）；HLD-D03；DEC-01</td>
+        </tr>
+        <tr>
+          <td><strong>刷新需重新登录</strong></td>
+          <td>刷新 → 内存态全丢 → 跳 <code>/login</code>，登录成功后回到默认页 <code>/assistant</code>；若刷新发生在受保护深链页面（如 <code>/plans/:id</code>），登录后按保留的原目标返回。<strong>助手页刷新后落空闲态并给一次性提示"上次对话未保存，刷新后无法恢复"，不尝试恢复对话。</strong></td>
+          <td>DEC-01；CHAT-03；HLD-D03</td>
+        </tr>
+        <tr>
+          <td><strong>切换账号清空私有状态</strong></td>
+          <td>退出或换账号时<strong>立即停止展示旧身份的私有状态</strong>：对话正文、引用列表、草稿卡、计划列表、课表全部清空，不做"上次你看到的是…"的残留提示。任何跨账号残留都属于越权观感。</td>
+          <td>HLD §3.2（退出、账号切换、认证失效时立即停止展示旧身份的私有状态）；SRS FR-AUTH-002</td>
+        </tr>
+        <tr>
+          <td><strong>清空对话不删已保存计划</strong></td>
+          <td>「清空对话」是页内次级操作，<strong>操作前说明影响</strong>：只清除当前标签页的对话与草稿引用，已保存的计划不受影响。清空后回到 S02 空闲态，不跳转、不刷新页面。删除计划的确认文案同样复述这一边界："删除后无法恢复。助手对话不受影响。"（S09）</td>
+          <td>CHAT-03；HLD §3.2（清空对话不删除已保存计划）；S09 删除确认</td>
+        </tr>
+        <tr>
+          <td><strong>禁用账号即时失效</strong></td>
+          <td>禁用后该账号<strong>全部会话立即失效</strong>；正在流式输出的连接在发送后续业务事件前复查会话，失效则只能终止，<strong>不再发送任何私有结果</strong>（已流入的正文按认证失效处理，不继续展示新内容）。再次请求 → 401；重新登录 → 统一提示「当前账号不可用，请联系管理员。」（S01 并列态）。管理员在用户管理页停用学生后，该学生端在下一个请求边界即失效。</td>
+          <td>SRS FR-AUTH-002；DEC-07；SRS §8（401 AUTH_REQUIRED / SESSION_EXPIRED）；AT-03</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <h4>会话生命周期对 IA 的三个连带影响（评审时容易被追问）</h4>
+    <ol style="margin-bottom:0">
+      <li><strong>没有"会话历史"页面</strong>：因为服务端历史是 P1（CHAT-03），IA 不预留入口，也不做灰置的"即将上线"占位。</li>
+      <li><strong>没有跨标签页同步</strong>：内存态不共享，两个标签页是两个独立会话；同一份计划被两个标签页编辑时，靠 <code>409 VERSION_CONFLICT</code> 兜住，UI 保留未提交编辑（S09 文案）。</li>
+      <li><strong>会话到点不弹窗拦截</strong>：不做"延长会话"的中间态，避免制造一个后端并不支持的续期承诺。</li>
+    </ol>
+  </div>
+</section>
+
+<footer class="bottom">
+  <div>
+    <p style="margin:0"><strong>信息架构草图 · task-4</strong> · 唯一交付文件 <code>design/ia/sitemap.html</code> · 单文件、内联 CSS、零外部请求（无 CDN / 无 webfont / 无图片 / 无 JS 框架 / 无 Mermaid）。</p>
+    <p style="margin:4px 0 0">端点路径以 <code>docs/backend/openapi_v0.1.json</code> 为准；错误码以 <code>docs/校园课程智能助手_SRS_v0.1.md</code> §8 为准；屏幕块编号以 <code>design/directions/shared/content-spec.md</code> 为准。本文件未修改任何 direction-*.html 或 content-spec.md。</p>
+  </div>
+</footer>
+
+</main>
+</body>
+</html>

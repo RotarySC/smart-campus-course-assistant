@@ -1,0 +1,1082 @@
+/* ============================================================================
+   base.css —— 27 个组件族样式（前端详细设计 §8.5）
+   ----------------------------------------------------------------------------
+   规则（违反即 §8.2 的 stylelint 门禁 FAIL）：
+     1. **只消费 L3 token**。出现 `var(--p-*)`（L1）或 `var(--bg-*)`/`var(--text-*)`（L2）
+        即跨层违规。每个族的规则只消费**本族** token（唯一例外见 W2 的焦点补偿，已注明）。
+     2. **禁裸 hex、禁带单位裸长度**。媒体查询里的断点字面量是唯一例外
+        （CSS 变量无法表达断点，取值只能来自 tokens.json 的 breakpoint 表，
+         且 max-width 档只允许写 min-width 档 − 1，即 479/767/1023/1199/1439）。
+     3. **不得给组件补 rb.css 里不存在的状态**：`:active` / `transition` 一律不得出现。
+        `animation` 全文件**只允许一处** —— `.step--running .step__ico` 的旋转
+        （rb.css:252–253，design/system/README.md 裁决 9，前端详细设计 §8.3 L1723
+        以它为 prefers-reduced-motion 重置的依据）。这是对 CI 规则
+        `dsh/no-forbidden-states` 的**显式窄化**，理由见上；出现第二处即 FAIL。
+     4. 块顺序与 `design/system/components/01 → 04` 一致，每块首行标注锚点。
+
+   已知的「尺度 token 缺口」（不在本文件发明 token，只在报告里登记）：
+     - `.step__title` 的 `font-weight:600`、`.btn--primary` 的 `color:#FFFFFF`
+       在 rb.css 里就是字面量，L3 未建模；此处按 rb.css 原值抄写并标注。
+       `#FFFFFF` 已由 L1 `--p-white` 表达，但组件层不得消费 L1 —— 故用关键字 `white`？不：
+       rb.css 用的是 hex。为满足「禁裸 hex」，此处改用 `--btn-primary-fg`（其值即 #FFFFFF）。
+   ============================================================================ */
+
+/* ============ 01-shell-navigation.md：root 之外的元素级规则在 global.css ============ */
+
+/* ==== sr（01 §8；rb.css:113–114）==== */
+.sr-only {
+  position: absolute;
+  width: var(--sr-size);
+  height: var(--sr-size);
+  margin: var(--sr-offset);
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==== skiplink（01 §7；rb.css:115–118）==== */
+.skip-link {
+  position: absolute;
+  left: var(--skiplink-offset-x);
+  top: var(--skiplink-offset-y-hidden);
+  z-index: var(--skiplink-z);
+  background: var(--skiplink-bg);
+  border: var(--skiplink-border-w) solid var(--skiplink-border-color);
+  border-radius: var(--skiplink-radius);
+  padding: var(--skiplink-pad-y) var(--skiplink-pad-x);
+  text-decoration: none;
+  font-weight: var(--skiplink-fw);
+}
+
+.skip-link:focus {
+  top: var(--skiplink-offset-y-visible);
+}
+
+/* ==== appbar（01 §2；rb.css:121–137）==== */
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--appbar-z);
+  background: var(--appbar-bg);
+  border-bottom: var(--appbar-border-w) solid var(--appbar-border-color);
+}
+
+.appbar__inner {
+  max-width: var(--appbar-max-w);
+  margin: 0 auto;
+  min-height: var(--appbar-min-h);
+  display: flex;
+  align-items: center;
+  gap: var(--appbar-gap);
+  padding: var(--appbar-pad-y) var(--appbar-pad-x);
+}
+
+/* 导航：<768 隐藏（改用底部标签栏），≥768 内联。rb.css:136、145–147 */
+.appbar__nav {
+  display: none;
+  gap: var(--appbar-nav-gap);
+  margin-left: var(--appbar-nav-offset-x);
+}
+
+.appbar__user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--appbar-user-gap);
+}
+
+@media (min-width: 768px) {
+  .appbar__nav {
+    display: flex;
+  }
+}
+
+/* ==== brand（01 §3；rb.css:132–134、406–409）==== */
+.appbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--brand-gap);
+  font-weight: var(--brand-fw);
+  white-space: nowrap;
+}
+
+.appbar__mark {
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  border-radius: var(--brand-mark-radius);
+  background: var(--brand-mark-bg);
+  display: grid;
+  place-items: center;
+  color: var(--brand-mark-fg);
+  flex: 0 0 auto;
+}
+
+.login__mark {
+  width: var(--brand-mark-size-lg);
+  height: var(--brand-mark-size-lg);
+  border-radius: var(--brand-mark-radius-lg);
+  background: var(--brand-mark-bg);
+  display: grid;
+  place-items: center;
+  color: var(--brand-mark-fg);
+  flex: 0 0 auto;
+}
+
+.login__name {
+  font-size: var(--brand-name-fs);
+  font-weight: var(--brand-fw);
+}
+
+/* ==== navlink（01 §4；rb.css:138–144）==== */
+.navlink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--navlink-gap);
+  min-height: var(--navlink-min-h);
+  padding: 0 var(--navlink-pad-x);
+  border-radius: var(--navlink-radius);
+  color: var(--navlink-fg);
+  text-decoration: none;
+  font-weight: var(--navlink-fw);
+}
+
+.navlink:hover {
+  background: var(--navlink-bg-hover);
+}
+
+.navlink[aria-current='page'] {
+  color: var(--navlink-current-fg);
+  background: var(--navlink-current-bg);
+  font-weight: var(--navlink-current-fw);
+}
+
+/* ==== tabbar（01 §5/§6；rb.css:149–161）==== */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--tabbar-z);
+  display: grid;
+  grid-template-columns: repeat(var(--tabbar-cols), 1fr);
+  background: var(--tabbar-bg);
+  border-top: var(--tabbar-border-w) solid var(--tabbar-border-color);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tabbar__item {
+  min-height: var(--tabbar-item-min-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tabbar-item-gap);
+  color: var(--tabbar-item-fg);
+  text-decoration: none;
+  font-size: var(--tabbar-item-fs);
+}
+
+.tabbar__item[aria-current='page'] {
+  color: var(--tabbar-item-current-fg);
+  font-weight: var(--tabbar-item-current-fw);
+}
+
+@media (min-width: 768px) {
+  .tabbar {
+    display: none;
+  }
+}
+
+/* ==== wrap（01 §9；rb.css:164–169）==== */
+.wrap {
+  max-width: var(--wrap-max);
+  margin: 0 auto;
+  padding: var(--wrap-pad-y) var(--wrap-pad-x);
+}
+
+.wrap--assistant {
+  max-width: var(--wrap-assistant-max);
+}
+
+@media (min-width: 768px) {
+  .wrap {
+    padding: var(--wrap-pad-y-sm) var(--wrap-pad-x-sm);
+  }
+}
+
+/* 嵌套时内层只清左右内边距、保留 720px（rb.css:167–169） */
+.wrap .wrap {
+  padding-left: var(--wrap-inner-pad-x);
+  padding-right: var(--wrap-inner-pad-x);
+}
+
+/* ==== login（01 §10；rb.css:405–411）==== */
+.login {
+  max-width: var(--login-max-w);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--login-gap);
+}
+
+.login__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--login-brand-gap);
+}
+
+.login__sub {
+  color: var(--login-sub-fg);
+  font-size: var(--login-sub-fs);
+}
+
+.login__foot {
+  color: var(--login-foot-fg);
+  font-size: var(--login-foot-fs);
+  text-align: center;
+}
+
+/* ============ 02-actions-status.md ============ */
+
+/* ==== btn（02 §Button；rb.css:193–206）==== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--btn-gap);
+  min-height: var(--btn-min-h);
+  padding: 0 var(--btn-pad-x);
+  border: var(--btn-border-w) solid transparent;
+  border-radius: var(--btn-radius);
+  font: inherit;
+  font-weight: var(--btn-fw);
+  cursor: pointer;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border-color: var(--btn-border-color);
+}
+
+.btn--primary {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border-color: var(--btn-primary-border-color);
+}
+
+.btn--primary:hover {
+  background: var(--btn-primary-bg-hover);
+}
+
+.btn--danger {
+  background: var(--btn-danger-bg);
+  color: var(--btn-danger-fg);
+  border-color: var(--btn-danger-border-color);
+}
+
+.btn--ghost {
+  background: var(--btn-ghost-bg);
+  border-color: var(--btn-ghost-border-color);
+  color: var(--btn-ghost-fg);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn[disabled] {
+  opacity: var(--btn-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.btn--sm {
+  min-height: var(--btn-min-h);
+  padding: 0 var(--btn-pad-x-sm);
+  font-size: var(--btn-fs-sm);
+}
+
+/* ==== chip（02 §Chip；rb.css:392–396）==== */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--chips-gap);
+}
+
+a.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--chip-gap);
+  min-height: var(--chip-min-h);
+  padding: 0 var(--chip-pad-x);
+  border: var(--chip-border-w) solid var(--chip-border-color);
+  border-radius: var(--chip-radius);
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  text-decoration: none;
+  font-weight: var(--chip-fw);
+}
+
+a.chip:hover {
+  border-color: var(--chip-hover-border-color);
+  color: var(--chip-hover-fg);
+}
+
+/* ==== pill（02 §Pill；rb.css:209–220）==== */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pill-gap);
+  font-size: var(--pill-fs);
+  font-weight: var(--pill-fw);
+  line-height: var(--pill-lh);
+  padding: var(--pill-pad-y) var(--pill-pad-x);
+  border-radius: var(--pill-radius);
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+}
+
+.pill--ok {
+  background: var(--pill-ok-bg);
+  color: var(--pill-ok-fg);
+}
+
+/* rb.css 里 `.pill--warn` 与 `.pill--pending` 共用同一组琥珀值。
+   L3 只建模了 `--pill-warn-*`，因此 pending 复用 warn 的 token（不发明 token）。 */
+.pill--warn,
+.pill--pending {
+  background: var(--pill-warn-bg);
+  color: var(--pill-warn-fg);
+}
+
+.pill--danger {
+  background: var(--pill-danger-bg);
+  color: var(--pill-danger-fg);
+}
+
+.pill--info {
+  background: var(--pill-info-bg);
+  color: var(--pill-info-fg);
+}
+
+.pill--evidence {
+  background: var(--pill-evidence-bg);
+  color: var(--pill-evidence-fg);
+}
+
+.pill--advice {
+  background: var(--pill-advice-bg);
+  color: var(--pill-advice-fg);
+}
+
+/* ==== notice（02 §Notice；rb.css:223–231）==== */
+.notice {
+  display: flex;
+  gap: var(--notice-gap);
+  padding: var(--notice-pad);
+  border-radius: var(--notice-radius);
+  background: var(--notice-bg);
+  color: var(--notice-fg);
+  margin: 0 0 var(--notice-margin-b);
+}
+
+.notice__ico {
+  flex: 0 0 auto;
+  margin-top: var(--notice-ico-offset-y);
+}
+
+.notice--info {
+  background: var(--notice-info-bg);
+  color: var(--notice-info-fg);
+}
+
+.notice--warn {
+  background: var(--notice-warn-bg);
+  color: var(--notice-warn-fg);
+}
+
+.notice--danger {
+  background: var(--notice-danger-bg);
+  color: var(--notice-danger-fg);
+}
+
+.notice--ok {
+  background: var(--notice-ok-bg);
+  color: var(--notice-ok-fg);
+}
+
+.notice--evidence {
+  background: var(--notice-evidence-bg);
+  color: var(--notice-evidence-fg);
+}
+
+/* ==== steps（02 §Steps；rb.css:245–263）==== */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--steps-gap);
+  border-left: var(--steps-rail-w) solid var(--steps-rail-color);
+  padding-left: var(--steps-indent);
+}
+
+.step {
+  display: flex;
+  gap: var(--step-gap);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.step__ico {
+  flex: 0 0 auto;
+  margin-top: var(--step-ico-offset-y);
+}
+
+/* rb.css:249 —— L3 未为 step 标题建模字重，与 rb.css 同值（登记为尺度 token 缺口）。 */
+.step__title {
+  font-weight: 600;
+}
+
+.step__sub {
+  color: var(--step-sub-fg);
+  font-size: var(--step-sub-fs);
+  flex: 1 1 100%;
+  overflow-wrap: break-word;
+}
+
+.step--done {
+  color: var(--step-sub-fg);
+}
+
+.step--failed .step__title,
+.step--failed .step__sub {
+  color: var(--step-failed-fg);
+}
+
+/* 全文件**唯一**一处动画：本方向的唯一动效（rb.css:252–253）。
+   时长/缓动消费 L3 token，**不硬编码** `1.1s linear`。
+   全局的 prefers-reduced-motion 重置在 global.css，组件层不得再写第二处。 */
+.step--running .step__ico {
+  animation: spin var(--step-running-spin-duration) var(--step-running-spin-easing) infinite;
+}
+
+/* rb.css:256 */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 过程区的折叠摘要：<480 默认折叠，≥480 展开（rb.css:259–263） */
+.steps__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--steps-summary-gap);
+  min-height: var(--steps-min-h);
+  color: var(--steps-summary-fg);
+  font-size: var(--steps-summary-fs);
+}
+
+.steps__body {
+  display: none;
+}
+
+.steps__toggle:checked ~ .steps__body {
+  display: flex;
+}
+
+/* W2（必修项）：`.steps__toggle` 是 `.sr-only` 的 1×1 元素，聚焦后自身无可见焦点，
+   违反 WCAG 2.4.7。修法是给**可见的摘要行**加补偿环（加环，不是替换 outline）。
+   这是本文件唯一跨族消费的例外：steps 族的规则消费 focus 族的 `--focus-outline-*`。 */
+.steps__toggle:focus-visible ~ .steps__summary {
+  outline: var(--focus-outline-w) solid var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+@media (min-width: 480px) {
+  .steps__summary {
+    display: none;
+  }
+
+  .steps__body {
+    display: flex;
+  }
+}
+
+/* ==== empty（02 §Empty；rb.css:301–308）==== */
+.empty {
+  text-align: center;
+  padding: var(--empty-pad-y) var(--empty-pad-x);
+  border: var(--empty-border-w) dashed var(--empty-border-color);
+  border-radius: var(--empty-radius);
+  background: var(--empty-bg);
+}
+
+.empty__art {
+  color: var(--empty-art-fg);
+  margin-bottom: var(--empty-art-margin-b);
+}
+
+.empty__title {
+  font-weight: 600;
+  margin-bottom: var(--empty-title-margin-b);
+}
+
+.empty__hint {
+  color: var(--empty-hint-fg);
+  font-size: var(--empty-hint-fs);
+}
+
+/* 服务异常：与「成功的空」必须视觉可分（rb.css:307–308） */
+.empty--error {
+  border-style: solid;
+  border-color: var(--empty-error-border-color);
+  background: var(--empty-error-bg);
+}
+
+.empty--error .empty__art,
+.empty--error .empty__title {
+  color: var(--empty-error-fg);
+}
+
+/* 空态内的动作行居中：用后代选择器复用既有 class，**不新增 class**
+   （§10.4：组件使用的每个 class 必须逐字出现在 rb.css 里）。 */
+.empty > .row {
+  justify-content: center;
+}
+
+/* ============ 03-conversation.md ============ */
+
+/* ==== card（03 §Card；rb.css:185–190）==== */
+.card {
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.card__head {
+  padding: var(--card-head-pad-y) var(--card-head-pad-x) var(--card-head-pad-b);
+  display: flex;
+  align-items: center;
+  gap: var(--card-head-gap);
+  flex-wrap: wrap;
+  border-bottom: var(--card-border-w) solid var(--card-border-color);
+}
+
+.card__body {
+  padding: var(--card-body-pad);
+}
+
+.card__foot {
+  padding: var(--card-foot-pad-t) var(--card-foot-pad-x) var(--card-foot-pad-b);
+  display: flex;
+  gap: var(--card-foot-gap);
+  flex-wrap: wrap;
+}
+
+.card-row {
+  display: grid;
+  gap: var(--card-row-gap);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .card-row--2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ==== chat（03 §Chat；rb.css:234–242）==== */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--chat-gap);
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--msg-gap);
+  max-width: 100%;
+}
+
+.msg__who {
+  font-size: var(--msg-who-fs);
+  color: var(--msg-who-fg);
+}
+
+.msg--user {
+  align-items: flex-end;
+}
+
+.msg--user .bubble {
+  background: var(--bubble-user-bg);
+  border-color: var(--bubble-user-border-color);
+  border-bottom-right-radius: var(--bubble-user-tail-radius);
+}
+
+.bubble {
+  background: var(--bubble-bg);
+  border: var(--bubble-border-w) solid var(--bubble-border-color);
+  border-radius: var(--bubble-radius);
+  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  max-width: var(--bubble-max-w);
+  /* W3：长串溢出（`.bubble` 是**非表格**容器，故允许 anywhere）。 */
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 480px) {
+  .bubble {
+    max-width: var(--bubble-max-w-xs);
+  }
+}
+
+/* ==== composer（03 §Composer；rb.css:266–273）==== */
+.composer {
+  position: sticky;
+  bottom: calc(var(--composer-bottom) + env(safe-area-inset-bottom, 0px));
+  background: var(--composer-bg);
+  padding: var(--composer-pad-y) 0 var(--composer-pad-y);
+  border-top: var(--composer-border-w) solid var(--composer-border-color);
+  z-index: var(--composer-z);
+}
+
+@media (min-width: 768px) {
+  .composer {
+    bottom: 0;
+  }
+}
+
+.composer__row {
+  display: flex;
+  gap: var(--composer-gap);
+  align-items: flex-end;
+}
+
+.composer__count {
+  margin-left: auto;
+  font-size: var(--composer-count-fs);
+  color: var(--composer-count-fg);
+}
+
+/* ==== cite（03 §Citation；rb.css:276–288）==== */
+.cite {
+  background: var(--cite-bg);
+  border: var(--cite-border-w) solid var(--cite-border-color);
+  border-left: var(--cite-accent-w) solid var(--cite-accent-color);
+  border-radius: var(--cite-radius);
+  padding: var(--cite-pad-y) var(--cite-pad-x);
+  margin-top: var(--cite-margin-t);
+}
+
+.cite__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cite-head-gap) var(--cite-head-gap-x);
+  font-size: var(--cite-head-fs);
+}
+
+.cite__name {
+  font-weight: 600;
+  /* W3：非表格容器 → anywhere */
+  overflow-wrap: anywhere;
+}
+
+.cite__loc {
+  color: var(--cite-loc-fg);
+  font-size: var(--cite-loc-fs);
+}
+
+.cite__body {
+  margin-top: var(--cite-body-margin-t);
+  padding-top: var(--cite-body-pad-t);
+  border-top: 1px dashed var(--cite-border-color);
+  color: var(--cite-body-fg);
+  font-size: var(--cite-body-fs);
+  /* W3 */
+  overflow-wrap: anywhere;
+}
+
+.cite--invalid {
+  border-left-color: var(--cite-invalid-border-color);
+  background: var(--cite-invalid-bg);
+}
+
+.cite--invalid .cite__name {
+  color: var(--cite-invalid-fg);
+}
+
+/* 未验证的引用标记：与已验证引用必须可区分（rb.css:288） */
+.cite-mark--pending {
+  border-bottom: 1px dashed var(--cite-mark-pending-underline);
+  color: var(--cite-mark-pending-color);
+}
+
+/* ==== draft（03 §Draft；rb.css:291–298）==== */
+.draft {
+  background: var(--draft-bg);
+  border: var(--draft-border-w) dashed var(--draft-border-color);
+  border-radius: var(--draft-radius);
+  padding: var(--draft-pad);
+}
+
+.draft--saved {
+  border-style: solid;
+  border-color: var(--draft-saved-border-color);
+}
+
+.draft__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--draft-head-gap);
+  margin-bottom: var(--draft-head-margin-b);
+}
+
+.draft__kv {
+  display: grid;
+  grid-template-columns: var(--draft-kv-key-col) minmax(0, 1fr);
+  gap: var(--draft-kv-gap-y) var(--draft-kv-gap-x);
+  margin: 0;
+}
+
+.draft__kv dt {
+  color: var(--draft-kv-key-fg);
+  font-size: var(--draft-kv-key-fs);
+  white-space: nowrap;
+}
+
+.draft__kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ==== kv（03 §KVList；rb.css:381–384）==== */
+.kv {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--kv-gap);
+  margin: 0;
+}
+
+/* W3：`1fr` 的下限是 min-content，无空格长串会把第 2 轨撑到 657.9px → 整页横向滚动。
+   改成 `minmax(0, 1fr)`。 */
+.kv__row {
+  display: grid;
+  grid-template-columns: var(--kv-row-key-col) minmax(0, 1fr);
+  gap: var(--kv-row-gap);
+  align-items: start;
+}
+
+.kv__k {
+  color: var(--kv-key-fg);
+  font-size: var(--kv-key-fs);
+}
+
+.kv__v {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ==== prose（03 §Prose；rb.css:170）====
+   注意：`--prose-*` 的**全局元素规则留在 global.css**（§8.5 的「特殊警告」）。 */
+.prose {
+  max-width: var(--prose-max);
+}
+
+/* ============ 04-forms-data.md ============ */
+
+/* ==== field（04 §一；rb.css:311–318）==== */
+.form-grid {
+  display: grid;
+  gap: var(--field-grid-gap);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .form-grid--2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-grid--2 .field--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+  min-width: 0;
+}
+
+.field__label {
+  font-weight: var(--field-label-fw);
+  font-size: var(--field-label-fs);
+}
+
+.field__req {
+  color: var(--field-req-fg);
+  font-size: var(--field-req-fs);
+  font-weight: 600;
+}
+
+.field__hint {
+  color: var(--field-hint-fg);
+  font-size: var(--field-hint-fs);
+}
+
+.field__error {
+  color: var(--field-error-fg);
+  font-size: var(--field-error-fs);
+  display: flex;
+  gap: var(--field-error-gap);
+  align-items: flex-start;
+}
+
+/* ==== control（04 §二；rb.css:319–328）==== */
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: var(--control-min-h);
+  padding: var(--control-pad-y) var(--control-pad-x);
+  font: inherit;
+  color: var(--control-fg);
+  background: var(--control-bg);
+  border: var(--control-border-w) solid var(--control-border-color);
+  border-radius: var(--control-radius);
+}
+
+.textarea {
+  min-height: var(--control-textarea-min-h);
+  line-height: var(--control-textarea-lh);
+}
+
+/* 只读 vs 禁用必须视觉可分（content-spec §1 硬要求） */
+.input[readonly] {
+  background: var(--control-readonly-bg);
+  border-color: var(--control-readonly-border-color);
+  color: var(--control-readonly-fg);
+}
+
+.input[disabled],
+.select[disabled] {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.field--invalid .input,
+.field--invalid .select,
+.field--invalid .textarea {
+  border-color: var(--control-invalid-border-color);
+  box-shadow: var(--control-invalid-ring);
+}
+
+/* ==== errorsummary（04 §四；rb.css:329–331）==== */
+.error-summary {
+  border: var(--errorsummary-border-w) solid var(--errorsummary-border-color);
+  background: var(--errorsummary-bg);
+  border-radius: var(--errorsummary-radius);
+  padding: var(--errorsummary-pad-y) var(--errorsummary-pad-x);
+  margin-bottom: var(--errorsummary-margin-b);
+}
+
+.error-summary a {
+  color: var(--errorsummary-fg);
+}
+
+/* 列表排版用后代选择器复用既有 class，**不新增 class**（§10.4 class 存在性）。 */
+.error-summary ul {
+  margin: 0;
+  padding-left: var(--errorsummary-pad-x);
+  list-style: none;
+}
+
+.error-summary li > span {
+  display: block;
+}
+
+.error-summary .row {
+  margin: 0;
+}
+
+/* ==== table（04 §五/§六；rb.css:334–378）==== */
+.table-wrap {
+  overflow-x: auto;
+  border: var(--table-border-w) solid var(--table-border-color);
+  border-radius: var(--table-radius);
+  background: var(--table-bg);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-fs);
+}
+
+.table caption {
+  text-align: left;
+  color: var(--table-caption-fg);
+  font-size: var(--table-caption-fs);
+  padding: var(--table-caption-pad-t) var(--table-caption-pad-x) 0;
+}
+
+.table th,
+.table td {
+  padding: var(--table-cell-pad-y) var(--table-cell-pad-x);
+  text-align: left;
+  border-bottom: var(--table-border-w) solid var(--table-border-color);
+  vertical-align: top;
+}
+
+.table thead th {
+  font-size: var(--table-head-fs);
+  color: var(--table-head-fg);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table .num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table .r {
+  text-align: right;
+}
+
+/* 表格内的长文本用 break-word + min-width。
+   **不得**改成 anywhere：那会降低 min-content，让 auto 布局的该列被压到约 1 字符宽。 */
+.table .cell-name {
+  overflow-wrap: break-word;
+  min-width: var(--table-cellname-min-w);
+  font-weight: 600;
+}
+
+.table--compact {
+  font-size: var(--table-compact-fs);
+}
+
+.table--compact th,
+.table--compact td {
+  padding: var(--table-compact-pad-y) var(--table-compact-pad-x);
+}
+
+/* <768：把「行」变成「卡片」，用 data-label 做字段名，避免横向滚动（rb.css:351–378） */
+@media (max-width: 767px) {
+  .table--stack thead {
+    display: none;
+  }
+
+  /* caption 必须同时改为 block：表格变 block 后 table-caption 会 shrink-to-fit 到
+     min-content（约 62px），说明文字会变成每行一个字。320/390 实拍确认过。 */
+  .table--stack caption {
+    display: block;
+    width: auto;
+    padding: 0 0 var(--table-stack-caption-pad-b);
+  }
+
+  .table--stack,
+  .table--stack tbody,
+  .table--stack tr,
+  .table--stack td {
+    display: block;
+    width: auto;
+  }
+
+  .table--stack tr {
+    border-bottom: var(--table-border-w) solid var(--table-border-color);
+    padding: var(--table-stack-row-pad-y) var(--table-stack-row-pad-x);
+  }
+
+  .table--stack tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table--stack td {
+    border: 0;
+    padding: var(--table-stack-cell-pad-y) 0;
+    display: grid;
+    grid-template-columns: var(--table-stack-label-col) minmax(0, 1fr);
+    gap: var(--table-cell-pad-x);
+    align-items: start;
+    overflow-wrap: break-word;
+  }
+
+  /* 让所有真实子元素都落在值列（第 2 列）；
+     伪元素 ::before 承担的字段名不受影响，仍占第 1 列。 */
+  .table--stack td > * {
+    grid-column: 2;
+  }
+
+  .table--stack td::before {
+    content: attr(data-label);
+    color: var(--table-stack-label-fg);
+    font-size: var(--table-stack-label-fs);
+    font-weight: var(--table-stack-label-fw);
+  }
+
+  .table--stack td:not([data-label])::before {
+    content: '';
+  }
+
+  .table--stack td.cell-name {
+    display: block;
+    font-size: var(--table-stack-name-fs);
+    padding-bottom: var(--table-stack-name-pad-b);
+    min-width: 0;
+  }
+
+  .table--stack td.cell-name::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: var(--table-stack-name-label-margin-b);
+  }
+
+  .table--stack .num {
+    white-space: normal;
+  }
+
+  .table--stack .r {
+    text-align: left;
+  }
+
+  .table-wrap--stackable {
+    overflow-x: visible;
+    border: 0;
+    background: transparent;
+  }
+}
+
+/* ==== utility（04 §八；rb.css:387–391）==== */
+.muted {
+  color: var(--muted-fg);
+}
+
+.small {
+  font-size: var(--small-fs);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--row-gap);
+  align-items: center;
+}
+
+.spacer {
+  margin-left: auto;
+}

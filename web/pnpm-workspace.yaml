@@ -1,0 +1,23 @@
+# pnpm 11 起，本文件承载原先 package.json 里的 `pnpm` 字段设置。
+#
+# 1) 构建脚本许可
+#    本机（DSH 沙箱）的明确边界：进程不能用管道 stdio 生成子进程
+#    （child_process.spawn 默认 stdio:'pipe' → EPERM），因此任何包的生命周期脚本都无法执行。
+#    这是沙箱策略，不是依赖问题。显式声明「已知并接受跳过」，让 `pnpm install` 以 0 退出
+#    （不声明会得到 ERR_PNPM_IGNORED_BUILDS 并以 1 退出）。
+#    * esbuild 的 postinstall 只做校验/兜底下载 —— 平台包 @esbuild/win32-x64 已由 pnpm 作为
+#      optionalDependency 落地，esbuild.exe（10.6 MiB）已在 store 内；
+#    * vue-demi 的 postinstall 只切换 Vue 2/3 shim —— 本工程锁 Vue 3，默认即 v3 分支。
+#
+# 2) nodeLinker: hoisted
+#    默认的 isolated 布局用 NTFS junction 表达依赖边；本机 Node 解析这些 junction 时
+#    不跟随到 .pnpm 目标（fs.realpathSync 返回 junction 自身，导致 `vite` 找不到同级的
+#    picomatch/rollup/esbuild），`vite` 直接 ERR_MODULE_NOT_FOUND。
+#    hoisted = npm 式扁平 node_modules（真实目录 + 硬链接），Node 解析正常。
+#    代价：失去 pnpm 的严格依赖隔离；本骨架只有 vue / vue-router / pinia 三个运行时依赖，
+#    收尾阶段若换回 isolated，请在**无此 junction 限制的环境**里复跑 pnpm install。
+allowBuilds:
+  esbuild: false
+  vue-demi: false
+
+nodeLinker: hoisted

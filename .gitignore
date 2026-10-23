@@ -1,0 +1,28 @@
+# ---- Node / 前端骨架 ----
+node_modules/
+.pnpm-store/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+.env.local
+.env.*.local
+.npmrc.local
+
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+
+# ---- 临时 / 验证产物 ----
+# 本地静态服务器与浏览器取证的临时目录
+.cdp-probe-profile/
+.debug/
+debug.log
+*.tmp
+
+# ---- 编辑器 / 系统 ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,32 @@
+<script setup lang="ts">
+/**
+ * `empty` 族（02-actions-status.md §Empty；rb.css:301–308）。
+ *
+ * **两态绝不合并**：`variant='empty'` 是「成功的空」，`variant='error'` 是服务异常；
+ * 后者必须 `role="alert"`，且两者用不同图标 + 不同标题 + 不同容器外观（三重表达）。
+ * 文案由调用方传入（必须来自 content-spec）。
+ */
+import { ICONS } from './icons'
+
+const props = withDefaults(defineProps<{ variant?: 'empty' | 'error'; title: string; hint?: string }>(), {
+  variant: 'empty',
+  hint: '',
+})
+const isError = (): boolean => props.variant === 'error'
+</script>
+
+<template>
+  <div class="empty" :class="{ 'empty--error': isError() }" :role="isError() ? 'alert' : undefined">
+    <div class="empty__art" aria-hidden="true">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <template v-if="isError()"><path v-for="(d, i) in ICONS.circleAlert" :key="i" :d="d" /></template>
+        <template v-else><path v-for="(d, i) in ICONS.image" :key="i" :d="d" /></template>
+      </svg>
+    </div>
+    <p class="empty__title">{{ title }}</p>
+    <p v-if="hint" class="empty__hint">{{ hint }}</p>
+    <slot />
+    <!-- 不新增 class：居中由 base.css 的 `.empty > .row` 结构规则提供（§10.4 class 存在性） -->
+    <div v-if="$slots.actions" class="row"><slot name="actions" /></div>
+  </div>
+</template>

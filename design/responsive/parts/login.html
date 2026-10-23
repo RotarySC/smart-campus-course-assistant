@@ -1,0 +1,107 @@
+<section class="view" id="v-S01">
+  <div class="view__head">
+    <span class="view__id">S01</span>
+    <h2>登录</h2>
+    <span class="view__cap">窄卡片居中；窄屏满宽。三种状态：正常 / 凭据错误 / 账号禁用</span>
+  </div>
+
+  <div class="login">
+    <div class="login__brand">
+      <span class="login__mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/>
+        </svg>
+      </span>
+      <div>
+        <div class="login__name">校园课程智能助手</div>
+        <div class="login__sub">查课表 · 问资料 · 存计划，一个入口</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__body stack">
+        <div class="field">
+          <label class="field__label" for="login-account">账号 <span class="field__req">必填</span></label>
+          <input class="input" id="login-account" name="account" type="text" autocomplete="username"
+                 value="student_demo">
+        </div>
+        <div class="field">
+          <label class="field__label" for="login-password">密码 <span class="field__req">必填</span></label>
+          <input class="input" id="login-password" name="password" type="password"
+                 autocomplete="current-password" value="············">
+        </div>
+        <button class="btn btn--primary btn--block" type="button">登录</button>
+      </div>
+    </div>
+
+    <p class="login__foot">登录会话有效期 2 小时，到期后需要重新登录。</p>
+  </div>
+
+  <h3 class="view__note" style="margin-top:var(--sp-6)">状态 A · 凭据错误（统一文案，不区分账号不存在与密码错误）</h3>
+  <div class="login">
+    <div class="card">
+      <div class="card__body stack">
+        <div class="notice notice--danger" role="alert">
+          <span class="notice__ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/>
+              <path d="M12 9v4M12 17h.01"/>
+            </svg>
+          </span>
+          <span><b>账号或密码不正确，请重试。</b></span>
+        </div>
+        <div class="field field--invalid">
+          <label class="field__label" for="login-account-err">账号 <span class="field__req">必填</span></label>
+          <input class="input" id="login-account-err" type="text" value="student_demo"
+                 aria-describedby="login-account-err-hint">
+          <span class="field__hint" id="login-account-err-hint">账号保留，不需要重新输入。</span>
+        </div>
+        <div class="field field--invalid">
+          <label class="field__label" for="login-password-err">密码 <span class="field__req">必填</span></label>
+          <input class="input" id="login-password-err" type="password" value=""
+                 aria-describedby="login-password-err-msg" aria-invalid="true">
+          <span class="field__error" id="login-password-err-msg">
+            <span aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>
+              </svg>
+            </span>
+            <span>账号或密码不正确，请重试。</span>
+          </span>
+        </div>
+        <button class="btn btn--primary btn--block" type="button">登录</button>
+        <p class="small muted" style="margin:0">焦点已回到密码框；密码已清空。登录会话有效期 2 小时，到期后需要重新登录。</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="view__note" style="margin-top:var(--sp-6)">状态 B · 账号不可用（与「凭据错误」是两种不同原因，文案不互相替代）</h3>
+  <div class="login">
+    <div class="card">
+      <div class="card__body stack">
+        <div class="notice notice--danger" role="alert">
+          <span class="notice__ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>
+            </svg>
+          </span>
+          <span><b>当前账号不可用，请联系管理员。</b></span>
+        </div>
+        <div class="field">
+          <label class="field__label" for="login-account-dis">账号</label>
+          <input class="input" id="login-account-dis" type="text" value="student_demo" disabled>
+        </div>
+        <div class="field">
+          <label class="field__label" for="login-password-dis">密码</label>
+          <input class="input" id="login-password-dis" type="password" value="" disabled>
+        </div>
+        <button class="btn btn--primary btn--block" type="button" disabled>登录</button>
+        <p class="small muted" style="margin:0">禁用态整组降透明度；账号被禁用后，原令牌即便未过期也不再可用。</p>
+      </div>
+    </div>
+  </div>
+</section>

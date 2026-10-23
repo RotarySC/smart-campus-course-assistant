@@ -1,0 +1,569 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CCA SSE event envelope v0.1",
+  "description": "解析后的SSE事件；id与data.seq一致。终态唯一、工具配对、单调seq、权限和引用有效性为流级应用约束。",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "event": {
+          "const": "status"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "conversation_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "draft_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "draft_version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "request_id",
+            "seq",
+            "timestamp",
+            "code",
+            "message"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "code": {
+                    "const": "ACCEPTED"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              },
+              "then": {
+                "required": [
+                  "conversation_id"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "event": {
+          "const": "tool_start"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "tool_call_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "tool_name": {
+              "enum": [
+                "get_my_schedule",
+                "search_course_docs",
+                "save_study_plan"
+              ]
+            },
+            "display_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "request_id",
+            "seq",
+            "timestamp",
+            "tool_call_id",
+            "tool_name",
+            "display_name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "event": {
+          "const": "tool_end"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "tool_call_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "success": {
+              "type": "boolean"
+            },
+            "result_status": {
+              "enum": [
+                "ok",
+                "empty",
+                "created",
+                "existing",
+                "failed"
+              ]
+            },
+            "code": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "plan_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "operation_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            }
+          },
+          "required": [
+            "request_id",
+            "seq",
+            "timestamp",
+            "tool_call_id",
+            "success",
+            "result_status"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "success": {
+                    "const": false
+                  }
+                },
+                "required": [
+                  "success"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "result_status": {
+                    "const": "failed"
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "success": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "success"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "result_status": {
+                    "enum": [
+                      "ok",
+                      "empty",
+                      "created",
+                      "existing"
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "event": {
+          "const": "token"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "text_delta": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "answer_block_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          "required": [
+            "request_id",
+            "seq",
+            "timestamp",
+            "text_delta",
+            "answer_block_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "event": {
+          "const": "done"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "state": {
+              "enum": [
+                "succeeded",
+                "cancelled"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "citations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Reference"
+              }
+            },
+            "plan_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "operation_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            }
+          },
+          "required": [
+            "request_id",
+            "seq",
+            "timestamp",
+            "state",
+            "citations"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "event": {
+          "const": "error"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "state": {
+              "const": "failed"
+            },
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "plan_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "operation_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            }
+          },
+          "required": [
+            "request_id",
+            "seq",
+            "timestamp",
+            "state",
+            "code",
+            "message"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "AUTH_REQUIRED",
+                      "SESSION_EXPIRED"
+                    ]
+                  }
+                },
+                "required": [
+                  "code"
+                ]
+              },
+              "then": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "plan_id"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "operation_id"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "event",
+        "data"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "Reference": {
+      "type": "object",
+      "properties": {
+        "reference_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "file_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "location_label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "reference_id",
+        "document_id",
+        "version_id",
+        "file_name",
+        "location_label"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

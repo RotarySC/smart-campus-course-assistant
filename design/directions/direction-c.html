@@ -1,0 +1,2481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>方向 C · 数据密集 / 运维控制台 — 校园课程智能助手</title>
+<style>
+/* ============================================================
+   方向 C · 数据密集 · 运维控制台
+   单文件自包含：零外部请求 / 图标全部内联 SVG / 无 emoji 图标
+   分层：原始调色板 (--c-*) → 语义 token (--primary …) → 组件
+   组件内一律使用语义 token，不写裸 hex。
+   ============================================================ */
+:root{
+  /* --- 原始调色板（仅作为语义 token 的取值来源） --- */
+  --c-ink-900:#0B1220;
+  --c-indigo-600:#4F46E5;
+  --c-indigo-700:#4338CA;
+  --c-indigo-500:#6366F1;
+  --c-green-600:#16A34A;
+  --c-amber-600:#D97706;
+  --c-red-600:#DC2626;
+  --c-sky-600:#0284C7;
+  --c-slate-900:#0F172A;
+  --c-slate-700:#334155;
+  --c-slate-500:#64748B;
+  --c-slate-300:#CBD5E1;
+  --c-slate-200:#E2E8F0;
+  --c-slate-100:#F1F5F9;
+  --c-slate-50:#F8FAFC;
+  --c-white:#FFFFFF;
+
+  /* --- 深色顶栏 / 侧栏 --- */
+  --topbar-bg:var(--c-ink-900);
+  --sidebar-bg:var(--c-ink-900);
+  --topbar-fg:#E6EDF7;
+  --topbar-fg-dim:#9FB0C9;
+  --topbar-border:#1E293B;
+  --topbar-hover:#172033;
+  --sidebar-active:#1B2436;
+  --sidebar-active-bar:var(--c-indigo-500);
+  --topbar-search-bg:#0E1626;
+  --topbar-kbd-bd:#2A3A55;
+  --topbar-kbd-bg:#131C2E;
+  --topbar-kbd-fg:#C7D6EA;
+  --topbar-hint-bd:#2E3E5C;
+  --topbar-chip-fg:#DCE6F5;
+  --topbar-faint:#6B7E9C;
+  --topbar-badge-fg:#93A6C4;
+  --focus-ring-on-dark:#A5B4FC;
+
+  /* --- 品牌 --- */
+  --brand:var(--c-indigo-600);
+  --brand-hover:var(--c-indigo-700);
+  --brand-on:#EEF2FF;
+  --brand-border:#C7D2FE;
+
+  /* --- 中性面 --- */
+  --bg-page:var(--c-slate-50);
+  --bg-card:var(--c-white);
+  --surface-2:var(--c-slate-100);
+  --border:var(--c-slate-200);
+  --border-strong:var(--c-slate-300);
+  --text:var(--c-slate-900);
+  --text-2:var(--c-slate-700);
+  --text-muted:var(--c-slate-500);
+  --placeholder-fg:#8A99AE;
+  --row-hover-bg:#FBFCFE;
+  --row-alt-bg:#FCFDFE;
+  --row-subtle-bg:#FCFDFF;
+
+  /* --- 语义状态 --- */
+  --success:var(--c-green-600);  --success-bg:#F0FDF4; --success-bd:#BBF7D0; --success-tx:#15803D;
+  --warning:var(--c-amber-600);  --warning-bg:#FFFBEB; --warning-bd:#FDE68A; --warning-tx:#B45309;
+  --danger:var(--c-red-600);     --danger-bg:#FEF2F2;  --danger-bd:#FECACA;  --danger-tx:#B91C1C;
+  --info:var(--c-sky-600);       --info-bg:#F0F9FF;    --info-bd:#BAE6FD;    --info-tx:#0369A1;
+  --neutral:var(--c-slate-500);  --neutral-bg:var(--c-slate-100); --neutral-bd:var(--c-slate-300); --neutral-tx:var(--c-slate-700);
+  --disabled-fg:#94A3B8; --disabled-bg:var(--c-slate-100);
+
+  /* --- 控件 --- */
+  --focus:var(--c-indigo-600);
+  --focus-ring:rgba(79,70,229,.30);
+  --ctrl-border:#C4CFDD;
+  --ctrl-bg:var(--c-white);
+
+  /* --- 圆角 / 尺寸 / 密度 --- */
+  --r-sm:4px; --r-md:6px; --r-pill:999px;
+  --sidebar-w:216px; --sidebar-collapsed-w:56px; --topbar-h:48px;
+  --row-h:36px; --tap:44px;
+  --sp-1:2px; --sp-2:4px; --sp-3:6px; --sp-4:8px; --sp-5:12px; --sp-6:16px; --sp-7:24px; --sp-8:32px;
+
+  /* --- 字阶 --- */
+  --fs-11:11px; --fs-12:12px; --fs-13:13.5px; --fs-16:16px; --fs-20:20px; --fs-26:26px;
+  --lh-body:1.45;
+  --font-seq:11px; --font-table:13px;
+  --font-ui:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-mono:ui-monospace,"Cascadia Mono","Consolas","Courier New",monospace;
+
+  /* --- 其他 --- */
+  --hairline:1px solid var(--border);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg-page); color:var(--text);
+  font-family:var(--font-ui); font-size:var(--fs-13); line-height:var(--lh-body);
+  font-variant-numeric:tabular-nums;
+}
+h1,h2,h3,h4,p,ul,ol,figure{margin:0}
+ul,ol{padding:0; list-style:none}
+a{color:var(--brand)}
+code,kbd,.mono{font-family:var(--font-mono)}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--text-muted)}
+.svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.svg-24{width:24px;height:24px;stroke-width:1.75;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.svg-14{width:14px;height:14px}
+.svg-12{width:12px;height:12px}
+.wrap-any{overflow-wrap:break-word}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ---------- 焦点可见（硬要求：≥2px，且不被粘性栏遮挡） ---------- */
+:focus{outline:none}
+:focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+  box-shadow:0 0 0 4px var(--focus-ring);
+  border-radius:var(--r-sm);
+}
+.topbar :focus-visible,.sidebar :focus-visible,.dnav :focus-visible{
+  outline:2px solid var(--focus-ring-on-dark); outline-offset:2px; box-shadow:none;
+}
+.dnav{padding-block:4px}
+.snav a:focus-visible{outline:2px solid var(--focus);outline-offset:0;box-shadow:none}
+
+/* ============================================================
+   1. 应用外壳演示（深色顶栏 48px + 可折叠侧栏 216/56px）
+   ============================================================ */
+.shell{border:var(--hairline);border-radius:var(--r-md);overflow:hidden;background:var(--bg-card)}
+.topbar{
+  height:var(--topbar-h); background:var(--topbar-bg); color:var(--topbar-fg);
+  display:flex; align-items:center; gap:var(--sp-5); padding:0 var(--sp-5);
+}
+.tb-brand{display:flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-13);font-weight:600;letter-spacing:.01em;color:var(--bg-card);text-decoration:none;white-space:nowrap}
+.tb-brand .mark{width:22px;height:22px;border-radius:var(--r-sm);background:var(--brand);display:grid;place-items:center;color:var(--bg-card);font-size:var(--fs-12);font-weight:700}
+.tb-search{
+  flex:1 1 280px; max-width:420px; height:30px; display:flex; align-items:center; gap:var(--sp-4);
+  border:1px solid var(--topbar-border); border-radius:var(--r-md); padding:0 var(--sp-4);
+  background:var(--topbar-search-bg); color:var(--topbar-fg-dim); font-size:var(--fs-12); cursor:text;
+}
+.tb-search .svg{color:var(--topbar-fg-dim)}
+.tb-search .kbd{margin-left:auto}
+.kbd{
+  display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
+  border:1px solid var(--border-strong); border-radius:var(--r-sm); background:var(--bg-card);
+  font-family:var(--font-mono); font-size:var(--fs-11); color:var(--text-2); line-height:1;
+}
+.topbar .kbd{border-color:var(--topbar-kbd-bd);background:var(--topbar-kbd-bg);color:var(--topbar-kbd-fg)}
+.hint{display:inline-flex;align-items:center;gap:var(--sp-3);font-size:var(--fs-12);color:var(--topbar-fg-dim)}
+.hint + .hint{margin-left:var(--sp-5)}
+.tb-sep{width:1px;height:20px;background:var(--topbar-border)}
+.tb-clock{display:flex;align-items:center;gap:var(--sp-3);font-size:var(--fs-12);color:var(--topbar-fg);white-space:nowrap}
+.tb-role{
+  display:inline-flex;align-items:center;gap:var(--sp-3);height:24px;padding:0 var(--sp-4);
+  border:1px solid var(--topbar-hint-bd);border-radius:var(--r-pill);background:var(--topbar-kbd-bg);color:var(--topbar-chip-fg);
+  font-size:var(--fs-12);font-weight:500;letter-spacing:.01em;white-space:nowrap;
+}
+.tb-role .dot{width:6px;height:6px;border-radius:50%;background:var(--c-indigo-500)}
+.shell-body{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr)}
+.sidebar{
+  background:var(--sidebar-bg); color:var(--topbar-fg-dim); border-right:1px solid var(--topbar-border);
+  padding:var(--sp-5) var(--sp-4); display:flex; flex-direction:column; gap:var(--sp-2);
+}
+.nav-label{font-size:var(--fs-11);letter-spacing:.08em;text-transform:uppercase;color:var(--topbar-faint);padding:var(--sp-4) var(--sp-4) var(--sp-2)}
+.nav-item{
+  display:flex;align-items:center;gap:var(--sp-4);height:32px;padding:0 var(--sp-4);border-radius:var(--r-md);
+  color:var(--topbar-fg-dim);font-size:var(--fs-13);text-decoration:none;position:relative;
+}
+.nav-item:hover{background:var(--topbar-hover);color:var(--bg-card)}
+.nav-item.is-active{background:var(--sidebar-active);color:var(--bg-card);font-weight:500}
+.nav-item.is-active::before{content:"";position:absolute;left:-4px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--sidebar-active-bar)}
+.nav-item .badge-n{margin-left:auto;font-size:var(--fs-11);color:var(--topbar-badge-fg)}
+.sidebar-foot{margin-top:auto;padding:var(--sp-5) var(--sp-4) 0;border-top:1px solid var(--topbar-border);font-size:var(--fs-11);color:var(--topbar-faint)}
+.shell-note{
+  display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);
+  border-top:var(--hairline);background:var(--surface-2);font-size:var(--fs-12);color:var(--text-2);
+}
+.shell-note .tag{flex:none}
+
+/* 收起态侧栏：56px 仅图标 + tooltip */
+.sidebar.is-collapsed{width:var(--sidebar-collapsed-w);padding-inline:var(--sp-2);align-items:stretch}
+.sidebar.is-collapsed .nav-item{justify-content:center;padding:0}
+.sidebar.is-collapsed .nav-label{display:none}
+.tip{position:relative}
+.tip::after{
+  content:attr(data-tip); position:absolute; left:calc(100% + 8px); top:50%; transform:translateY(-50%);
+  background:var(--c-ink-900); color:var(--bg-card); border:1px solid var(--topbar-border); border-radius:var(--r-sm);
+  font-size:var(--fs-11); line-height:1.4; padding:4px 8px; white-space:nowrap; z-index:5;
+  opacity:0; visibility:hidden; transition:opacity .12s ease;
+}
+.tip:hover::after,.tip:focus-visible::after{opacity:1;visibility:visible}
+
+/* ============================================================
+   2. 页面骨架：演示条 / 屏幕导航 / 内容区
+   ============================================================ */
+.pagehead{background:var(--bg-card);border-bottom:var(--hairline)}
+.pagehead-in{max-width:1600px;margin:0 auto;padding:var(--sp-7) var(--sp-7) var(--sp-6);display:flex;gap:var(--sp-7);align-items:flex-start;flex-wrap:wrap}
+.pagehead h1{font-size:var(--fs-26);line-height:1.25;letter-spacing:-.01em}
+.pagehead .sub{font-size:var(--fs-13);color:var(--text-2);margin-top:var(--sp-4);max-width:760px}
+.pagehead .meta{margin-left:auto;display:flex;flex-direction:column;gap:var(--sp-3);align-items:flex-end}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--r-pill);
+  border:1px solid var(--border);background:var(--bg-card);font-size:var(--fs-11);font-weight:500;
+  letter-spacing:.01em;color:var(--text-2);white-space:nowrap;
+}
+.chip.on-brand{background:var(--brand-on);border-color:var(--brand-border);color:var(--c-indigo-700)}
+.snav{
+  position:sticky; top:0; z-index:30; background:var(--bg-card); border-bottom:var(--hairline);
+  display:flex; align-items:center; gap:var(--sp-4); padding:var(--sp-4) var(--sp-5); overflow-x:auto;
+}
+.snav .snav-t{font-size:var(--fs-11);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);padding:0 var(--sp-4);white-space:nowrap}
+.snav a{
+  display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--r-sm);
+  font-size:var(--fs-12);font-weight:500;letter-spacing:.01em;color:var(--text-2);text-decoration:none;
+  border:1px solid transparent;white-space:nowrap;
+}
+.snav a:hover{background:var(--surface-2);border-color:var(--border)}
+main{max-width:1600px;margin:0 auto;padding:var(--sp-7) var(--sp-7) 96px;display:flex;flex-direction:column;gap:var(--sp-7)}
+
+/* ---------- 屏幕块 ---------- */
+section[data-screen]{background:var(--bg-card);border:var(--hairline);border-radius:var(--r-md);scroll-margin-top:64px}
+.sec-head{display:flex;align-items:baseline;gap:var(--sp-5);padding:var(--sp-6) var(--sp-6) var(--sp-5);border-bottom:var(--hairline);flex-wrap:wrap}
+.sec-id{
+  font-family:var(--font-mono);font-size:var(--fs-12);font-weight:600;color:var(--c-indigo-700);
+  background:var(--brand-on);border:1px solid var(--brand-border);border-radius:var(--r-sm);padding:1px 6px;
+}
+.sec-head h2{font-size:var(--fs-16);font-weight:600;letter-spacing:0}
+.sec-head .sub{font-size:var(--fs-12);color:var(--text-muted)}
+.sec-head .right{margin-left:auto;display:flex;gap:var(--sp-3);align-items:center}
+.sec-body{padding:var(--sp-6)}
+.g12{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--sp-5)}
+.split{display:grid;grid-template-columns:minmax(0,680px) 340px;gap:var(--sp-6);align-items:start}
+.stack{display:flex;flex-direction:column;gap:var(--sp-5)}
+.stack-sm{display:flex;flex-direction:column;gap:var(--sp-4)}
+.row{display:flex;gap:var(--sp-5);align-items:center;flex-wrap:wrap}
+.row-tight{display:flex;gap:var(--sp-4);align-items:center}
+.grow{flex:1 1 auto;min-width:0}
+.divider{height:1px;background:var(--border);margin:var(--sp-2) 0}
+.block{border:var(--hairline);border-radius:var(--r-md);background:var(--bg-card)}
+.block-h{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-5) var(--sp-5);border-bottom:var(--hairline)}
+.block-h h3{font-size:var(--fs-13);font-weight:600}
+.block-h .right{margin-left:auto;display:flex;align-items:center;gap:var(--sp-3)}
+.block-b{padding:var(--sp-5)}
+.block-b.tight{padding:0}
+.subhead{font-size:var(--fs-12);font-weight:500;letter-spacing:.01em;color:var(--text-2);margin-bottom:var(--sp-4)}
+.label{display:block;font-size:var(--fs-12);font-weight:500;letter-spacing:.01em;color:var(--text-2);margin-bottom:var(--sp-3)}
+.req{color:var(--danger);font-size:var(--fs-11);font-weight:500;margin-left:4px}
+
+/* ============================================================
+   3. 状态胶囊：图标 + 文字 + 颜色（三重表达）
+   ============================================================ */
+.pill{
+  display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:var(--r-pill);
+  border:1px solid; background:var(--neutral-bg); border-color:var(--neutral-bd); color:var(--neutral-tx);
+  font-size:var(--fs-12); font-weight:500; letter-spacing:.01em; white-space:nowrap;
+}
+.pill .svg{width:12px;height:12px}
+.pill.ok{background:var(--success-bg);border-color:var(--success-bd);color:var(--success-tx)}
+.pill.run{background:var(--info-bg);border-color:var(--info-bd);color:var(--info-tx)}
+.pill.warn{background:var(--warning-bg);border-color:var(--warning-bd);color:var(--warning-tx)}
+.pill.bad{background:var(--danger-bg);border-color:var(--danger-bd);color:var(--danger-tx)}
+.pill.neu{background:var(--neutral-bg);border-color:var(--neutral-bd);color:var(--neutral-tx)}
+.pill.mono{font-family:var(--font-mono);font-size:var(--fs-11)}
+.pill.tall{height:24px}
+
+/* 步骤状态（S03）—— 进行中 / 完成 / 失败 三态，失败不得显示完成勾 */
+.step{display:flex;gap:var(--sp-5);padding:var(--sp-5);border-bottom:var(--hairline)}
+.step:last-child{border-bottom:0}
+.step-ico{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;border:1px solid;flex:none}
+.step-ico.ok{color:var(--success-tx);background:var(--success-bg);border-color:var(--success-bd)}
+.step-ico.run{color:var(--info-tx);background:var(--info-bg);border-color:var(--info-bd)}
+.step-ico.bad{color:var(--danger-tx);background:var(--danger-bg);border-color:var(--danger-bd)}
+.step-main{flex:1;min-width:0}
+.step-title{font-size:var(--fs-13);font-weight:600}
+.step-title .arg{font-weight:400;color:var(--text-2)}
+.step-meta{font-size:var(--fs-12);color:var(--text-muted);margin-top:2px}
+.step-aside{display:flex;align-items:center;gap:var(--sp-3);flex:none}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){
+  .spin,.pulse{animation:none}
+  *{transition:none !important}
+}
+.enter{animation:enter .18s ease-out}
+@keyframes enter{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.enter{animation:none}}
+
+/* 进度条（S11 处理中） */
+.bar{height:4px;border-radius:var(--r-pill);background:var(--surface-2);border:1px solid var(--border);overflow:hidden;min-width:72px}
+.bar > i{display:block;height:100%;background:var(--info);width:42%}
+
+/* ============================================================
+   4. 按钮 / 表单
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 12px;border-radius:var(--r-md);border:1px solid var(--border-strong);
+  background:var(--ctrl-bg);color:var(--text);font-size:var(--fs-13);font-family:inherit;font-weight:500;
+  cursor:pointer;white-space:nowrap;text-decoration:none;
+}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:var(--bg-card)}
+.btn-primary:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
+.btn-danger{background:var(--bg-card);border-color:var(--danger-bd);color:var(--danger-tx)}
+.btn-danger:hover{background:var(--danger-bg)}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--text-2)}
+.btn-ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn-sm{height:26px;padding:0 8px;font-size:var(--fs-12)}
+.btn-lg{height:var(--tap);padding:0 16px;font-size:var(--fs-16)}
+.btn[disabled],.btn.is-disabled{background:var(--disabled-bg);border-color:var(--border);color:var(--disabled-fg);cursor:not-allowed;opacity:.85}
+.btn-icon{width:32px;height:32px;padding:0;flex:none}
+.btn-icon-sm{width:26px;height:26px;padding:0;flex:none}
+.tbtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:26px;padding:0 7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-card);color:var(--text-2);font-size:var(--fs-12);font-family:inherit;font-weight:500;cursor:pointer}
+.tbtn:hover{background:var(--surface-2);color:var(--text)}
+.tbtn.crit{color:var(--danger-tx);border-color:var(--danger-bd)}
+.tbtn.crit:hover{background:var(--danger-bg)}
+
+.field{margin-bottom:var(--sp-5)}
+.field:last-child{margin-bottom:0}
+.input,.select,.textarea{
+  width:100%;height:32px;padding:0 10px;border:1px solid var(--ctrl-border);border-radius:var(--r-md);
+  background:var(--ctrl-bg);color:var(--text);font-size:var(--fs-13);font-family:inherit;
+}
+.textarea{height:auto;min-height:64px;padding:8px 10px;line-height:var(--lh-body);resize:vertical}
+.input::placeholder,.textarea::placeholder{color:var(--placeholder-fg)}
+.input[readonly]{
+  background:var(--surface-2);border-color:transparent;color:var(--text-2);cursor:not-allowed;
+}
+.input[disabled],.select[disabled]{background:var(--disabled-bg);border-color:var(--border);color:var(--disabled-fg);opacity:.7;cursor:not-allowed}
+.input[aria-invalid="true"]{border-color:var(--danger)}
+.help{font-size:var(--fs-12);color:var(--text-muted);margin-top:var(--sp-3)}
+.help.err{color:var(--danger-tx);display:flex;gap:4px;align-items:flex-start}
+.err-summary{
+  border:1px solid var(--danger-bd);background:var(--danger-bg);border-radius:var(--r-md);
+  padding:var(--sp-5);display:flex;gap:var(--sp-4);align-items:flex-start;
+}
+.err-summary .t{font-size:var(--fs-13);font-weight:600;color:var(--danger-tx)}
+.err-summary ul{margin-top:var(--sp-3);font-size:var(--fs-12);color:var(--danger-tx);list-style:disc;padding-left:18px}
+.radio-row{display:flex;gap:var(--sp-6);align-items:center;flex-wrap:wrap}
+.check{display:inline-flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-13);color:var(--text-2)}
+.check input{width:15px;height:15px;accent-color:var(--brand)}
+.switch{display:inline-flex;align-items:center;gap:var(--sp-4)}
+.switch .track{width:34px;height:20px;border-radius:var(--r-pill);background:var(--success);position:relative;flex:none}
+.switch .track i{position:absolute;top:2px;left:16px;width:16px;height:16px;border-radius:50%;background:var(--bg-card)}
+.switch .track.off{background:var(--border-strong)}
+.switch .track.off i{left:2px}
+.pw-wrap{position:relative}
+.pw-wrap .input{padding-right:38px}
+.pw-wrap .btn-icon-sm{position:absolute;right:3px;top:3px}
+
+/* ============================================================
+   5. 表格（行高 36px）
+   ============================================================ */
+.tbl{width:100%;border-collapse:collapse;font-size:var(--font-table)}
+.tbl caption{text-align:left;font-size:var(--fs-12);color:var(--text-muted);padding:0 var(--sp-5) var(--sp-4)}
+.tbl th{
+  height:30px;padding:0 var(--sp-5);text-align:left;vertical-align:middle;white-space:nowrap;
+  font-size:var(--fs-12);font-weight:500;letter-spacing:.01em;color:var(--text-2);
+  background:var(--surface-2);border-block:var(--hairline);
+}
+.tbl td{height:var(--row-h);padding:2px var(--sp-5);border-bottom:var(--hairline);vertical-align:middle}
+.tbl tbody tr:hover{background:var(--row-hover-bg)}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl .r{text-align:right}
+.tbl .nowrap{white-space:nowrap}
+.tbl .actions{display:flex;gap:var(--sp-3);justify-content:flex-end}
+.tbl-zebra tbody tr:nth-child(even){background:var(--row-alt-bg)}
+.tbl-dense td{height:34px}
+.tbl-scroll{overflow-x:auto}
+.tbl-scroll .tbl{min-width:640px}
+.tbl-mono{font-family:var(--font-mono);font-size:var(--font-seq)}
+
+/* ============================================================
+   6. 提示条 / 引用 / 抽屉
+   ============================================================ */
+.note{display:flex;gap:var(--sp-4);align-items:flex-start;border:var(--hairline);border-radius:var(--r-md);padding:var(--sp-5);background:var(--bg-card);font-size:var(--fs-13)}
+.note .t{font-weight:600}
+.note.info{background:var(--info-bg);border-color:var(--info-bd);color:var(--info-tx)}
+.note.warn{background:var(--warning-bg);border-color:var(--warning-bd);color:var(--warning-tx)}
+.note.bad{background:var(--danger-bg);border-color:var(--danger-bd);color:var(--danger-tx)}
+.note.ok{background:var(--success-bg);border-color:var(--success-bd);color:var(--success-tx)}
+.note.neu{background:var(--neutral-bg);border-color:var(--neutral-bd);color:var(--neutral-tx)}
+.note .foot{margin-top:var(--sp-4);display:flex;gap:var(--sp-4);flex-wrap:wrap}
+.note.neu .foot .btn{background:var(--bg-card)}
+
+/* 气泡 */
+.msg{display:flex;gap:var(--sp-5);align-items:flex-start}
+.msg .av{width:24px;height:24px;border-radius:var(--r-sm);display:grid;place-items:center;flex:none;border:1px solid}
+.msg.user .av{background:var(--surface-2);border-color:var(--border);color:var(--text-2)}
+.bubble{border:var(--hairline);border-radius:var(--r-md);padding:var(--sp-5);font-size:var(--fs-13);max-width:100%}
+.msg.user .bubble{background:var(--surface-2);border-color:var(--border)}
+.answer{font-size:var(--fs-13);line-height:1.6}
+.answer .cite{
+  font-family:var(--font-mono);font-size:var(--fs-11);padding:1px 5px;border-radius:var(--r-sm);
+  background:var(--brand-on);border:1px solid var(--brand-border);color:var(--c-indigo-700);white-space:nowrap;
+}
+.answer .cite.pending{
+  background:var(--warning-bg);border:1px dashed var(--warning);color:var(--warning-tx);
+}
+.kind{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:var(--r-sm);border:1px solid;font-size:var(--fs-12);font-weight:500;letter-spacing:.01em}
+.kind.doc{background:var(--info-bg);border-color:var(--info-bd);color:var(--info-tx)}
+.kind.gen{background:var(--neutral-bg);border-color:var(--neutral-bd);color:var(--neutral-tx)}
+.kind-row{display:flex;gap:var(--sp-4);flex-wrap:wrap;align-items:center;margin-bottom:var(--sp-5)}
+.kind-note{font-size:var(--fs-12);color:var(--text-muted)}
+
+/* 引用卡片 */
+.ref{border:var(--hairline);border-radius:var(--r-md);background:var(--bg-card)}
+.ref-h{display:flex;gap:var(--sp-4);align-items:center;padding:var(--sp-4) var(--sp-5);flex-wrap:wrap}
+.ref-b{padding:var(--sp-5);border-top:var(--hairline);background:var(--row-subtle-bg);font-size:var(--fs-13);color:var(--text-2);line-height:1.6}
+.ref-id{font-family:var(--font-mono);font-size:var(--fs-11);font-weight:600;color:var(--c-indigo-700);background:var(--brand-on);border:1px solid var(--brand-border);border-radius:var(--r-sm);padding:1px 6px}
+.ref-name{font-weight:600;color:var(--text)}
+.ref.expired{border-color:var(--danger-bd)}
+.ref.expired .ref-h{background:var(--danger-bg);color:var(--danger-tx)}
+.ref.expired .ref-id{background:var(--bg-card);border-color:var(--danger-bd);color:var(--danger-tx)}
+
+/* 抽屉 */
+.drawer{border:1px solid var(--border-strong);border-radius:var(--r-md);overflow:hidden;background:var(--bg-card)}
+.drawer-h{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-5);border-bottom:var(--hairline);background:var(--surface-2)}
+.drawer-h h3{font-size:var(--fs-13)}
+.drawer-b{padding:var(--sp-5)}
+.kv{display:grid;grid-template-columns:78px minmax(0,1fr);gap:var(--sp-3) var(--sp-5);font-size:var(--fs-12)}
+.kv dt{color:var(--text-muted)}
+.kv dd{margin:0;color:var(--text);overflow-wrap:anywhere}
+.quote{border-left:2px solid var(--brand-border);padding-left:var(--sp-5);color:var(--text-2)}
+
+/* ============================================================
+   7. 零散组件
+   ============================================================ */
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--sp-5)}
+.kpi .cell{border:var(--hairline);border-radius:var(--r-md);padding:var(--sp-5);background:var(--bg-card)}
+.kpi .k{font-size:var(--fs-12);color:var(--text-muted);letter-spacing:.01em}
+.kpi .v{font-size:var(--fs-20);font-weight:600;margin-top:2px}
+.dnav{display:inline-flex;align-items:center;border:var(--hairline);border-radius:var(--r-md);overflow:hidden;background:var(--bg-card)}
+.dnav button{width:30px;height:30px;border:0;background:transparent;color:var(--text-2);cursor:pointer;display:grid;place-items:center}
+.dnav button:hover{background:var(--surface-2);color:var(--text)}
+.dnav .d{min-width:160px;text-align:center;font-size:var(--fs-13);font-weight:600;border-inline:var(--hairline);height:30px;display:flex;align-items:center;justify-content:center;gap:6px}
+.sched{display:flex;gap:var(--sp-6);align-items:center;padding:0 var(--sp-5);height:var(--row-h);border-bottom:var(--hairline)}
+.sched:last-child{border-bottom:0}
+.sched .tm{font-family:var(--font-mono);font-size:var(--font-table);width:118px;flex:none;color:var(--text)}
+.sched .cn{font-weight:600}
+.sched .loc{color:var(--text-muted);margin-left:auto;font-size:var(--fs-12)}
+.sched-card{border:var(--hairline);border-radius:var(--r-md);padding:var(--sp-5);display:flex;gap:var(--sp-5);align-items:flex-start}
+.slot{width:3px;align-self:stretch;border-radius:2px;background:var(--brand);flex:none}
+.timeline-rail{width:3px;background:var(--border);border-radius:2px;flex:none}
+.dropzone{
+  border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:var(--sp-6);
+  display:flex;flex-direction:column;align-items:center;gap:var(--sp-4);text-align:center;background:var(--row-subtle-bg);
+}
+.dropzone .svg-24{color:var(--text-muted)}
+.seg{display:inline-flex;border:1px solid var(--ctrl-border);border-radius:var(--r-md);overflow:hidden;background:var(--bg-card)}
+.seg button{height:28px;padding:0 10px;border:0;background:transparent;font-size:var(--fs-12);font-family:inherit;font-weight:500;letter-spacing:.01em;color:var(--text-2);cursor:pointer}
+.seg button + button{border-left:var(--hairline)}
+.seg button[aria-pressed="true"]{background:var(--brand-on);color:var(--c-indigo-700)}
+.tabs{display:flex;gap:var(--sp-4);border-bottom:var(--hairline);margin-bottom:var(--sp-5)}
+.tab{height:32px;padding:0 10px;border:0;background:transparent;font-size:var(--fs-13);font-family:inherit;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--c-indigo-700);border-bottom-color:var(--brand)}
+.tabpanel[hidden]{display:none}
+.searchbox{display:flex;align-items:center;gap:var(--sp-4);height:32px;padding:0 10px;border:1px solid var(--ctrl-border);border-radius:var(--r-md);background:var(--bg-card);max-width:320px}
+.searchbox .svg{color:var(--text-muted)}
+.searchbox input{border:0;background:transparent;font-size:var(--fs-13);font-family:inherit;color:var(--text);flex:1;min-width:0}
+.searchbox input:focus{outline:none}
+.searchbox:focus-within{outline:2px solid var(--focus);outline-offset:2px}
+.legend{display:flex;gap:var(--sp-5);flex-wrap:wrap;font-size:var(--fs-12);color:var(--text-muted);align-items:center}
+.phone{
+  width:390px;height:844px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-card);
+  overflow:hidden;display:flex;flex-direction:column;flex:none;
+}
+.phone-top{height:44px;background:var(--topbar-bg);color:var(--bg-card);display:flex;align-items:center;gap:var(--sp-4);padding:0 var(--sp-5);font-size:15px;font-weight:600;flex:none}
+.phone-body{flex:1;overflow:auto;padding:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-5);font-size:15px;line-height:1.5}
+.phone-foot{border-top:var(--hairline);padding:var(--sp-4) var(--sp-5) var(--sp-5);background:var(--bg-card);display:flex;flex-direction:column;gap:var(--sp-4);flex:none}
+.phone-foot .input{height:var(--tap);font-size:15px}
+.phone-foot .btn{height:var(--tap);font-size:15px}
+.chips-scroll{display:flex;gap:var(--sp-4);overflow-x:auto;padding-bottom:2px}
+.screen-sum{display:flex;align-items:center;gap:var(--sp-4);border:var(--hairline);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-5);font-size:15px}
+details.acc > summary{cursor:pointer;padding:var(--sp-4) var(--sp-5);font-size:15px;font-weight:500;list-style:none;display:flex;align-items:center;gap:var(--sp-4)}
+details.acc > summary::-webkit-details-marker{display:none}
+details.acc[open] > summary{border-bottom:var(--hairline)}
+.mobile-card{border:var(--hairline);border-radius:var(--r-md);padding:var(--sp-5);display:flex;gap:var(--sp-5);font-size:15px}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:var(--r-sm);border:1px solid rgba(15,23,42,.18);vertical-align:-2px;margin-right:6px}
+.dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-4) var(--sp-6);font-size:var(--fs-13)}
+.dl dt{font-weight:600;color:var(--text-2);white-space:nowrap}
+.dl dd{margin:0;color:var(--text-2)}
+.bullets{list-style:disc;padding-left:18px;font-size:var(--fs-13);color:var(--text-2);display:flex;flex-direction:column;gap:2px}
+.bullets.sq{list-style:square}
+.cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--sp-5)}
+.codeblock{
+  font-family:var(--font-mono);font-size:var(--fs-11);background:var(--surface-2);border:var(--hairline);
+  border-radius:var(--r-sm);padding:6px 8px;color:var(--text-2);overflow-wrap:anywhere;
+}
+.badnews-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--sp-5)}
+.tone-strip{display:flex;height:6px;border-radius:var(--r-pill);overflow:hidden;border:1px solid var(--border)}
+.tone-strip i{flex:1}
+@media (max-width:1180px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .shell-body{grid-template-columns:var(--sidebar-collapsed-w) minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================ S00 ============================ -->
+<section data-screen="S00" id="S00" style="border:0;background:transparent;border-radius:0">
+  <header class="pagehead" style="border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+    <div class="pagehead-in">
+      <div>
+        <h1>方向 C · 数据密集 · 运维控制台</h1>
+        <p class="sub">
+          一屏看完、键盘优先、状态可追溯。同一套壳层，管理员得到的是可审计的批量状态矩阵，
+          学生得到的是「今日一屏」；坏消息（空结果 / 读取失败 / 依据不足 / 检索失败 / 待确认）
+          用不同的图标与边框语义区分，不靠颜色单独承担含义。
+        </p>
+        <div class="row" style="margin-top:16px">
+          <span class="chip on-brand">正文 13.5px / 行高 1.45</span>
+          <span class="chip">行高 36px 表格</span>
+          <span class="chip">零阴影 · 1px #E2E8F0 分层</span>
+          <span class="chip">12 栅格 · max-width 1600px</span>
+          <span class="chip">快捷键 / 与 ⌘K 与 Esc</span>
+        </div>
+      </div>
+      <div class="meta">
+        <span class="chip on-brand">高保真方向稿 v1</span>
+        <span class="chip">单文件 · 零外部请求</span>
+        <span class="chip">S00–S14 共 15 块</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="sec-body" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);margin-top:8px">
+    <h2 style="font-size:16px;font-weight:600;margin-bottom:12px">设计理由与取舍</h2>
+    <div class="g12">
+      <div style="grid-column:span 6">
+        <div class="block"><div class="block-h"><h3>一句话定位</h3></div>
+          <div class="block-b" style="font-size:13.5px;color:var(--text-2)">
+            把课程、课表、文档批次与助手执行过程放进同一套可折叠控制台：管理员一屏确认 5 种文档状态与整批发布规则，
+            学生一屏完成「查课表 → 问资料 → 存计划」，每一步都能追到 seq 级事件。
+          </div>
+        </div>
+        <div class="block" style="margin-top:8px"><div class="block-h"><h3>适用场景</h3></div>
+          <div class="block-b">
+            <ul class="bullets">
+              <li>管理员批量上传资料后，需要立刻判断「这批到底发布了没有」。</li>
+              <li>学生想确认助手回答的引用来自哪份文件的哪一页。</li>
+              <li>写入类操作（保存计划、建课表、删文档）需要知道 pending / succeeded / failed / deleted。</li>
+              <li>每天固定时段、桌面宽屏、键盘操作占主导的重度使用。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div style="grid-column:span 6">
+        <div class="block"><div class="block-h"><h3>不适用场景</h3></div>
+          <div class="block-b">
+            <ul class="bullets">
+              <li>手机碎片时间随手查一节课 —— 密度与表格需要滚动与缩放，不如卡片方向顺手。</li>
+              <li>需要情绪安抚与低压力阅读的首次使用者 —— 信息密度会带来压迫感。</li>
+              <li>低分辨率的投影演示、大字号环境下讲解。</li>
+            </ul>
+          </div>
+        </div>
+        <div class="block" style="margin-top:8px"><div class="block-h"><h3>优点 / 代价</h3></div>
+          <div class="block-b">
+            <div class="subhead">优点</div>
+            <ul class="bullets">
+              <li>一屏看到「对话 + 执行事件流」，回答可信度可逐条核对。</li>
+              <li>状态矩阵让「整批可见或整批不可见」这类规则一眼成立。</li>
+              <li>键盘路径（/ 搜索、⌘K 命令、Esc 关闭）覆盖全部主流程。</li>
+            </ul>
+            <div class="subhead" style="margin-top:8px">代价</div>
+            <ul class="bullets">
+              <li>13.5px 正文在 390px 窄屏偏小，必须切回 15px 并放弃表格改卡片。</li>
+              <li>无阴影分层对边框对比度与分区节奏要求高，边界画错就会显得平。</li>
+              <li>事件流表格要求真实 seq 单调数据，数据缺失时表格会比对话更空。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider" style="margin:16px 0"></div>
+    <h3 class="subhead">评审 5 问 · 本方向的自答</h3>
+    <div class="cardgrid">
+      <div class="block"><div class="block-b">
+        <div class="row-tight"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>1</span>
+        <strong style="font-size:13.5px">第一次打开就知道能干什么</strong></div>
+        <p style="font-size:13px;color:var(--text-2);margin-top:6px">S02 的标题 + 能力说明 + 三个示例入口把能力摊平在首屏，顶栏的全局搜索与角色标识同时说明「这是谁的系统」。</p>
+      </div></div>
+      <div class="block"><div class="block-b">
+        <div class="row-tight"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>2</span>
+        <strong style="font-size:13.5px">5 个坏消息一眼可分</strong></div>
+        <p style="font-size:13px;color:var(--text-2);margin-top:6px">S05 并列三态（依据不足 / 检索失败 / 全库为空），S08 并列两态（无记录 / 服务异常），S06 待确认用虚线 pending 胶囊；边框语义 + 图标 + 文字三处同时区分。</p>
+      </div></div>
+      <div class="block"><div class="block-b">
+        <div class="row-tight"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>3</span>
+        <strong style="font-size:13.5px">一屏看清 5 种文档状态</strong></div>
+        <p style="font-size:13px;color:var(--text-2);margin-top:6px">S11 把批次头（处理中 + 整批可见或整批不可见）与 5 行文件状态放在同一张 36px 行高的表格里，行内直接给出错误原因与进度。</p>
+      </div></div>
+      <div class="block"><div class="block-b">
+        <div class="row-tight"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>4</span>
+        <strong style="font-size:13.5px">390px 主流程仍顺畅</strong></div>
+        <p style="font-size:13px;color:var(--text-2);margin-top:6px">S13 给出 390×844 真实排布：正文回到 15px、过程区折叠为一行、输入吸底、课表改卡片且无横向滚动。</p>
+      </div></div>
+      <div class="block"><div class="block-b">
+        <div class="row-tight"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>5</span>
+        <strong style="font-size:13.5px">代价与不该用的场合</strong></div>
+        <p style="font-size:13px;color:var(--text-2);margin-top:6px">密度换效率：窄屏与首次使用者场景不该用；无阴影分层在低对比度显示器上需要更克制的分区。</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 全局骨架演示 ============================ -->
+<div class="shell" role="img" aria-label="应用外壳演示：深色顶栏 48px 与可折叠侧栏 216px / 56px 两种状态">
+  <div class="topbar">
+    <a class="tb-brand" href="#S02">
+      <span class="mark" aria-hidden="true">校</span>
+      校园课程智能助手
+    </a>
+    <div class="tb-search">
+      <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <span>搜索课程、文档、计划…</span>
+      <span class="kbd">/</span>
+    </div>
+    <span class="hint"><span class="kbd">⌘K</span>命令</span>
+    <span class="hint"><span class="kbd">Esc</span>关闭</span>
+    <span class="tb-sep" aria-hidden="true"></span>
+    <span class="tb-clock">
+      <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      会话剩余 <strong class="num">01:47:12</strong>
+    </span>
+    <span class="tb-role"><span class="dot" aria-hidden="true"></span>管理员 · 计算机学院</span>
+  </div>
+  <div class="shell-body">
+    <nav class="sidebar" aria-label="主导航（展开态 216px）">
+      <p class="nav-label">学生</p>
+      <a class="nav-item is-active" href="#S02"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>助手</a>
+      <a class="nav-item" href="#S07"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>我的课表</a>
+      <a class="nav-item" href="#S09"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v6h6"/></svg>学习计划</a>
+      <p class="nav-label">管理</p>
+      <a class="nav-item" href="#S10"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V7a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>课程管理</a>
+      <a class="nav-item" href="#S11"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg>文档与批次<span class="badge-n num">1</span></a>
+      <a class="nav-item" href="#S12"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/></svg>课表维护</a>
+      <div class="sidebar-foot">登录会话有效期 2 小时</div>
+    </nav>
+    <div style="min-width:0">
+      <nav class="sidebar is-collapsed tip" aria-label="主导航（收起态 56px，仅图标 + tooltip）" data-tip="收起态：仅图标，悬停或聚焦显示名称" style="min-height:132px;border-right:0;border-bottom:1px solid var(--topbar-border)">
+        <span class="nav-item is-active tip" data-tip="助手" tabindex="0" aria-label="助手"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>
+        <span class="nav-item tip" data-tip="我的课表" tabindex="0" aria-label="我的课表"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+        <span class="nav-item tip" data-tip="学习计划" tabindex="0" aria-label="学习计划"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v6h6"/></svg></span>
+        <span class="nav-item tip" data-tip="文档与批次" tabindex="0" aria-label="文档与批次"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg></span>
+      </nav>
+    </div>
+  </div>
+  <p class="shell-note">
+    <span class="tag chip">壳层</span>
+    <span>顶栏 48px 常驻：全局搜索（<span class="kbd">/</span>）、命令（<span class="kbd">⌘K</span>）、关闭（<span class="kbd">Esc</span>）、会话倒计时、角色标识；侧栏 216px 展开 / 56px 收起（仅图标 + tooltip）。</span>
+  </p>
+</div>
+
+<!-- 粘性屏幕导航 -->
+<nav class="snav" aria-label="屏幕块快速跳转">
+  <span class="snav-t">屏幕块</span>
+  <a href="#S01">S01 登录</a><a href="#S02">S02 空闲</a><a href="#S03">S03 执行中</a><a href="#S04">S04 引用</a>
+  <a href="#S05">S05 坏消息</a><a href="#S06">S06 保存</a><a href="#S07">S07 课表</a><a href="#S08">S08 空态</a>
+  <a href="#S09">S09 计划</a><a href="#S10">S10 课程</a><a href="#S11">S11 文档批次</a><a href="#S12">S12 课表维护</a>
+  <a href="#S13">S13 窄屏</a><a href="#S14">S14 Token</a>
+</nav>
+
+<main>
+
+<!-- ============================ S01 登录 ============================ -->
+<section data-screen="S01" id="S01">
+  <div class="sec-head">
+    <span class="sec-id">S01</span><h2>登录</h2>
+    <span class="sub">登录会话有效期 2 小时，到期后需要重新登录。</span>
+    <span class="right"><span class="chip">AuthRequired 401</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="g12">
+      <!-- 正常态 -->
+      <div style="grid-column:span 4">
+        <div class="block">
+          <div class="block-h"><h3>登录</h3><span class="right chip">正常态</span></div>
+          <div class="block-b">
+            <p style="font-size:16px;font-weight:600">校园课程智能助手</p>
+            <p style="font-size:12px;color:var(--text-muted);margin:2px 0 12px">查课表 · 问资料 · 存计划，一个入口</p>
+            <div class="field">
+              <label class="label" for="s01-acc">账号<span class="req">必填</span></label>
+              <input class="input" id="s01-acc" name="account" autocomplete="username" value="2023CS0148">
+            </div>
+            <div class="field">
+              <label class="label" for="s01-pw">密码<span class="req">必填</span></label>
+              <div class="pw-wrap">
+                <input class="input" id="s01-pw" name="password" type="password" value="·······" autocomplete="current-password" aria-describedby="s01-pw-help">
+                <button class="btn btn-icon-sm" type="button" aria-label="显示密码">
+                  <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                </button>
+              </div>
+              <p class="help" id="s01-pw-help">密码区分大小写；显示/隐藏按钮只影响本机显示。</p>
+            </div>
+            <button class="btn btn-primary btn-lg" type="button" style="width:100%">登录</button>
+            <p class="help">登录会话有效期 2 小时，到期后需要重新登录。</p>
+            <div class="row-tight" style="margin-top:8px">
+              <span class="kbd">Tab</span><span class="help" style="margin:0">在字段间移动</span>
+              <span class="kbd">Enter</span><span class="help" style="margin:0">提交登录</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 错误态 -->
+      <div style="grid-column:span 4">
+        <div class="block">
+          <div class="block-h"><h3>登录</h3><span class="right chip">错误态 · 焦点回到密码框</span></div>
+          <div class="block-b">
+            <div class="err-summary" id="s01-err" role="alert" tabindex="-1">
+              <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;color:var(--danger-tx)"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              <div>
+                <p class="t">账号或密码不正确，请重试。</p>
+                <ul><li>账号已保留，密码已清空。</li></ul>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label class="label" for="s01-acc2">账号<span class="req">必填</span></label>
+              <input class="input" id="s01-acc2" value="2023CS0148" readonly>
+              <p class="help">只读：错误后保留账号，避免重复输入。</p>
+            </div>
+            <div class="field">
+              <label class="label" for="s01-pw2">密码<span class="req">必填</span></label>
+              <div class="pw-wrap">
+                <input class="input" id="s01-pw2" type="password" value="" aria-invalid="true" aria-describedby="s01-pw2-err">
+                <button class="btn btn-icon-sm" type="button" aria-label="显示密码">
+                  <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                </button>
+              </div>
+              <p class="help err" id="s01-pw2-err">
+                <svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+                密码不能为空。
+              </p>
+            </div>
+            <button class="btn btn-primary btn-lg" type="button" style="width:100%">登录</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 账号被禁用 -->
+      <div style="grid-column:span 4">
+        <div class="block">
+          <div class="block-h"><h3>登录</h3><span class="right chip">账号被禁用 · 通用提示</span></div>
+          <div class="block-b">
+            <div class="note bad" role="alert">
+              <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
+              <div>
+                <p class="t">当前账号不可用，请联系管理员。</p>
+                <p style="font-size:12px;margin-top:4px">不提示账号是否存在；三种失败原因共用同一入口。</p>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label class="label" for="s01-acc3">账号<span class="req">必填</span></label>
+              <input class="input" id="s01-acc3" value="2022CS0091" readonly>
+            </div>
+            <div class="field">
+              <label class="label" for="s01-pw3">密码<span class="req">必填</span></label>
+              <div class="pw-wrap">
+                <input class="input" id="s01-pw3" type="password" value="·······">
+                <button class="btn btn-icon-sm" type="button" aria-label="隐藏密码">
+                  <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.2A9.9 9.9 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.2 4"/><path d="M6.5 7.7A16.6 16.6 0 0 0 2 12s3.5 6 10 6a9.8 9.8 0 0 0 4-.8"/></svg>
+                </button>
+              </div>
+            </div>
+            <button class="btn btn-lg is-disabled" type="button" style="width:100%" aria-disabled="true">登录</button>
+            <p class="help">禁用状态：字段与主按钮降透明度，仍可聚焦阅读原因。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S02 助手 · 空闲态 ============================ -->
+<section data-screen="S02" id="S02">
+  <div class="sec-head">
+    <span class="sec-id">S02</span><h2>助手 · 空闲态</h2>
+    <span class="sub">登录后默认页；示例入口点击只填入输入框，不自动提交。</span>
+    <span class="right"><span class="chip">占位 0 条消息</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="split">
+      <!-- 左：对话 -->
+      <div class="stack">
+        <div class="note info">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <div>
+            <p>对话只保存在当前浏览器标签页，刷新或关闭后不会恢复；已保存的计划不受影响。</p>
+            <div class="foot">
+              <button class="btn btn-sm" type="button">
+                <svg class="svg svg-14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+                清空对话
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-b" style="padding:24px 16px 16px">
+            <h3 style="font-size:20px;font-weight:600">你好，我是校园课程助手</h3>
+            <p style="font-size:13.5px;color:var(--text-2);margin-top:6px">我可以查你的课表、根据课程资料回答问题、帮你拟定学习计划。</p>
+
+            <p class="subhead" style="margin-top:16px">试试这样问</p>
+            <div class="stack-sm" style="gap:6px">
+              <button class="btn" type="button" style="justify-content:flex-start;height:34px">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                查今天的课
+                <span class="chip" style="margin-left:auto">只填入输入框</span>
+              </button>
+              <button class="btn" type="button" style="justify-content:flex-start;height:34px">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+                根据资料回答问题
+                <span class="chip" style="margin-left:auto">只填入输入框</span>
+              </button>
+              <button class="btn" type="button" style="justify-content:flex-start;height:34px">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v6h6M9 14h6M9 17h4"/></svg>
+                制定学习计划
+                <span class="chip" style="margin-left:auto">只填入输入框</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-b">
+            <label class="label" for="s02-q">你的问题</label>
+            <textarea class="textarea" id="s02-q" rows="3" aria-describedby="s02-q-help" placeholder="例如：明天有什么课？"></textarea>
+            <div class="row" style="margin-top:8px">
+              <p class="help" id="s02-q-help" style="margin:0">最多 2000 字</p>
+              <span class="chip num" style="margin-left:auto">0 / 2000</span>
+              <button class="btn btn-primary is-disabled" type="button" aria-disabled="true" disabled>发送</button>
+            </div>
+            <p class="help">空白不可提交 —— 输入框为空时「发送」为禁用态（降透明度 + 不可点击），不是错误色。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：本方向固定结构 —— 执行事件流 -->
+      <aside class="block" aria-label="执行事件流（空闲时为空）">
+        <div class="block-h">
+          <h3>执行事件流</h3>
+          <span class="right chip">seq</span>
+        </div>
+        <div class="block-b tight">
+          <table class="tbl tbl-mono">
+            <caption>当前请求的可核实事件；空闲态无事件</caption>
+            <thead><tr><th scope="col" style="width:38px">seq</th><th scope="col" style="width:64px">时间</th><th scope="col">事件</th><th scope="col" style="width:72px">状态</th></tr></thead>
+            <tbody>
+              <tr><td colspan="4" style="height:96px;text-align:center;color:var(--text-muted);font-family:var(--font-ui);font-size:13px">
+                还没有请求。发送问题后，这里按 seq 单调追加事件。
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S03 助手 · 执行中 ============================ -->
+<section data-screen="S03" id="S03">
+  <div class="sec-head">
+    <span class="sec-id">S03</span><h2>助手 · 执行中</h2>
+    <span class="sub">只展示可核实动作；事件流与 SSE 契约对齐（status / tool_start / tool_end / token / done / error）。</span>
+    <span class="right"><span class="chip on-brand">最长 60 秒</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="split">
+      <!-- 左：对话 -->
+      <div class="stack">
+        <div class="row" style="justify-content:space-between;border:1px solid var(--info-bd);background:var(--info-bg);border-radius:var(--r-md);padding:6px 12px">
+          <span class="row-tight" style="color:var(--info-tx);font-weight:600;font-size:13px">
+            <svg class="svg pulse" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>
+            正在处理 · 最长 60 秒
+          </span>
+          <button class="btn btn-sm" type="button">停止</button>
+        </div>
+
+        <div class="msg user">
+          <span class="av" aria-hidden="true"><svg class="svg" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"/></svg></span>
+          <div class="grow">
+            <p class="subhead">你</p>
+            <div class="bubble">明天有什么课？顺便看看实验课要准备什么。</div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h">
+            <h3>本轮执行</h3>
+            <span class="right chip">只列可核实动作</span>
+          </div>
+          <div>
+            <div class="step">
+              <span class="step-ico ok" aria-hidden="true">
+                <svg class="svg svg-14" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+              </span>
+              <div class="step-main">
+                <p class="step-title">正在读取课表 <span class="arg">· 明天 2026-10-22（周四）</span></p>
+                <p class="step-meta">get_my_schedule · seq 2 → 3</p>
+              </div>
+              <div class="step-aside"><span class="pill mono">seq 3</span><span class="pill ok">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>完成 · 2 条记录</span></div>
+            </div>
+
+            <div class="step">
+              <span class="step-ico ok" aria-hidden="true">
+                <svg class="svg svg-14" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+              </span>
+              <div class="step-main">
+                <p class="step-title">正在检索课程资料 <span class="arg">· 「实验课 预习要求」</span></p>
+                <p class="step-meta">search_course_docs · seq 4 → 5</p>
+              </div>
+              <div class="step-aside"><span class="pill mono">seq 5</span><span class="pill ok">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>完成 · 3 个片段</span></div>
+            </div>
+
+            <div class="step">
+              <span class="step-ico run" aria-hidden="true">
+                <svg class="svg svg-14 spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+              </span>
+              <div class="step-main">
+                <p class="step-title">正在拟定计划草稿</p>
+                <p class="step-meta">本轮唯一的进行中项 · 动效遵循 prefers-reduced-motion</p>
+              </div>
+              <div class="step-aside"><span class="pill run">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>进行中</span></div>
+            </div>
+
+            <div class="step" style="background:var(--danger-bg)">
+              <span class="step-ico bad" aria-hidden="true">
+                <svg class="svg svg-14" viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              </span>
+              <div class="step-main">
+                <p class="step-title" style="color:var(--danger-tx)">检索课程资料失败 <span class="arg">· 「实验课 预习要求」</span></p>
+                <p class="step-meta" style="color:var(--danger-tx)">RETRIEVAL_UNAVAILABLE · 无完成勾 · 可单独重试该步</p>
+              </div>
+              <div class="step-aside">
+                <span class="pill mono">seq 6</span>
+                <span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>失败</span>
+                <button class="btn btn-sm" type="button">重试该步</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>正在流入的回答</h3><span class="right chip">token 事件增量</span></div>
+          <div class="block-b">
+            <p class="answer">
+              明天（2026-10-22 周四）有两门课：08:00–09:40 数据结构（主楼 A-305）、10:00–11:40 大学英语（文科楼 B-102）。
+              实验课需要提前预习<span class="cite pending">〔资料 1〕</span>
+            </p>
+            <div class="row" style="margin-top:8px">
+              <span class="kind gen"><svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 8l7-5 7 5"/></svg>一般学习建议</span>
+              <span class="kind-note">待验证引用：虚线 + 警告色，与已验证引用（实线 + 品牌色，见 S04）可区分。</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：执行事件流（本例的核心结构） -->
+      <aside class="stack">
+        <div class="block">
+          <div class="block-h">
+            <h3>执行事件流</h3>
+            <span class="right pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>流入中</span>
+          </div>
+          <div class="block-b tight">
+            <table class="tbl tbl-mono">
+              <caption>request_id req_8f21c4 · SSE 事件按 seq 单调追加，id 与 data.seq 一致</caption>
+              <thead>
+                <tr>
+                  <th scope="col" style="width:30px">seq</th>
+                  <th scope="col" style="width:58px">时间</th>
+                  <th scope="col">事件</th>
+                  <th scope="col" style="width:62px">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td class="muted">14:02:11</td><td>status · ACCEPTED</td><td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>已接受</span></td></tr>
+                <tr><td>2</td><td class="muted">14:02:11</td><td>tool_start · 正在读取课表</td><td><span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>进行中</span></td></tr>
+                <tr><td>3</td><td class="muted">14:02:12</td><td>tool_end · ok</td><td><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>完成</span></td></tr>
+                <tr><td>4</td><td class="muted">14:02:12</td><td>tool_start · 正在检索课程资料</td><td><span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>进行中</span></td></tr>
+                <tr><td>5</td><td class="muted">14:02:14</td><td>tool_end · ok</td><td><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>完成</span></td></tr>
+                <tr style="background:var(--danger-bg)"><td>6</td><td style="color:var(--danger-tx)">14:02:18</td><td style="color:var(--danger-tx)">error · RETRIEVAL_UNAVAILABLE</td><td><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>失败</span></td></tr>
+                <tr><td>7</td><td class="muted">14:02:19</td><td>token · answer_block_id blk_01</td><td><span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>流入中</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="drawer">
+          <div class="drawer-h">
+            <h3>引用详情</h3>
+            <span class="right chip">右侧抽屉 · Esc 关闭</span>
+          </div>
+          <div class="drawer-b">
+            <div class="row-tight" style="margin-bottom:8px">
+              <span class="pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>待验证</span>
+              <span class="chip">回答尚未结束</span>
+            </div>
+            <dl class="kv">
+              <dt>资料</dt><dd>资料 1</dd>
+              <dt>文件</dt><dd class="wrap-any">数据结构实验指导书（2026 秋）.pdf</dd>
+              <dt>位置</dt><dd>第 12 页</dd>
+              <dt>document_id</dt><dd class="mono">doc_4ed71b</dd>
+              <dt>version_id</dt><dd class="mono">ver_2026a3</dd>
+            </dl>
+            <p class="help">回答完成后，待验证引用会替换为已验证引用；未通过校验的引用不会保留。</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S04 有据回答 + 引用展开 ============================ -->
+<section data-screen="S04" id="S04">
+  <div class="sec-head">
+    <span class="sec-id">S04</span><h2>助手 · 有据回答 + 引用展开</h2>
+    <span class="sub">引用只来自本次真实检索；内容性质标签必须视觉区分。</span>
+    <span class="right"><span class="chip">done · succeeded</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="g12">
+      <div style="grid-column:span 7" class="stack">
+        <div class="block">
+          <div class="block-h"><h3>回答</h3><span class="right pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>已完成</span></div>
+          <div class="block-b">
+            <p class="answer">根据《数据结构实验指导书（2026 秋）》，下次实验前需要完成：1）预习实验二排序算法；2）提交预习报告，不少于 500 字。<span class="cite">〔资料 1〕</span></p>
+            <div class="divider"></div>
+            <div class="kind-row">
+              <span class="kind doc"><svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v6h6"/></svg>课程规定</span>
+              <span class="kind-note">来自资料，逐条可回溯到文件名 + 位置。</span>
+            </div>
+            <div class="kind-row" style="margin-bottom:0">
+              <span class="kind gen"><svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 8l7-5 7 5"/></svg>一般学习建议</span>
+              <span class="kind-note">非资料依据，不得与「课程规定」混排。</span>
+            </div>
+            <p style="font-size:13.5px;color:var(--text-2);margin-top:8px">建议先通读实验二讲义，再用 30 分钟手写一遍排序流程，最后整理预习报告提纲。</p>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>引用卡片 · 折叠态</h3><span class="right chip">默认折叠</span></div>
+          <div class="block-b stack-sm">
+            <div class="ref">
+              <div class="ref-h">
+                <span class="ref-id">资料 1</span>
+                <span class="ref-name wrap-any">数据结构实验指导书（2026 秋）.pdf</span>
+                <span class="muted" style="font-size:12px">第 12 页</span>
+                <button class="btn btn-sm" type="button" aria-expanded="false" aria-controls="s04-frag1">展开片段</button>
+              </div>
+            </div>
+            <p class="help">折叠态只暴露「是否来自真实检索 + 位置」，不展开正文，避免长回答被引用淹没。</p>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>引用卡片 · 展开态</h3><span class="right chip">片段原文</span></div>
+          <div class="block-b">
+            <div class="ref">
+              <div class="ref-h">
+                <span class="ref-id">资料 1</span>
+                <span class="ref-name wrap-any">数据结构实验指导书（2026 秋）.pdf</span>
+                <span class="muted" style="font-size:12px">第 12 页</span>
+                <button class="btn btn-sm" type="button" aria-expanded="true" aria-controls="s04-frag1">收起片段</button>
+              </div>
+              <div class="ref-b" id="s04-frag1">
+                <p class="quote">实验前须完成预习并提交预习报告，报告不少于 500 字……</p>
+                <p class="help" style="margin-top:8px">location_label：第 12 页 · page_number 12 · 引用仅来自本次真实检索（docs 检索工具返回的片段）。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 5" class="stack">
+        <div class="block">
+          <div class="block-h"><h3>无页码的引用样例</h3><span class="right chip">抽不到页码</span></div>
+          <div class="block-b">
+            <div class="ref">
+              <div class="ref-h">
+                <span class="ref-id">资料 2</span>
+                <span class="ref-name wrap-any">实验二指导书.pdf</span>
+                <span class="muted" style="font-size:12px">位置：实验要求一节</span>
+                <button class="btn btn-sm" type="button" aria-expanded="false">展开片段</button>
+              </div>
+            </div>
+            <p class="help">页码抽不到时只显示文件名与位置（location_label），不显示「第 ? 页」，也不隐藏该引用。</p>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>引用失效态</h3><span class="right chip">HTTP 410</span></div>
+          <div class="block-b">
+            <div class="ref expired">
+              <div class="ref-h">
+                <span class="ref-id">资料 1</span>
+                <span class="ref-name wrap-any">数据结构实验指导书（2026 秋）.pdf</span>
+                <button class="btn btn-sm" type="button" aria-expanded="false">查看说明</button>
+              </div>
+              <div class="ref-b" style="background:var(--danger-bg);color:var(--danger-tx)">
+                <svg class="svg svg-14" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+                这条引用已失效（资料已被删除），依据可能已变化。
+              </div>
+            </div>
+            <p class="help">失效引用保留在回答里，但降级为危险语义，提示依据可能已变化。</p>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>引用来源约束</h3></div>
+          <div class="block-b">
+            <ul class="bullets">
+              <li>引用只来自本次真实检索；不展示历史检索结果、不跨标签页复用。</li>
+              <li>页码抽不到时只显示文件名与位置。</li>
+              <li>引用条目字段与 SSE <span class="mono">Reference</span> 一致：reference_id / document_id / version_id / file_name / location_label / page_number。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S05 依据不足 / 检索失败 ============================ -->
+<section data-screen="S05" id="S05">
+  <div class="sec-head">
+    <span class="sec-id">S05</span><h2>助手 · 依据不足 / 检索失败</h2>
+    <span class="sub">三个态并列，且都不能用成功色；与 S04「有据」一眼可分。</span>
+    <span class="right"><span class="chip">坏消息组 A</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="badnews-grid">
+      <div class="block" style="border-color:var(--neutral-bd)">
+        <div class="block-h" style="background:var(--neutral-bg)">
+          <h3>依据不足</h3>
+          <span class="right pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg>检索成功</span>
+        </div>
+        <div class="block-b">
+          <p style="font-size:13.5px">已检索共享资料，但没有找到足以回答这项要求的内容。</p>
+          <p class="help">语义：中性。检索链路正常，问题在于资料不足。</p>
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn-sm" type="button">换个问法</button>
+            <button class="btn btn-sm" type="button">联系管理员补充材料</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" style="border-color:var(--danger-bd)">
+        <div class="block-h" style="background:var(--danger-bg)">
+          <h3>检索失败</h3>
+          <span class="right pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>依赖异常</span>
+        </div>
+        <div class="block-b">
+          <p style="font-size:13.5px">课程资料暂时无法查询，请稍后重试。</p>
+          <p class="help">语义：危险 / 系统级。重试是唯一主操作。</p>
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn-primary" type="button">重试</button>
+            <span class="codeblock">error · RETRIEVAL_UNAVAILABLE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="block" style="border-color:var(--warning-bd)">
+        <div class="block-h" style="background:var(--warning-bg)">
+          <h3>全库为空</h3>
+          <span class="right pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V7a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>无可检索资料</span>
+        </div>
+        <div class="block-b">
+          <p style="font-size:13.5px">管理员还没有上传可检索的课程资料。</p>
+          <p class="help">语义：警告。不是查询失败，是资料库为空；指向管理员动作。</p>
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn-sm" type="button">联系管理员补充材料</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider" style="margin:16px 0"></div>
+    <div class="row">
+      <span class="subhead" style="margin:0">与「有据」的区分度</span>
+      <div class="tone-strip" style="width:220px" aria-hidden="true">
+        <i style="background:var(--success-bd)"></i><i style="background:var(--neutral-bd)"></i><i style="background:var(--danger-bd)"></i><i style="background:var(--warning-bd)"></i>
+      </div>
+      <span class="legend">
+        <span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>有据</span>
+        <span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>依据不足</span>
+        <span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>检索失败</span>
+        <span class="pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17h.01"/></svg>全库为空</span>
+      </span>
+    </div>
+    <p class="help" style="margin-top:8px">区分不止靠颜色：成功只在「有据」出现；依据不足为中性实线；检索失败为危险实线 + 主按钮重试；全库为空为警告色 + 管理员动作。</p>
+  </div>
+</section>
+
+<!-- ============================ S06 草稿未保存 → 保存成功 / 待确认 ============================ -->
+<section data-screen="S06" id="S06">
+  <div class="sec-head">
+    <span class="sec-id">S06</span><h2>助手 · 草稿未保存 → 保存成功 / 结果待确认</h2>
+    <span class="sub">未保存必须有文字 + 视觉双重标记；写入状态四态胶囊。</span>
+    <span class="right"><span class="chip">四态：pending / succeeded / failed / deleted</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="g12">
+      <!-- 草稿 -->
+      <div style="grid-column:span 5">
+        <div class="block" style="border-color:var(--warning-bd)">
+          <div class="block-h" style="background:var(--warning-bg)">
+            <h3>复习计划草稿</h3>
+            <span class="right row-tight">
+              <span class="pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>未保存</span>
+              <span class="pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>pending</span>
+            </span>
+          </div>
+          <div class="block-b">
+            <div class="field">
+              <span class="label">标题</span>
+              <p style="font-size:13.5px;font-weight:600">实验二排序算法预习计划</p>
+            </div>
+            <div class="field">
+              <span class="label">目标</span>
+              <p style="font-size:13.5px">实验前完成排序算法预习并提交预习报告</p>
+            </div>
+            <div class="field">
+              <span class="label">覆盖日期</span>
+              <p class="mono" style="font-size:13px">2026-10-22 → 2026-10-24</p>
+            </div>
+            <div class="field">
+              <span class="label">依据</span>
+              <div class="row-tight">
+                <span class="kind doc"><svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>本人课表</span>
+                <span class="kind doc"><svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>课程资料 <span class="mono">〔资料 1〕</span></span>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">正文</span>
+              <ol class="bullets" style="list-style:decimal">
+                <li>10-22：通读实验二讲义，标出排序算法的输入输出约定。</li>
+                <li>10-23：手写快排与归并流程，对照讲义第 12 页要求。</li>
+                <li>10-24：整理不少于 500 字的预习报告并提交。</li>
+              </ol>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button class="btn btn-primary" type="button">保存为我的计划</button>
+              <button class="btn" type="button">继续修改</button>
+            </div>
+            <p class="help" style="margin-top:8px">双重标记：标题行文字「未保存」+ 警告色虚线边框 + pending 胶囊，不只靠颜色。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 保存成功 / 结果待确认 -->
+      <div style="grid-column:span 4">
+        <div class="block" style="border-color:var(--success-bd)">
+          <div class="block-h" style="background:var(--success-bg)">
+            <h3>保存成功</h3>
+            <span class="right pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>succeeded</span>
+          </div>
+          <div class="block-b">
+            <p class="row-tight" style="font-size:13.5px;font-weight:600">
+              <svg class="svg" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--success-tx)"><path d="m5 12.5 4.5 4.5L19 7.5"/><circle cx="12" cy="12" r="9"/></svg>
+              已保存 · 计划编号 <span class="mono">plan_7Q2F9K</span>
+            </p>
+            <p class="help">对勾图标 + 文字 + 成功色，三者齐备；编号等宽字体便于核对。</p>
+            <div class="row" style="margin-top:12px">
+              <button class="btn btn-primary" type="button">打开计划</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="block" style="border-color:var(--warning-bd);margin-top:8px">
+          <div class="block-h" style="background:var(--warning-bg)">
+            <h3>结果待确认</h3>
+            <span class="right pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>pending</span>
+          </div>
+          <div class="block-b">
+            <p style="font-size:13.5px;font-weight:600">正在确认是否保存…</p>
+            <p class="help">写入结果尚未确认，请勿重复创建；可稍后查询状态。</p>
+            <div class="row" style="margin-top:12px">
+              <button class="btn" type="button">查询写入状态</button>
+            </div>
+            <div class="divider"></div>
+            <p class="help">重复提交同一操作只会得到同一份计划。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 写入四态总览 -->
+      <div style="grid-column:span 3">
+        <div class="block">
+          <div class="block-h"><h3>写入状态 · 四态</h3><span class="right chip">胶囊 + 图标 + 文字</span></div>
+          <div class="block-b tight">
+            <table class="tbl">
+              <caption>计划 / 课程 / 文档删除共用同一套写入状态语义</caption>
+              <thead><tr><th scope="col">状态</th><th scope="col">含义</th><th scope="col">可执行动作</th></tr></thead>
+              <tbody>
+                <tr><td><span class="pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>pending</span></td><td>写入结果尚未确认</td><td><button class="tbtn" type="button">查询写入状态</button></td></tr>
+                <tr><td><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>succeeded</span></td><td>已落库，可打开</td><td><button class="tbtn" type="button">打开计划</button></td></tr>
+                <tr><td><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>failed</span></td><td>写入失败，可重试</td><td><button class="tbtn" type="button">重试写入</button></td></tr>
+                <tr><td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>deleted</span></td><td>已删除，不可恢复</td><td class="muted">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="note neu" style="margin-top:8px">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <div>
+            <p class="t">幂等</p>
+            <p style="font-size:12px;margin-top:2px">重复提交同一操作只会得到同一份计划。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S07 我的课表 · 有课 ============================ -->
+<section data-screen="S07" id="S07">
+  <div class="sec-head">
+    <span class="sec-id">S07</span><h2>我的课表 · 有课</h2>
+    <span class="sub">按开始时间升序；列表 / 卡片两种可选呈现之一，时间顺序一眼可辨。</span>
+    <span class="right"><span class="chip">单次最多查询 31 天</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="block">
+      <div class="block-h">
+        <h3>我的课表</h3>
+        <div class="right">
+          <span class="seg" role="group" aria-label="呈现方式">
+            <button type="button" aria-pressed="true">列表</button>
+            <button type="button" aria-pressed="false">卡片</button>
+          </span>
+          <span class="searchbox" style="max-width:200px">
+            <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>
+            <input aria-label="按课程名筛选" placeholder="按课程名筛选">
+          </span>
+        </div>
+      </div>
+
+      <div class="row" style="padding:8px 16px;border-bottom:1px solid var(--border)">
+        <div class="dnav">
+          <button type="button" aria-label="前一天"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
+          <span class="d">2026-10-22 周四</span>
+          <button type="button" aria-label="后一天"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
+        </div>
+        <button class="btn btn-sm" type="button">今天</button>
+        <span class="chip">日期范围说明：单次最多查询 31 天</span>
+        <span class="kbd">←</span><span class="kbd">→</span>
+        <span class="help" style="margin:0">切换日期</span>
+      </div>
+
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <caption>2026-10-22 周四 · 共 2 条 · 按开始时间升序</caption>
+          <thead>
+            <tr>
+              <th scope="col" style="width:56px">#</th>
+              <th scope="col" style="width:150px">开始–结束时间</th>
+              <th scope="col">课程名</th>
+              <th scope="col">地点</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="muted"><span class="row-tight"><span class="timeline-rail" style="height:20px"></span>1</span></td>
+              <td class="mono">08:00–09:40</td>
+              <td style="font-weight:600">数据结构</td>
+              <td class="muted">主楼 A-305</td>
+            </tr>
+            <tr>
+              <td class="muted"><span class="row-tight"><span class="timeline-rail" style="height:20px"></span>2</span></td>
+              <td class="mono">10:00–11:40</td>
+              <td style="font-weight:600">大学英语</td>
+              <td class="muted">文科楼 B-102</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="help" style="padding:8px 16px 12px;border-top:1px solid var(--border);margin:0">
+        时间为学校时区 Asia/Shanghai
+      </p>
+    </div>
+
+    <div class="cardgrid" style="margin-top:12px">
+      <div class="block">
+        <div class="block-h"><h3>卡片呈现（同一份数据）</h3><span class="right chip">时间顺序仍可见</span></div>
+        <div class="block-b stack-sm">
+          <div class="sched-card"><span class="slot" aria-hidden="true"></span>
+            <div class="grow"><p class="mono" style="font-size:13px">08:00–09:40</p><p style="font-weight:600">数据结构</p><p class="muted" style="font-size:12px">主楼 A-305</p></div>
+            <span class="pill neu">1</span>
+          </div>
+          <div class="sched-card"><span class="slot" aria-hidden="true"></span>
+            <div class="grow"><p class="mono" style="font-size:13px">10:00–11:40</p><p style="font-weight:600">大学英语</p><p class="muted" style="font-size:12px">文科楼 B-102</p></div>
+            <span class="pill neu">2</span>
+          </div>
+        </div>
+      </div>
+      <div class="block">
+        <div class="block-h"><h3>为什么两种呈现不能混用</h3></div>
+        <div class="block-b">
+          <ul class="bullets">
+            <li>列表用于桌面快速扫读，行高 36px 时可一屏看满一天。</li>
+            <li>卡片用于窄屏（见 S13），卡片左侧色条按时间自上而下排列，顺序不丢。</li>
+            <li>两种呈现共用同一次查询结果，不新增字段、不新增排序方式。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S08 我的课表 · 两种空状态 ============================ -->
+<section data-screen="S08" id="S08">
+  <div class="sec-head">
+    <span class="sec-id">S08</span><h2>我的课表 · 两种空状态</h2>
+    <span class="sub">必须并列画在一起且视觉可区分；禁止合并成一个「暂无数据」。</span>
+    <span class="right"><span class="chip">坏消息组 B</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="g12">
+      <div style="grid-column:span 6">
+        <div class="block" style="border-color:var(--neutral-bd)">
+          <div class="block-h" style="background:var(--neutral-bg)">
+            <h3>① 查询成功但无记录</h3>
+            <span class="right pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>中性 · 不是错误</span>
+          </div>
+          <div class="block-b" style="text-align:center;padding:32px 16px">
+            <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true" style="width:48px;height:48px;color:var(--text-muted);margin:0 auto"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M9 15h6"/></svg>
+            <p style="font-size:16px;font-weight:600;margin-top:12px">2026-10-22（周四）没有课程安排。</p>
+            <p class="help">查询本身成功，返回 0 条；使用中性插画/图标，不得使用错误色。</p>
+            <div class="row" style="justify-content:center;margin-top:12px">
+              <button class="btn" type="button">换个日期</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 6">
+        <div class="block" style="border-color:var(--danger-bd)">
+          <div class="block-h" style="background:var(--danger-bg)">
+            <h3>② 服务异常</h3>
+            <span class="right pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>错误 / 警告语义</span>
+          </div>
+          <div class="block-b" style="text-align:center;padding:32px 16px">
+            <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true" style="width:48px;height:48px;color:var(--danger-tx);margin:0 auto"><path d="M10.3 3.9 2.5 17.4A2 2 0 0 0 4.2 20.4h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <p style="font-size:16px;font-weight:600;margin-top:12px;color:var(--danger-tx)">课表数据暂时无法读取，这不代表当天没有课。</p>
+            <p class="help">读取失败 ≠ 没有课；必须显式说明，避免学生误判。</p>
+            <div class="row" style="justify-content:center;margin-top:12px">
+              <button class="btn btn-primary" type="button">重试</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider" style="margin:16px 0"></div>
+    <div class="row">
+      <span class="legend"><strong style="color:var(--text)">并列对照</strong></span>
+      <span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>无记录：中性色 · 动作「换个日期」</span>
+      <span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>服务异常：危险色 · 动作「重试」</span>
+      <span class="help" style="margin:0">两种状态在图标形状、色系、文案、动作四个维度都不同。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S09 学习计划 · 列表 + 详情编辑 ============================ -->
+<section data-screen="S09" id="S09">
+  <div class="sec-head">
+    <span class="sec-id">S09</span><h2>学习计划 · 列表 + 详情编辑</h2>
+    <span class="sub">删除确认、409 版本冲突、409 之外的日期校验都在同一屏内说明。</span>
+    <span class="right"><span class="chip">三态并列</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="block">
+      <div class="block-h">
+        <h3>学习计划</h3>
+        <span class="right"><span class="kbd">/</span><span class="help" style="margin:0">聚焦搜索</span></span>
+      </div>
+      <div class="row" style="padding:8px 16px;border-bottom:1px solid var(--border)">
+        <label class="sr-only" for="s09-search">按标题筛选学习计划</label>
+        <span class="searchbox" style="max-width:360px">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+          <input id="s09-search" placeholder="按标题筛选" aria-describedby="s09-search-help">
+        </span>
+        <span class="help" id="s09-search-help" style="margin:0">按标题筛选，可见 label（视觉隐藏但可被读屏读取）</span>
+        <button class="btn btn-primary" type="button" style="margin-left:auto">
+          <svg class="svg svg-14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新建计划
+        </button>
+      </div>
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <caption>共 2 份计划 · 按更新时间倒序</caption>
+          <thead>
+            <tr>
+              <th scope="col">标题</th>
+              <th scope="col" style="width:190px">覆盖日期</th>
+              <th scope="col" style="width:110px">来源</th>
+              <th scope="col" style="width:150px">更新时间</th>
+              <th scope="col" style="width:150px" class="r">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600">实验二排序算法预习计划</td>
+              <td class="mono">2026-10-22 → 2026-10-24</td>
+              <td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>助手生成</span></td>
+              <td class="mono">2026-10-21 17:20</td>
+              <td><div class="actions">
+                <button class="tbtn" type="button" aria-label="打开「实验二排序算法预习计划」">打开</button>
+                <button class="tbtn crit" type="button" aria-label="删除「实验二排序算法预习计划」">删除</button>
+              </div></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">期末复习总纲</td>
+              <td class="muted">未设置日期</td>
+              <td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"/></svg>手动创建</span></td>
+              <td class="mono">2026-10-20 09:05</td>
+              <td><div class="actions">
+                <button class="tbtn" type="button" aria-label="打开「期末复习总纲」">打开</button>
+                <button class="tbtn crit" type="button" aria-label="删除「期末复习总纲」">删除</button>
+              </div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="g12" style="margin-top:12px">
+      <div style="grid-column:span 4" class="stack">
+        <div class="block">
+          <div class="block-h"><h3>空列表态</h3><span class="right chip">0 份计划</span></div>
+          <div class="block-b" style="text-align:center;padding:24px 16px">
+            <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true" style="width:40px;height:40px;color:var(--text-muted);margin:0 auto"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v6h6"/></svg>
+            <p style="font-size:13.5px;font-weight:600;margin-top:8px">还没有学习计划。</p>
+            <div class="row" style="justify-content:center;margin-top:12px"><button class="btn" type="button">手动新建</button></div>
+          </div>
+        </div>
+        <div class="note bad">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+          <div>
+            <p class="t">删除确认（二次确认）</p>
+            <p style="font-size:13px;margin-top:4px">删除「实验二排序算法预习计划」？删除后无法恢复。助手对话不受影响。</p>
+            <div class="foot">
+              <button class="btn btn-danger" type="button">确认删除</button>
+              <button class="btn" type="button">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 8">
+        <div class="block">
+          <div class="block-h"><h3>详情 / 编辑</h3><span class="right chip">字段约束与校验</span></div>
+          <div class="block-b">
+            <div class="g12">
+              <div style="grid-column:span 6">
+                <div class="field">
+                  <label class="label" for="s09-t">标题<span class="req">必填</span></label>
+                  <input class="input" id="s09-t" value="实验二排序算法预习计划" maxlength="100" aria-describedby="s09-t-help">
+                  <p class="help" id="s09-t-help">≤100 字 · 当前 12 字</p>
+                </div>
+                <div class="field">
+                  <label class="label" for="s09-g">目标</label>
+                  <textarea class="textarea" id="s09-g" rows="2" maxlength="500" aria-describedby="s09-g-help">实验前完成排序算法预习并提交预习报告</textarea>
+                  <p class="help" id="s09-g-help">≤500 字</p>
+                </div>
+              </div>
+              <div style="grid-column:span 6">
+                <div class="row" style="gap:8px">
+                  <div class="grow field">
+                    <label class="label" for="s09-s">开始日期</label>
+                    <input class="input" id="s09-s" type="date" value="2026-10-22">
+                  </div>
+                  <div class="grow field">
+                    <label class="label" for="s09-e">结束日期</label>
+                    <input class="input" id="s09-e" type="date" value="2026-10-18" aria-invalid="true" aria-describedby="s09-d-err">
+                  </div>
+                </div>
+                <p class="help err" id="s09-d-err">
+                  <svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+                  开始与结束日期需要同时填写，且开始日期不能晚于结束日期。
+                </p>
+                <div class="field" style="margin-top:8px">
+                  <label class="label" for="s09-src">来源</label>
+                  <input class="input" id="s09-src" value="助手生成" readonly aria-describedby="s09-src-help">
+                  <p class="help" id="s09-src-help">只读：来源由创建方式决定，编辑不可修改（灰底无边框，区别于禁用）。</p>
+                </div>
+              </div>
+              <div style="grid-column:span 12">
+                <div class="field">
+                  <label class="label" for="s09-b">正文<span class="req">必填</span></label>
+                  <textarea class="textarea" id="s09-b" rows="4" maxlength="10000" aria-describedby="s09-b-help">10-22：通读实验二讲义，标出排序算法的输入输出约定。
+10-23：手写快排与归并流程，对照讲义第 12 页要求。
+10-24：整理不少于 500 字的预习报告并提交。</textarea>
+                  <p class="help" id="s09-b-help">≤10,000 字 · 当前 3 条</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+            <div class="note warn">
+              <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <div>
+                <p class="t">版本冲突（409）</p>
+                <p style="font-size:13px;margin-top:4px">这份计划已被其他标签页修改，请重新加载后再提交；你未提交的编辑会保留。</p>
+                <div class="foot">
+                  <button class="btn btn-primary" type="button">重新加载</button>
+                  <span class="help" style="margin:0">编辑内容保留在本地输入框，不会因刷新丢失。</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top:12px">
+              <button class="btn btn-primary" type="button">保存</button>
+              <button class="btn" type="button">取消</button>
+              <button class="btn btn-danger" type="button">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S10 管理中心 · 课程管理 ============================ -->
+<section data-screen="S10" id="S10">
+  <div class="sec-head">
+    <span class="sec-id">S10</span><h2>管理中心 · 课程管理</h2>
+    <span class="sub">只读（课程代码）与禁用（停用课程）必须视觉可区分。</span>
+    <span class="right"><span class="chip">筛选区常驻</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="block">
+      <div class="block-h">
+        <h3>课程管理</h3>
+        <div class="right">
+          <span class="kbd">/</span><span class="help" style="margin:0">聚焦筛选</span>
+          <button class="btn btn-primary" type="button">
+            <svg class="svg svg-14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新建课程
+          </button>
+        </div>
+      </div>
+      <div class="row" style="padding:8px 16px;border-bottom:1px solid var(--border)">
+        <label class="label" for="s10-q" style="margin:0">按代码或名称筛选</label>
+        <span class="searchbox" style="max-width:260px">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+          <input id="s10-q" placeholder="例如 CS201 或 数据结构">
+        </span>
+        <span class="seg" role="group" aria-label="状态筛选">
+          <button type="button" aria-pressed="true">全部</button>
+          <button type="button" aria-pressed="false">启用</button>
+          <button type="button" aria-pressed="false">已停用</button>
+        </span>
+      </div>
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <caption>共 2 门课程 · 按课程代码升序</caption>
+          <thead>
+            <tr>
+              <th scope="col" style="width:110px">课程代码</th>
+              <th scope="col" style="width:150px">名称</th>
+              <th scope="col">简介</th>
+              <th scope="col" style="width:110px">状态</th>
+              <th scope="col" style="width:170px" class="r">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">CS201</td>
+              <td style="font-weight:600">数据结构</td>
+              <td class="muted">计算机学院专业基础课</td>
+              <td><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>启用</span></td>
+              <td><div class="actions">
+                <button class="tbtn" type="button" aria-label="编辑课程 CS201 数据结构">编辑</button>
+                <button class="tbtn crit" type="button" aria-label="停用课程 CS201 数据结构">停用</button>
+              </div></td>
+            </tr>
+            <tr>
+              <td class="mono">CS310</td>
+              <td style="font-weight:600;color:var(--text-muted)">操作系统</td>
+              <td class="muted">计算机学院专业基础课</td>
+              <td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>已停用</span></td>
+              <td><div class="actions">
+                <button class="tbtn" type="button" aria-label="编辑课程 CS310 操作系统">编辑</button>
+                <button class="tbtn" type="button" aria-label="启用课程 CS310 操作系统">启用</button>
+              </div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="g12" style="margin-top:12px">
+      <div style="grid-column:span 5">
+        <div class="block">
+          <div class="block-h"><h3>新建 / 编辑课程</h3><span class="right chip">CS201</span></div>
+          <div class="block-b">
+            <div class="err-summary" role="alert" tabindex="-1" style="margin-bottom:12px">
+              <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;color:var(--danger-tx)"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              <div><p class="t">该课程代码已存在，请更换。</p></div>
+            </div>
+            <div class="field">
+              <label class="label" for="s10-code">课程代码<span class="req">必填</span></label>
+              <input class="input" id="s10-code" value="CS201" readonly aria-invalid="true" aria-describedby="s10-code-help">
+              <p class="help" id="s10-code-help">只读：课程代码创建后不可修改（灰底无边框）。</p>
+            </div>
+            <div class="field">
+              <label class="label" for="s10-name">名称<span class="req">必填</span></label>
+              <input class="input" id="s10-name" value="数据结构" maxlength="100" aria-describedby="s10-name-help">
+              <p class="help" id="s10-name-help">≤100 字</p>
+            </div>
+            <div class="field">
+              <label class="label" for="s10-desc">简介</label>
+              <textarea class="textarea" id="s10-desc" rows="3" maxlength="2000" aria-describedby="s10-desc-help">计算机学院专业基础课，面向大二学生，含每周实验。</textarea>
+              <p class="help" id="s10-desc-help">≤2000 字</p>
+            </div>
+            <div class="field">
+              <span class="label">启用状态</span>
+              <div class="radio-row">
+                <span class="switch"><span class="track" aria-hidden="true"><i></i></span><span style="font-size:13px">启用</span></span>
+                <span class="switch"><span class="track off" aria-hidden="true"><i></i></span><span style="font-size:13px;color:var(--text-muted)">停用（降透明度示意不可用状态）</span></span>
+              </div>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button class="btn btn-primary" type="button">保存课程</button>
+              <button class="btn" type="button">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 4">
+        <div class="block">
+          <div class="block-h"><h3>只读 / 禁用对照</h3></div>
+          <div class="block-b stack-sm">
+            <div>
+              <label class="label" for="s10-ro">只读示例（灰底无边框 + 原因）</label>
+              <input class="input" id="s10-ro" value="CS201" readonly>
+              <p class="help">只读：值有效但不能改，说明原因；可聚焦、可复制。</p>
+            </div>
+            <div>
+              <label class="label" for="s10-dis">禁用示例（降透明度）</label>
+              <input class="input" id="s10-dis" value="CS310（已停用）" disabled>
+              <p class="help">禁用：当前不可操作，不可聚焦，不提交值。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 3">
+        <div class="note warn">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          <div>
+            <p class="t">停用确认（二次确认）</p>
+            <p style="font-size:13px;margin-top:4px">停用后不能再为该课程新增课表记录；已有课表和计划仍可查看。</p>
+            <div class="foot">
+              <button class="btn btn-danger" type="button">确认停用</button>
+              <button class="btn" type="button">取消</button>
+            </div>
+          </div>
+        </div>
+        <div class="note neu" style="margin-top:8px">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+          <div><p style="font-size:13px">危险操作与主操作视觉分离：停用/删除按钮使用危险语义并置于行尾，与「编辑」之间留 4px 间距。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S11 管理中心 · 文档与批次 ============================ -->
+<section data-screen="S11" id="S11">
+  <div class="sec-head">
+    <span class="sec-id">S11</span><h2>管理中心 · 文档与批次</h2>
+    <span class="sub">状态最密集的一块：同一屏内同时呈现 5 种文档状态与整批发布规则。</span>
+    <span class="right"><span class="chip on-brand">本方向核心优势</span></span>
+  </div>
+  <div class="sec-body">
+
+    <div class="g12">
+      <!-- 上传区 -->
+      <div style="grid-column:span 4">
+        <div class="block">
+          <div class="block-h"><h3>上传资料</h3><span class="right chip">批次 batch_9F3K</span></div>
+          <div class="block-b">
+            <div class="dropzone">
+              <svg class="svg-24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 19h16"/></svg>
+              <p style="font-size:13.5px;font-weight:600">把文件拖到这里</p>
+              <button class="btn" type="button">选择文件</button>
+            </div>
+            <p class="help" style="margin-top:8px">TXT / MD / 含文字层的 PDF / DOCX；单文件 ≤ 20 MiB；单批 ≤ 10 个、合计 ≤ 50 MiB</p>
+            <div class="row" style="margin-top:8px">
+              <button class="btn btn-primary" type="button">开始上传</button>
+              <span class="chip">整批可见或整批不可见</span>
+            </div>
+            <p class="help">规则：整批可见或整批不可见 —— 批次内任一文件失败，整批都不会发布。</p>
+          </div>
+        </div>
+
+        <div class="note warn" style="margin-top:8px">
+          <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+          <div>
+            <p class="t">整批回滚提示</p>
+            <p style="font-size:13px;margin-top:4px">本批 1 个文件失败，整批未发布；其他批次不受影响。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批次卡 + 5 种状态表 -->
+      <div style="grid-column:span 8">
+        <div class="block">
+          <div class="block-h">
+            <h3>批次 batch_9F3K</h3>
+            <span class="right row-tight">
+              <span class="chip">3 个文件</span>
+              <span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>处理中</span>
+              <span class="chip on-brand">发布规则：整批可见或整批不可见</span>
+            </span>
+          </div>
+          <div class="block-b" style="padding-bottom:8px">
+            <div class="row" style="gap:16px">
+              <span class="row-tight"><span class="muted" style="font-size:12px">可检索</span><strong class="num">1</strong></span>
+              <span class="row-tight"><span class="muted" style="font-size:12px">处理中</span><strong class="num">1</strong></span>
+              <span class="row-tight"><span class="muted" style="font-size:12px">失败</span><strong class="num">1</strong></span>
+              <span class="row-tight"><span class="muted" style="font-size:12px">删除中</span><strong class="num">1</strong></span>
+              <span class="row-tight"><span class="muted" style="font-size:12px">删除失败</span><strong class="num">1</strong></span>
+              <span class="help" style="margin:0">5 种状态同行可见，均带图标 + 文字 + 颜色</span>
+            </div>
+          </div>
+          <div class="tbl-scroll">
+            <table class="tbl tbl-zebra">
+              <caption>批次 batch_9F3K · 3 个文件 · 状态 处理中 · 发布规则「整批可见或整批不可见」；本批 1 个文件失败，整批未发布</caption>
+              <thead>
+                <tr>
+                  <th scope="col" style="min-width:240px">文件</th>
+                  <th scope="col" style="width:76px">类型</th>
+                  <th scope="col" style="width:82px">大小</th>
+                  <th scope="col" style="width:130px">上传时间</th>
+                  <th scope="col" style="width:150px">状态</th>
+                  <th scope="col" style="width:210px">错误原因 / 说明</th>
+                  <th scope="col" style="width:120px" class="r">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- 1 可检索 -->
+                <tr>
+                  <td><span style="font-weight:600" class="wrap-any">数据结构实验指导书（2026 秋）.pdf</span><br><span class="muted" style="font-size:11px">原名：数据结构实验指导书（2026 秋）.pdf</span></td>
+                  <td class="mono">PDF</td>
+                  <td class="num">2.4 MiB</td>
+                  <td class="mono">2026-10-21 16:58</td>
+                  <td><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>可检索</span></td>
+                  <td class="muted">抽取成功，已进入检索范围</td>
+                  <td><div class="actions"><button class="tbtn" type="button">预览抽取文本</button></div></td>
+                </tr>
+                <!-- 2 处理中 -->
+                <tr>
+                  <td><span style="font-weight:600" class="wrap-any">实验二指导书.pdf</span><br><span class="muted" style="font-size:11px">原名：实验二指导书.pdf</span></td>
+                  <td class="mono">PDF</td>
+                  <td class="num">1.1 MiB</td>
+                  <td class="mono">2026-10-21 16:59</td>
+                  <td>
+                    <span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>处理中</span>
+                    <div class="row-tight" style="margin-top:4px"><span class="bar" aria-hidden="true"><i></i></span><span class="muted num" style="font-size:11px">42%</span></div>
+                  </td>
+                  <td class="muted">正在抽取文字层</td>
+                  <td><div class="actions"><button class="tbtn" type="button" disabled aria-disabled="true">预览抽取文本</button></div></td>
+                </tr>
+                <!-- 3 失败 -->
+                <tr style="background:var(--danger-bg)">
+                  <td><span style="font-weight:600" class="wrap-any" style="color:var(--danger-tx)">课堂扫描件.pdf</span><br><span style="font-size:11px;color:var(--danger-tx)">原名：课堂扫描件.pdf</span></td>
+                  <td class="mono">PDF</td>
+                  <td class="num">8.7 MiB</td>
+                  <td class="mono">2026-10-21 17:00</td>
+                  <td><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>失败</span></td>
+                  <td style="color:var(--danger-tx)">未提取到文字，可能是扫描件；本期不支持 OCR。</td>
+                  <td><div class="actions"><button class="tbtn crit" type="button">移除该文件</button></div></td>
+                </tr>
+                <!-- 4 删除中 -->
+                <tr>
+                  <td><span style="font-weight:600" class="wrap-any">旧版讲义.docx</span><br><span class="muted" style="font-size:11px">原名：旧版讲义.docx</span></td>
+                  <td class="mono">DOCX</td>
+                  <td class="num">0.6 MiB</td>
+                  <td class="mono">2026-10-21 16:57</td>
+                  <td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>删除中</span></td>
+                  <td class="muted">等待清理完成，期间不可检索</td>
+                  <td><div class="actions"><button class="tbtn" type="button" disabled aria-disabled="true">删除</button></div></td>
+                </tr>
+                <!-- 5 删除失败 -->
+                <tr>
+                  <td><span style="font-weight:600" class="wrap-any">评分说明.pdf</span><br><span class="muted" style="font-size:11px">原名：评分说明.pdf</span></td>
+                  <td class="mono">PDF</td>
+                  <td class="num">0.4 MiB</td>
+                  <td class="mono">2026-10-21 16:56</td>
+                  <td><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>删除失败</span></td>
+                  <td class="muted">清理未完成，可重试；不展示服务器磁盘路径</td>
+                  <td><div class="actions"><button class="tbtn crit" type="button">重试清理</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="help" style="padding:8px 16px 12px;margin:0;border-top:1px solid var(--border)">
+            列表额外信息：原名、类型、大小、上传时间、批次、错误原因（不得出现服务器磁盘路径）。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="g12" style="margin-top:12px">
+      <div style="grid-column:span 7">
+        <div class="block">
+          <div class="block-h"><h3>5 种状态 · 语义对照</h3><span class="right chip">不含服务器路径</span></div>
+          <div class="block-b tight">
+            <table class="tbl">
+              <caption>文档处理状态与可执行动作</caption>
+              <thead><tr><th scope="col" style="width:110px">状态</th><th scope="col">含义</th><th scope="col" style="width:200px">为什么不能合并显示</th></tr></thead>
+              <tbody>
+                <tr><td><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>可检索</span></td><td>抽取成功，已进入检索范围</td><td class="muted">学生可能引用到它</td></tr>
+                <tr><td><span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>处理中</span></td><td>正在抽取文字层，带进度</td><td class="muted">还需等待，不能预览</td></tr>
+                <tr><td><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>失败</span></td><td>抽取失败，需人工处理</td><td class="muted">会拖住整批发布</td></tr>
+                <tr><td><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>删除中</span></td><td>已提交删除，等待清理</td><td class="muted">期间不可检索，也不可再次删除</td></tr>
+                <tr><td><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>删除失败</span></td><td>清理未完成，可重试</td><td class="muted">残留数据需重试清理</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 5">
+        <div class="block">
+          <div class="block-h"><h3>整批发布规则</h3><span class="right chip">批级不变量</span></div>
+          <div class="block-b">
+            <div class="row-tight" style="margin-bottom:8px">
+              <span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>处理中</span>
+              <span class="chip on-brand">整批可见或整批不可见</span>
+            </div>
+            <ul class="bullets">
+              <li>批次内任一文件失败 → 整批未发布，学生检索不到这一批的任何文件。</li>
+              <li>「可检索」只表示该文件抽取成功，不代表整批已发布。</li>
+              <li>其他批次不受影响。</li>
+            </ul>
+            <div class="divider"></div>
+            <div class="row-tight">
+              <span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>已发布</span>
+              <span class="muted" style="font-size:12px">整批全部成功时才会出现；本批当前为「处理中」。</span>
+            </div>
+          </div>
+        </div>
+        <div class="block" style="margin-top:8px">
+          <div class="block-h"><h3>引用预览入口</h3><span class="right chip mono">GET /admin/documents/{id}/text</span></div>
+          <div class="block-b">
+            <p style="font-size:13px;color:var(--text-2)">对「可检索」的文件提供「预览抽取文本」，用于确认抽取质量与页码是否可用。</p>
+            <div class="row" style="margin-top:8px">
+              <button class="btn btn-sm" type="button">预览抽取文本</button>
+              <span class="chip">document_id doc_4ed71b</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S12 管理中心 · 课表维护 ============================ -->
+<section data-screen="S12" id="S12">
+  <div class="sec-head">
+    <span class="sec-id">S12</span><h2>管理中心 · 课表维护</h2>
+    <span class="sub">停用课程不可选；精确重复与时间重叠是两种不同的 409。</span>
+    <span class="right"><span class="chip">DUP vs OVERLAP</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="g12">
+      <div style="grid-column:span 4">
+        <div class="block">
+          <div class="block-h"><h3>新增课表记录</h3><span class="right chip">必填 6 项</span></div>
+          <div class="block-b">
+            <div class="field">
+              <label class="label" for="s12-stu">学生<span class="req">必填</span></label>
+              <span class="searchbox" style="max-width:100%">
+                <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+                <input id="s12-stu" value="2023CS0148" aria-describedby="s12-stu-help">
+              </span>
+              <p class="help" id="s12-stu-help">搜索选择：输入学号或姓名后从候选列表选择。</p>
+            </div>
+            <div class="field">
+              <label class="label" for="s12-course">课程<span class="req">必填</span></label>
+              <select class="select" id="s12-course" aria-describedby="s12-course-help">
+                <option>CS201 数据结构</option>
+                <option disabled>CS310 操作系统（已停用，不可选）</option>
+              </select>
+              <p class="help" id="s12-course-help">停用课程在下拉中降透明度且不可选。</p>
+            </div>
+            <div class="field">
+              <label class="label" for="s12-date">上课日期<span class="req">必填</span></label>
+              <input class="input" id="s12-date" type="date" value="2026-10-22">
+            </div>
+            <div class="row" style="gap:8px">
+              <div class="grow field">
+                <label class="label" for="s12-s">开始时间<span class="req">必填</span></label>
+                <input class="input" id="s12-s" type="time" value="10:00">
+              </div>
+              <div class="grow field">
+                <label class="label" for="s12-e">结束时间<span class="req">必填</span></label>
+                <input class="input" id="s12-e" type="time" value="09:00" aria-invalid="true" aria-describedby="s12-time-err">
+              </div>
+            </div>
+            <p class="help err" id="s12-time-err">
+              <svg class="svg svg-12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              结束时间必须晚于开始时间，且不支持跨日记录。
+            </p>
+            <div class="field" style="margin-top:8px">
+              <label class="label" for="s12-loc">地点<span class="req">必填</span></label>
+              <input class="input" id="s12-loc" value="主楼 A-305">
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button class="btn btn-primary" type="button">保存课表记录</button>
+              <button class="btn" type="button">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 4">
+        <div class="block" style="border-color:var(--danger-bd)">
+          <div class="block-h" style="background:var(--danger-bg)"><h3>精确重复 · 409 DUPLICATE_SCHEDULE</h3></div>
+          <div class="block-b">
+            <div class="note bad" style="border:0;background:transparent;padding:0">
+              <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <div><p style="font-size:13.5px">该学生在同一天已有完全相同时间段的这门课，不能重复保存。</p></div>
+            </div>
+            <p class="help" style="margin-top:8px">精确重复没有「继续保存」路径：直接拒绝，只能修改时间或取消。</p>
+            <div class="row" style="margin-top:8px">
+              <button class="btn" type="button">返回修改</button>
+              <span class="codeblock">409 · DUPLICATE_SCHEDULE</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="block" style="margin-top:8px">
+          <div class="block-h"><h3>删除前确认</h3></div>
+          <div class="block-b">
+            <div class="note bad">
+              <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+              <div>
+                <p class="t">确认删除这条课表记录？</p>
+                <dl class="kv" style="margin-top:8px">
+                  <dt>学生</dt><dd>2023CS0148</dd>
+                  <dt>课程</dt><dd>CS201 数据结构</dd>
+                  <dt>时间</dt><dd class="mono">2026-10-22 08:00–09:40</dd>
+                  <dt>地点</dt><dd>主楼 A-305</dd>
+                </dl>
+                <p style="font-size:12px;margin-top:8px">将记录操作人。</p>
+                <div class="foot">
+                  <button class="btn btn-danger" type="button">确认删除</button>
+                  <button class="btn" type="button">取消</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 4">
+        <div class="block" style="border-color:var(--warning-bd)">
+          <div class="block-h" style="background:var(--warning-bg)"><h3>冲突确认面板 · 409 SCHEDULE_OVERLAP</h3><span class="right pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17h.01"/></svg>需人工确认</span></div>
+          <div class="block-b">
+            <p style="font-size:13.5px;font-weight:600;color:var(--warning-tx)">与 2026-10-22 10:00–11:40 大学英语 时间重叠。</p>
+            <p class="subhead" style="margin-top:12px">重叠记录摘要</p>
+            <table class="tbl">
+              <caption>待保存记录与已存在记录的对照</caption>
+              <thead><tr><th scope="col" style="width:48px">项</th><th scope="col">学生</th><th scope="col">课程</th><th scope="col">日期</th><th scope="col">起止</th><th scope="col">地点</th></tr></thead>
+              <tbody>
+                <tr><td class="muted">新</td><td class="mono">2023CS0148</td><td>数据结构</td><td class="mono">2026-10-22</td><td class="mono">10:00–11:40</td><td>主楼 A-305</td></tr>
+                <tr style="background:var(--warning-bg)"><td class="muted">已有</td><td class="mono">2023CS0148</td><td>大学英语</td><td class="mono">2026-10-22</td><td class="mono">10:00–11:40</td><td>文科楼 B-102</td></tr>
+              </tbody>
+            </table>
+            <div class="field" style="margin-top:12px">
+              <label class="label" for="s12-reason">原因<span class="req">必填</span></label>
+              <textarea class="textarea" id="s12-reason" rows="2" maxlength="500" aria-describedby="s12-reason-help" placeholder="例如：临时调课，教务处通知"></textarea>
+              <p class="help" id="s12-reason-help">≤500 字 · 留空时「确认保存」保持禁用</p>
+            </div>
+            <div class="row">
+              <button class="btn btn-primary is-disabled" type="button" aria-disabled="true" disabled>确认保存</button>
+              <button class="btn" type="button">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S13 窄屏 390 × 844 ============================ -->
+<section data-screen="S13" id="S13">
+  <div class="sec-head">
+    <span class="sec-id">S13</span><h2>窄屏 390 × 844</h2>
+    <span class="sub">13.5px 在手机上偏小 → 窄屏回到 15px 正文；表格改卡片；后台表格允许横向滚动。</span>
+    <span class="right"><span class="chip">NFR-COMP-001</span></span>
+  </div>
+  <div class="sec-body">
+    <div class="note info" style="margin-bottom:12px">
+      <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+      <div>
+        <p class="t">窄屏密度策略</p>
+        <ul class="bullets" style="margin-top:4px;color:inherit">
+          <li>正文由 13.5px 回到 <strong>15px</strong>，行高 1.5；字阶 13/15/17/22 四档。</li>
+          <li>触控目标 ≥44×44（本块内的输入框与主按钮均为 44px 高）。</li>
+          <li>学生侧：放弃表格改卡片，课表无横向滚动；管理侧：表格允许横向滚动。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row" style="align-items:flex-start;gap:24px">
+      <!-- 手机 1：助手 -->
+      <figure style="margin:0">
+        <div class="phone">
+          <div class="phone-top">
+            <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            助手
+            <span style="margin-left:auto;font-size:13px;color:var(--topbar-fg-dim)">9:41</span>
+          </div>
+          <div class="phone-body">
+            <div class="note info" style="font-size:15px;padding:8px 10px">
+              <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+              <span>对话只保存在当前浏览器标签页，刷新或关闭后不会恢复；已保存的计划不受影响。</span>
+            </div>
+
+            <details class="acc" style="border:1px solid var(--border);border-radius:6px">
+              <summary>
+                <svg class="svg svg-14 spin" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--info-tx)"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+                本轮执行 · 2 步已完成，1 步进行中
+                <svg class="svg svg-14" viewBox="0 0 24 24" aria-hidden="true" style="margin-left:auto"><path d="m6 9 6 6 6-6"/></svg>
+              </summary>
+              <div style="padding:8px 12px 12px">
+                <div class="step" style="padding:6px 0;border-bottom:1px solid var(--border)">
+                  <span class="step-ico ok" aria-hidden="true"><svg class="svg svg-14" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>
+                  <div class="step-main"><p style="font-size:15px;font-weight:600">正在读取课表</p><p class="muted" style="font-size:13px">完成 · 2 条记录</p></div>
+                </div>
+                <div class="step" style="padding:6px 0">
+                  <span class="step-ico run" aria-hidden="true"><svg class="svg svg-14 spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span>
+                  <div class="step-main"><p style="font-size:15px;font-weight:600">正在拟定计划草稿</p><p class="muted" style="font-size:13px">进行中</p></div>
+                </div>
+              </div>
+            </details>
+
+            <div class="mobile-card" style="background:var(--surface-2);font-size:15px">你好，我是校园课程助手。我可以查你的课表、根据课程资料回答问题、帮你拟定学习计划。</div>
+
+            <div class="chips-scroll">
+              <span class="chip" style="height:32px;font-size:15px;flex:none">查今天的课</span>
+              <span class="chip" style="height:32px;font-size:15px;flex:none">根据资料回答问题</span>
+              <span class="chip" style="height:32px;font-size:15px;flex:none">制定学习计划</span>
+            </div>
+          </div>
+          <div class="phone-foot">
+            <label class="label" for="s13-q" style="font-size:13px">你的问题</label>
+            <textarea class="input" id="s13-q" rows="2" style="height:auto" aria-describedby="s13-q-help" placeholder="最多 2000 字"></textarea>
+            <p class="help" id="s13-q-help" style="margin:0">最多 2000 字</p>
+            <button class="btn btn-primary is-disabled" type="button" aria-disabled="true" disabled>发送</button>
+          </div>
+        </div>
+        <figcaption class="help" style="width:390px">
+          助手：单列；过程区折叠为一行摘要、可展开；输入区吸底（44px 主按钮）；示例入口横滑不换行挤压。
+        </figcaption>
+      </figure>
+
+      <!-- 手机 2：课表（卡片，无横向滚动） -->
+      <figure style="margin:0">
+        <div class="phone">
+          <div class="phone-top">
+            <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+            我的课表
+          </div>
+          <div class="phone-body">
+            <div class="row" style="gap:8px">
+              <div class="dnav" style="width:100%">
+                <button type="button" aria-label="前一天"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
+                <span class="d" style="flex:1;min-width:0;font-size:15px">2026-10-22 周四</span>
+                <button type="button" aria-label="后一天"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
+              </div>
+            </div>
+            <button class="btn" type="button" style="height:44px">今天</button>
+            <p class="help" style="margin:0;font-size:13px">单次最多查询 31 天</p>
+
+            <div class="mobile-card">
+              <span class="slot" aria-hidden="true"></span>
+              <div class="grow">
+                <p class="mono" style="font-size:15px">08:00–09:40</p>
+                <p style="font-weight:600;font-size:17px">数据结构</p>
+                <p class="muted" style="font-size:13px">主楼 A-305</p>
+              </div>
+            </div>
+            <div class="mobile-card">
+              <span class="slot" aria-hidden="true"></span>
+              <div class="grow">
+                <p class="mono" style="font-size:15px">10:00–11:40</p>
+                <p style="font-weight:600;font-size:17px">大学英语</p>
+                <p class="muted" style="font-size:13px">文科楼 B-102</p>
+              </div>
+            </div>
+
+            <p class="help" style="margin:0;font-size:13px">时间为学校时区 Asia/Shanghai</p>
+          </div>
+          <div class="phone-foot">
+            <span class="chip" style="height:32px;font-size:15px">列表 / 卡片可切换 · 此处为卡片</span>
+          </div>
+        </div>
+        <figcaption class="help" style="width:390px">
+          我的课表：卡片式列表，<strong>无横向滚动</strong>；时间置顶、课程名放大到 17px、地点降级为 13px 次要信息。
+        </figcaption>
+      </figure>
+
+      <!-- 手机 3：管理表格横向滚动 -->
+      <figure style="margin:0">
+        <div class="phone">
+          <div class="phone-top">
+            <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+            文档与批次
+          </div>
+          <div class="phone-body" style="padding:0">
+            <div class="row" style="padding:8px 12px;border-bottom:1px solid var(--border)">
+              <span class="chip" style="height:28px;font-size:15px">批次 batch_9F3K</span>
+              <span class="pill run" style="height:26px;font-size:13px"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>处理中</span>
+            </div>
+            <div class="note warn" style="margin:8px 12px;font-size:15px;padding:8px 10px">
+              <svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>
+              <span>本批 1 个文件失败，整批未发布；其他批次不受影响。</span>
+            </div>
+            <div style="overflow-x:auto;border-top:1px solid var(--border)">
+              <table class="tbl" style="min-width:560px;font-size:15px">
+                <caption style="font-size:13px;padding:8px 12px">管理侧允许表格横向滚动（SRS NFR-COMP-001）</caption>
+                <thead>
+                  <tr><th scope="col" style="height:34px">文件</th><th scope="col" style="height:34px">大小</th><th scope="col" style="height:34px">状态</th><th scope="col" style="height:34px">错误原因</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td style="height:44px">数据结构实验指导书（2026 秋）.pdf</td><td style="height:44px">2.4 MiB</td><td style="height:44px"><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>可检索</span></td><td style="height:44px" class="muted">抽取成功</td></tr>
+                  <tr><td style="height:44px">实验二指导书.pdf</td><td style="height:44px">1.1 MiB</td><td style="height:44px"><span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>处理中</span></td><td style="height:44px" class="muted">正在抽取文字层</td></tr>
+                  <tr><td style="height:44px">课堂扫描件.pdf</td><td style="height:44px">8.7 MiB</td><td style="height:44px"><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>失败</span></td><td style="height:44px;color:var(--danger-tx)">未提取到文字，可能是扫描件；本期不支持 OCR。</td></tr>
+                  <tr><td style="height:44px">旧版讲义.docx</td><td style="height:44px">0.6 MiB</td><td style="height:44px"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>删除中</span></td><td style="height:44px" class="muted">等待清理完成</td></tr>
+                  <tr><td style="height:44px">评分说明.pdf</td><td style="height:44px">0.4 MiB</td><td style="height:44px"><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>删除失败</span></td><td style="height:44px" class="muted">清理未完成，可重试</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="help" style="padding:8px 12px;margin:0;font-size:13px">→ 向右滑动可查看「状态 / 错误原因」列；行高放大到 44px 以适配触控。</p>
+          </div>
+          <div class="phone-foot">
+            <button class="btn btn-primary" type="button" style="height:44px;font-size:15px">选择文件</button>
+          </div>
+        </div>
+        <figcaption class="help" style="width:390px">
+          管理中心：允许表格横向滚动；学生侧不采用此策略（学生侧一律卡片）。
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S14 设计 token 表 ============================ -->
+<section data-screen="S14" id="S14">
+  <div class="sec-head">
+    <span class="sec-id">S14</span><h2>设计 token 表</h2>
+    <span class="sub">全部 CSS 自定义属性；组件内只引用语义 token，不写裸 hex。</span>
+    <span class="right"><span class="chip">2 层：调色板 → 语义</span></span>
+  </div>
+  <div class="sec-body">
+    <p class="help" style="margin-bottom:12px">
+      分层说明：<span class="mono">--c-*</span> 是原始调色板（任务的取值来源），语义 token 引用调色板取值，组件只引用语义 token。
+    </p>
+
+    <div class="g12">
+      <div style="grid-column:span 6">
+        <div class="block">
+          <div class="block-h"><h3>原始调色板</h3></div>
+          <div class="block-b tight">
+            <table class="tbl">
+              <caption>14 个调色板变量</caption>
+              <thead><tr><th scope="col" style="width:190px">名称</th><th scope="col" style="width:110px">值</th><th scope="col">用途</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">--c-ink-900</td><td><span class="swatch" style="background:#0B1220"></span>#0B1220</td><td>深色顶栏 / 侧栏底</td></tr>
+                <tr><td class="mono">--c-indigo-600</td><td><span class="swatch" style="background:#4F46E5"></span>#4F46E5</td><td>主色（品牌 / 主操作）</td></tr>
+                <tr><td class="mono">--c-indigo-700</td><td><span class="swatch" style="background:#4338CA"></span>#4338CA</td><td>主色悬停 / 主色文字</td></tr>
+                <tr><td class="mono">--c-indigo-500</td><td><span class="swatch" style="background:#6366F1"></span>#6366F1</td><td>侧栏激活条 / 角色点</td></tr>
+                <tr><td class="mono">--c-green-600</td><td><span class="swatch" style="background:#16A34A"></span>#16A34A</td><td>成功</td></tr>
+                <tr><td class="mono">--c-amber-600</td><td><span class="swatch" style="background:#D97706"></span>#D97706</td><td>警告 / 待确认</td></tr>
+                <tr><td class="mono">--c-red-600</td><td><span class="swatch" style="background:#DC2626"></span>#DC2626</td><td>危险 / 失败</td></tr>
+                <tr><td class="mono">--c-sky-600</td><td><span class="swatch" style="background:#0284C7"></span>#0284C7</td><td>信息 / 进行中</td></tr>
+                <tr><td class="mono">--c-slate-900</td><td><span class="swatch" style="background:#0F172A"></span>#0F172A</td><td>正文文字</td></tr>
+                <tr><td class="mono">--c-slate-700</td><td><span class="swatch" style="background:#334155"></span>#334155</td><td>次级文字</td></tr>
+                <tr><td class="mono">--c-slate-500</td><td><span class="swatch" style="background:#64748B"></span>#64748B</td><td>弱化文字 / 中性语义</td></tr>
+                <tr><td class="mono">--c-slate-300</td><td><span class="swatch" style="background:#CBD5E1"></span>#CBD5E1</td><td>强边框</td></tr>
+                <tr><td class="mono">--c-slate-200</td><td><span class="swatch" style="background:#E2E8F0"></span>#E2E8F0</td><td>1px 边框（唯一分层手段）</td></tr>
+                <tr><td class="mono">--c-slate-100</td><td><span class="swatch" style="background:#F1F5F9"></span>#F1F5F9</td><td>弱底 / 表头 / 禁用底</td></tr>
+                <tr><td class="mono">--c-slate-50</td><td><span class="swatch" style="background:#F8FAFC"></span>#F8FAFC</td><td>页面底</td></tr>
+                <tr><td class="mono">--c-white</td><td><span class="swatch" style="background:#FFFFFF"></span>#FFFFFF</td><td>卡片底</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="grid-column:span 6" class="stack">
+        <div class="block">
+          <div class="block-h"><h3>语义 token · 面与文字</h3></div>
+          <div class="block-b tight">
+            <table class="tbl tbl-dense">
+              <caption>面、边框、文字</caption>
+              <thead><tr><th scope="col" style="width:170px">名称</th><th scope="col" style="width:150px">值</th><th scope="col">用途</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">--topbar-bg</td><td class="mono">var(--c-ink-900)</td><td>顶栏 48px / 侧栏底</td></tr>
+                <tr><td class="mono">--topbar-fg</td><td class="mono">#E6EDF7</td><td>顶栏正文</td></tr>
+                <tr><td class="mono">--topbar-fg-dim</td><td class="mono">#9FB0C9</td><td>顶栏次要文字</td></tr>
+                <tr><td class="mono">--topbar-border</td><td class="mono">#1E293B</td><td>顶栏/侧栏分隔线</td></tr>
+                <tr><td class="mono">--sidebar-active</td><td class="mono">#1B2436</td><td>侧栏激活项底</td></tr>
+                <tr><td class="mono">--sidebar-active-bar</td><td class="mono">var(--c-indigo-500)</td><td>侧栏激活条</td></tr>
+                <tr><td class="mono">--brand</td><td class="mono">var(--c-indigo-600)</td><td>主操作 / 链接</td></tr>
+                <tr><td class="mono">--brand-hover</td><td class="mono">var(--c-indigo-700)</td><td>主操作悬停</td></tr>
+                <tr><td class="mono">--brand-on</td><td class="mono">#EEF2FF</td><td>主色浅底（胶囊/标签）</td></tr>
+                <tr><td class="mono">--brand-border</td><td class="mono">#C7D2FE</td><td>主色浅底边框</td></tr>
+                <tr><td class="mono">--bg-page</td><td class="mono">var(--c-slate-50)</td><td>页面底</td></tr>
+                <tr><td class="mono">--bg-card</td><td class="mono">var(--c-white)</td><td>卡片底</td></tr>
+                <tr><td class="mono">--surface-2</td><td class="mono">var(--c-slate-100)</td><td>表头 / 次级面</td></tr>
+                <tr><td class="mono">--border</td><td class="mono">var(--c-slate-200)</td><td>1px 分层边框</td></tr>
+                <tr><td class="mono">--border-strong</td><td class="mono">var(--c-slate-300)</td><td>控件边框 / 抽屉</td></tr>
+                <tr><td class="mono">--text</td><td class="mono">var(--c-slate-900)</td><td>正文</td></tr>
+                <tr><td class="mono">--text-2</td><td class="mono">var(--c-slate-700)</td><td>次级正文</td></tr>
+                <tr><td class="mono">--text-muted</td><td class="mono">var(--c-slate-500)</td><td>辅助文字</td></tr>
+                <tr><td class="mono">--ctrl-border</td><td class="mono">#C4CFDD</td><td>输入控件边框</td></tr>
+                <tr><td class="mono">--ctrl-bg</td><td class="mono">var(--c-white)</td><td>输入控件底</td></tr>
+                <tr><td class="mono">--disabled-fg</td><td class="mono">#94A3B8</td><td>禁用文字</td></tr>
+                <tr><td class="mono">--disabled-bg</td><td class="mono">var(--c-slate-100)</td><td>禁用底</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>语义 token · 状态（5 组 × 4 值）</h3></div>
+          <div class="block-b tight">
+            <table class="tbl tbl-dense">
+              <caption>每组：主色 / 底 / 边框 / 文字；状态一律 图标 + 文字 + 颜色</caption>
+              <thead><tr><th scope="col" style="width:120px">组</th><th scope="col">token</th><th scope="col">值</th></tr></thead>
+              <tbody>
+                <tr><td rowspan="4"><span class="pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>成功</span></td><td class="mono">--success</td><td class="mono">var(--c-green-600)</td></tr>
+                <tr><td class="mono">--success-bg</td><td class="mono">#F0FDF4</td></tr>
+                <tr><td class="mono">--success-bd</td><td class="mono">#BBF7D0</td></tr>
+                <tr><td class="mono">--success-tx</td><td class="mono">#15803D</td></tr>
+                <tr><td rowspan="4"><span class="pill warn"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20Z"/><path d="M12 9v5M12 17h.01"/></svg>警告</span></td><td class="mono">--warning</td><td class="mono">var(--c-amber-600)</td></tr>
+                <tr><td class="mono">--warning-bg</td><td class="mono">#FFFBEB</td></tr>
+                <tr><td class="mono">--warning-bd</td><td class="mono">#FDE68A</td></tr>
+                <tr><td class="mono">--warning-tx</td><td class="mono">#B45309</td></tr>
+                <tr><td rowspan="4"><span class="pill bad"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>危险</span></td><td class="mono">--danger</td><td class="mono">var(--c-red-600)</td></tr>
+                <tr><td class="mono">--danger-bg</td><td class="mono">#FEF2F2</td></tr>
+                <tr><td class="mono">--danger-bd</td><td class="mono">#FECACA</td></tr>
+                <tr><td class="mono">--danger-tx</td><td class="mono">#B91C1C</td></tr>
+                <tr><td rowspan="4"><span class="pill run"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>信息</span></td><td class="mono">--info</td><td class="mono">var(--c-sky-600)</td></tr>
+                <tr><td class="mono">--info-bg</td><td class="mono">#F0F9FF</td></tr>
+                <tr><td class="mono">--info-bd</td><td class="mono">#BAE6FD</td></tr>
+                <tr><td class="mono">--info-tx</td><td class="mono">#0369A1</td></tr>
+                <tr><td rowspan="4"><span class="pill neu"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>中性</span></td><td class="mono">--neutral</td><td class="mono">var(--c-slate-500)</td></tr>
+                <tr><td class="mono">--neutral-bg</td><td class="mono">var(--c-slate-100)</td></tr>
+                <tr><td class="mono">--neutral-bd</td><td class="mono">var(--c-slate-300)</td></tr>
+                <tr><td class="mono">--neutral-tx</td><td class="mono">var(--c-slate-700)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-h"><h3>语义 token · 尺寸 / 密度 / 焦点</h3></div>
+          <div class="block-b tight">
+            <table class="tbl tbl-dense">
+              <caption>圆角、间距、字阶、行高、触控目标、焦点</caption>
+              <thead><tr><th scope="col" style="width:180px">名称</th><th scope="col" style="width:170px">值</th><th scope="col">用途</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">--r-sm</td><td class="mono">4px</td><td>小控件 / 胶囊内标</td></tr>
+                <tr><td class="mono">--r-md</td><td class="mono">6px</td><td>卡片 / 输入框 / 按钮</td></tr>
+                <tr><td class="mono">--r-pill</td><td class="mono">999px</td><td>状态胶囊 / 角色标识</td></tr>
+                <tr><td class="mono">--sidebar-w</td><td class="mono">216px</td><td>侧栏展开</td></tr>
+                <tr><td class="mono">--sidebar-collapsed-w</td><td class="mono">56px</td><td>侧栏收起（仅图标 + tooltip）</td></tr>
+                <tr><td class="mono">--topbar-h</td><td class="mono">48px</td><td>深色顶栏高度</td></tr>
+                <tr><td class="mono">--row-h</td><td class="mono">36px</td><td>表格行高</td></tr>
+                <tr><td class="mono">--tap</td><td class="mono">44px</td><td>主操作触控目标（窄屏）</td></tr>
+                <tr><td class="mono">--sp-1…--sp-8</td><td class="mono">2/4/6/8/12/16/24/32</td><td>4px 基准但更紧的间距阶</td></tr>
+                <tr><td class="mono">--fs-11…--fs-26</td><td class="mono">11/12/13.5/16/20/26</td><td>字阶（正文 13.5px）</td></tr>
+                <tr><td class="mono">--lh-body</td><td class="mono">1.45</td><td>正文行高</td></tr>
+                <tr><td class="mono">--font-ui</td><td class="mono">system-ui…</td><td>中文栈（系统字体，零外链）</td></tr>
+                <tr><td class="mono">--font-mono</td><td class="mono">ui-monospace…</td><td>时间 / 编号 / ID</td></tr>
+                <tr><td class="mono">--focus</td><td class="mono">var(--c-indigo-600)</td><td>:focus-visible 轮廓色</td></tr>
+                <tr><td class="mono">--focus-ring</td><td class="mono">rgba(79,70,229,.30)</td><td>焦点外环（不被粘性栏遮挡）</td></tr>
+                <tr><td class="mono">--hairline</td><td class="mono">1px solid var(--border)</td><td>唯一分层手段（零阴影）</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider" style="margin:16px 0"></div>
+    <div class="g12">
+      <div style="grid-column:span 6">
+        <div class="block">
+          <div class="block-h"><h3>禁令自检</h3><span class="right pill ok"><svg class="svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>已核对</span></div>
+          <div class="block-b">
+            <ul class="bullets">
+              <li>零外部请求：无 CDN、无 webfont、无图片文件、无 JS 框架。</li>
+              <li>图标全部内联 SVG（24×24 线性，stroke-width 1.75，fill: none），无 emoji 图标。</li>
+              <li>无「正在思考 / 模型推理中」类过程状态；过程区只列可核实动作。</li>
+              <li>无选课、成绩、考勤、作业提交、提醒/推送、OCR、周次/节次、教务同步、跨设备历史、社交入口。</li>
+              <li>示例数据为虚构（计算机学院 / 主楼 A-305 / 文科楼 B-102），无真实学生、学校、教师数据。</li>
+              <li>空结果与读取失败从未合并为同一种视觉。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div style="grid-column:span 6">
+        <div class="block">
+          <div class="block-h"><h3>无障碍落实点 · 索引</h3></div>
+          <div class="block-b tight">
+            <table class="tbl">
+              <caption>硬要求 → 本文件中的落点</caption>
+              <thead><tr><th scope="col" style="width:160px">要求</th><th scope="col">落点</th></tr></thead>
+              <tbody>
+                <tr><td>状态三重表达</td><td>S03/S04/S05/S06/S08/S10/S11：胶囊 = 图标 + 文字 + 颜色</td></tr>
+                <tr><td>焦点可见 ≥2px</td><td>全局 <span class="mono">:focus-visible</span> 2px 轮廓 + 4px 外环</td></tr>
+                <tr><td>触控目标</td><td>窄屏主按钮与输入 44px；表格次级按钮 26–32px 且带 aria-label</td></tr>
+                <tr><td>可见 label</td><td>S01/S02/S09/S10/S12/S13 每个字段均有可见 <span class="mono">&lt;label&gt;</span></td></tr>
+                <tr><td>错误就近</td><td>S01/S09/S10/S12 字段下方 <span class="mono">aria-describedby</span> + 顶部错误摘要</td></tr>
+                <tr><td>只读 vs 禁用</td><td>S10 对照块：只读灰底无边框并说明原因，禁用降透明度</td></tr>
+                <tr><td>语义结构</td><td>全部表格带 <span class="mono">caption</span> 与 <span class="mono">scope</span>；装饰图标 <span class="mono">aria-hidden</span></td></tr>
+                <tr><td>动效降级</td><td><span class="mono">prefers-reduced-motion</span> 关闭旋转/脉冲/进入动画</td></tr>
+                <tr><td>长文本</td><td>文件名 / ID 使用 <span class="mono">overflow-wrap: anywhere</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* 极小量内联脚本：仅用于标签页/折叠演示；不依赖它也能看懂全部内容 */
+(function () {
+  document.querySelectorAll('.seg').forEach(function (group) {
+    group.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      group.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+    });
+  });
+  document.querySelectorAll('.btn[aria-expanded]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!open));
+      btn.textContent = !open ? '收起片段' : '展开片段';
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>校园课程智能助手 · 前端 UI/UX 方向稿（评审入口）</title>
+<style>
+  :root{
+    --ink:#0F172A; --ink-2:#334155; --ink-3:#64748B;
+    --line:#E2E8F0; --line-2:#CBD5E1;
+    --surface:#FFFFFF; --surface-2:#F8FAFC; --canvas:#F1F5F9;
+    --brand:#0F172A; --link:#1D4ED8;
+    --a:#1D4ED8; --b:#14665B; --c:#4F46E5; --c-dark:#0B1220;
+    --ok:#15803D; --ok-tint:#DCFCE7; --ok-bd:#BBF7D0; --ok-bg:#F0FDF4;
+    --warn:#B45309; --warn-tint:#FEF3C7; --warn-bd:#FDE68A; --warn-bg:#FFFBEB;
+    --danger:#B91C1C; --danger-tint:#FEE2E2; --danger-bd:#FECACA;
+    --info-bg:#EFF6FF;
+    --ink-hover:#1E293B;
+    --fs-13:13px; --fs-15:15px; --fs-17:17px; --fs-20:20px; --fs-26:26px;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s12:48px;
+    --r:10px; --r-sm:8px;
+    --shadow:0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.10);
+    --font:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--canvas); color:var(--ink);
+    font:var(--fs-15)/1.65 var(--font);
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:var(--s8) var(--s6) 96px}
+  header.top{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:var(--shadow); padding:var(--s6) var(--s6) var(--s5);
+  }
+  h1{font-size:var(--fs-26); line-height:1.3; margin:0 0 var(--s2)}
+  h2{font-size:var(--fs-20); margin:var(--s12) 0 var(--s3); padding-bottom:var(--s2);
+     border-bottom:1px solid var(--line)}
+  h3{font-size:var(--fs-17); margin:0 0 var(--s2)}
+  p{margin:0 0 var(--s3)}
+  a{color:var(--link)}
+  a:focus-visible,button:focus-visible,summary:focus-visible{
+    outline:2px solid var(--link); outline-offset:2px; border-radius:var(--r-sm);
+  }
+  .lede{color:var(--ink-2); margin:0}
+  .meta{color:var(--ink-3); font-size:var(--fs-13); margin-top:var(--s3)}
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+    box-shadow:var(--shadow); padding:var(--s5); margin-top:var(--s4);
+  }
+  .grid3{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:var(--s4)}
+  .dir{display:flex; flex-direction:column; gap:var(--s2); height:100%}
+  .dir .bar{height:6px; border-radius:999px; margin-bottom:var(--s2)}
+  .dir.a .bar{background:var(--a)} .dir.b .bar{background:var(--b)} .dir.c .bar{background:var(--c)}
+  .dir .tag{
+    display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+    font-size:var(--fs-13); font-weight:600; padding:2px 10px; border-radius:999px;
+    background:var(--surface-2); border:1px solid var(--line-2); color:var(--ink-2);
+  }
+  .dir .cta{
+    margin-top:auto; display:inline-flex; align-items:center; justify-content:center;
+    min-height:44px; padding:0 var(--s5); border-radius:var(--r-sm);
+    background:var(--ink); color:#fff; text-decoration:none; font-weight:600;
+  }
+  .dir .cta:hover{background:var(--ink-hover)}
+  .dir ul{margin:0; padding-left:1.1em; color:var(--ink-2)}
+  .dir li{margin:2px 0}
+  .swatch{display:inline-block; width:14px; height:14px; border-radius:4px;
+          border:1px solid rgba(0,0,0,.12); vertical-align:-2px; margin-right:6px}
+  table{width:100%; border-collapse:collapse; background:var(--surface);
+        border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+  caption{text-align:left; padding:var(--s3) var(--s4) 0; color:var(--ink-3); font-size:var(--fs-13)}
+  th,td{padding:10px var(--s4); border-bottom:1px solid var(--line); text-align:left; vertical-align:top}
+  thead th{background:var(--surface-2); font-size:var(--fs-13); color:var(--ink-2);
+           white-space:nowrap; position:sticky; top:0}
+  tbody tr:last-child td{border-bottom:0}
+  td.num{white-space:nowrap}
+  .pill{display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-13);
+        font-weight:600; padding:2px 10px; border-radius:999px; border:1px solid transparent}
+  .pill.ok{background:var(--ok-tint); color:var(--ok); border-color:var(--ok-bd)}
+  .pill.warn{background:var(--warn-tint); color:var(--warn); border-color:var(--warn-bd)}
+  .pill.danger{background:var(--danger-tint); color:var(--danger); border-color:var(--danger-bd)}
+  .pill.neutral{background:var(--surface-2); color:var(--ink-2); border-color:var(--line-2)}
+  .callout{border-left:3px solid var(--warn); background:var(--warn-bg); padding:var(--s4) var(--s5);
+           border-radius:0 var(--r) var(--r) 0; margin-top:var(--s4)}
+  .callout.info{border-left-color:var(--link); background:var(--info-bg)}
+  .callout.ok{border-left-color:var(--ok); background:var(--ok-bg)}
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:var(--s2) var(--s4); margin:0}
+  .kv dt{color:var(--ink-3); font-size:var(--fs-13); white-space:nowrap}
+  .kv dd{margin:0}
+  code{background:var(--surface-2); border:1px solid var(--line); border-radius:6px;
+       padding:1px 6px; font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+       font-size:.92em; overflow-wrap:anywhere}
+  .files{margin:0; padding-left:1.2em}
+  .files li{margin:var(--s2) 0}
+  details{margin-top:var(--s3)}
+  summary{cursor:pointer; font-weight:600}
+  footer{margin-top:var(--s12); color:var(--ink-3); font-size:var(--fs-13)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>校园课程智能助手 · 前端 UI/UX 方向稿</h1>
+  <p class="lede">
+    这是<strong>方向稿</strong>，不是最终设计。三个方向在<strong>内容与状态上完全相同</strong>
+    （同一份 <a href="shared/content-spec.md">content-spec</a> 冻结了 15 个屏幕块、逐字文案与无障碍硬要求），
+    只在<strong>配色、字体密度、布局结构与信息组织方式</strong>上不同 —— 所以你要比较的是"观感与密度"，
+    而不是"内容多少"。看完请选一个方向，我再按你选的深度继续。
+  </p>
+  <p class="meta">
+    版本 v1 · 2026-10-21 · 依据 <code>docs/</code> 下 PRD / SRS / HLD / 后端详细设计 / OpenAPI / SSE schema / MCP 契约
+  </p>
+</header>
+
+<h2>一、三个方向，一句话各自是什么</h2>
+<div class="grid3">
+
+  <div class="card dir a">
+    <div class="bar"></div>
+    <span class="tag">A · 学院蓝</span>
+    <h3>清晰秩序</h3>
+    <p style="color:var(--ink-2)">
+      正式、可信、低学习成本。学生与管理员共用一套视觉语言，最接近"学校官方系统的现代化版本"。
+    </p>
+    <ul>
+      <li>主色 <span class="swatch" style="background:var(--a)"></span>#1D4ED8 靛蓝</li>
+      <li>正文 15px / 行高 1.6 / 间距 4px 基准</li>
+      <li>左侧栏 240px + 顶栏 56px；助手页三栏（对话 + 右侧 320px 过程面板）</li>
+      <li>卡片圆角 10px，轻阴影分层</li>
+      <li>引用用青绿左边框卡片；状态统一为「图标+文字+12% 底色」胶囊</li>
+    </ul>
+    <p style="color:var(--ink-3); font-size:var(--fs-13); margin-bottom:0">
+      代价：视觉偏正统、个性弱；1366px 下右侧面板需可折叠。
+    </p>
+    <p style="margin-top:var(--s4)"><a class="cta" href="direction-a.html">打开方向 A 完整稿</a></p>
+  </div>
+
+  <div class="card dir b">
+    <div class="bar"></div>
+    <span class="tag">B · 纸感墨绿</span>
+    <h3>专注对话</h3>
+    <p style="color:var(--ink-2)">
+      安静、专注、把助手当唯一主角。低密度大留白，移动优先，学生日常使用最舒服。
+    </p>
+    <ul>
+      <li>主色 <span class="swatch" style="background:var(--b)"></span>#14665B 墨绿；琥珀专用于「未保存/待确认」</li>
+      <li>正文 17px / 行高 1.75 / 间距 6px 基准（刻意避开 4 的倍数）</li>
+      <li><strong>无侧栏</strong>：单列居中 880px，导航收进顶栏 64px</li>
+      <li>卡片圆角 14px，阴影极淡；层次靠留白与 1px 暖色分隔线</li>
+      <li>过程反馈<strong>内联为对话内步骤条</strong>；草稿卡做成「便签纸」</li>
+    </ul>
+    <p style="color:var(--ink-3); font-size:var(--fs-13); margin-bottom:0">
+      代价：标准密度下一屏仅 7–8 行，管理后台效率低；已额外定义「紧凑变体」补偿，但 S11 五状态仍无法一屏看清。
+    </p>
+    <p style="margin-top:var(--s4)"><a class="cta" href="direction-b.html">打开方向 B 完整稿</a></p>
+  </div>
+
+  <div class="card dir c">
+    <div class="bar"></div>
+    <span class="tag">C · 深色控制台</span>
+    <h3>数据密集</h3>
+    <p style="color:var(--ink-2)">
+      一屏看完、键盘优先、状态可追溯。管理员与重度用户效率最高，学生看到的是"今日一屏"。
+    </p>
+    <ul>
+      <li>主色 <span class="swatch" style="background:var(--c)"></span>#4F46E5；深色顶栏 <span class="swatch" style="background:var(--c-dark)"></span>#0B1220</li>
+      <li>正文 13.5px / 行高 1.45 / 间距 2px 基准</li>
+      <li>可折叠侧栏 216px + 深色顶栏 48px；12 栅格，max-width 1600px</li>
+      <li><strong>无阴影</strong>，一律 1px 边框分层；圆角 6px；表格行高 36px</li>
+      <li>过程区是右侧 <strong>「执行事件流」表格</strong>（seq / 时间 / 事件 / 状态）；引用走右侧抽屉</li>
+    </ul>
+    <p style="color:var(--ink-3); font-size:var(--fs-13); margin-bottom:0">
+      代价：对非技术学生有门槛感；13.5px 在手机上偏小，窄屏需回到 15px 并放弃表格。
+    </p>
+    <p style="margin-top:var(--s4)"><a class="cta" href="direction-c.html">打开方向 C 完整稿</a></p>
+  </div>
+
+</div>
+
+<h2>二、量化对比（取自各文件真实声明的 CSS token）</h2>
+<table>
+  <caption>三方向关键设计决策对照。数值均由 <code>design/reviews/verify.py</code> 从各文件 <code>:root</code> 解析得出，非人工转抄。</caption>
+  <thead>
+    <tr><th scope="col">指标</th><th scope="col">A · 学院蓝</th><th scope="col">B · 纸感墨绿</th><th scope="col">C · 深色控制台</th></tr>
+  </thead>
+  <tbody>
+    <tr><th scope="row">主色</th><td class="num">#1D4ED8</td><td class="num">#14665B</td><td class="num">#4F46E5</td></tr>
+    <tr><th scope="row">页面底色</th><td class="num">#F1F5F9 冷灰</td><td class="num">#FAF8F5 暖米白</td><td class="num">#F8FAFC 冷灰</td></tr>
+    <tr><th scope="row">正文字号 / 行高</th><td class="num">15px / 1.6</td><td class="num">17px / 1.75</td><td class="num">13.5px / 1.45</td></tr>
+    <tr><th scope="row">间距基准</th><td class="num">4px</td><td class="num">6px</td><td class="num">2px</td></tr>
+    <tr><th scope="row">卡片圆角</th><td class="num">10px</td><td class="num">14px</td><td class="num">6px</td></tr>
+    <tr><th scope="row">分层手段</th><td>轻阴影</td><td>极淡阴影 + 留白</td><td>无阴影，1px 边框</td></tr>
+    <tr><th scope="row">布局</th><td>侧栏 240px + 顶栏 56px</td><td>无侧栏，单列 880px + 顶栏 64px</td><td>可折叠侧栏 216px + 深色顶栏 48px</td></tr>
+    <tr><th scope="row">助手过程区</th><td>右侧 320px 固定面板</td><td>对话内联步骤条</td><td>右侧 340px 执行事件流表格</td></tr>
+    <tr><th scope="row">S11 五种文档状态</th><td>表格 + 状态胶囊</td><td>紧凑变体表格（已知无法一屏看完）</td><td>单屏表格，五种状态同行可比</td></tr>
+    <tr><th scope="row">最适合</th><td>校园正式试点的稳妥默认</td><td>学生日常 + 移动端</td><td>管理员与状态可追溯性验收</td></tr>
+  </tbody>
+</table>
+
+<h2>三、三个方向都必须满足的硬约束（不是可选项）</h2>
+<div class="callout info">
+  <p style="margin-bottom:var(--s2)"><strong>这些来自 docs 的契约，三个方向都已实现，换方向也不会变：</strong></p>
+  <ul style="margin:0; padding-left:1.2em; color:var(--ink-2)">
+    <li><strong>空结果 ≠ 读取失败</strong>：S08 的两个状态必须并列且视觉可区分，不得合并成"暂无数据"。</li>
+    <li><strong>五类"坏消息"一眼可分</strong>：当天无安排 / 课表读取失败 / 依据不足 / 检索失败 / 写入待确认。</li>
+    <li><strong>过程区只展示可核实动作</strong>（正在读取课表 / 正在检索课程资料 / 正在拟定计划草稿），绝不出现"正在思考"或模型推理。</li>
+    <li><strong>引用只能来自本次真实检索</strong>，且未校验的引用标记必须与已验证引用视觉可区分。</li>
+    <li><strong>草稿默认「未保存」</strong>，保存后必须能给出计划编号并打开；写入结果未知时显示"待确认"而不是失败。</li>
+    <li><strong>文档批次整批可见或整批不可见</strong>，五种文件状态（可检索/处理中/失败/删除中/删除失败）都要能表达失败原因。</li>
+    <li><strong>状态不靠颜色单独表达</strong>：一律"图标 + 文字 + 颜色"三重；可见 label、:focus-visible、prefers-reduced-motion 全在位。</li>
+    <li><strong>会话是临时的</strong>：令牌只存内存、2 小时不续期、刷新需重登 —— 所以助手对话刻意<strong>不进 URL</strong>。</li>
+  </ul>
+</div>
+
+<h2>四、信息架构草图</h2>
+<div class="card">
+  <p>
+    <a href="../ia/sitemap.html"><strong>打开信息架构草图 →</strong></a>
+  </p>
+  <p style="color:var(--ink-2); margin-bottom:var(--s2)">方向无关，三个方向共用。含 7 个部分：</p>
+  <ol style="margin:0; padding-left:1.4em; color:var(--ink-2)">
+    <li>站点地图（登录 → 四个一级页面 → 管理中心四模块，每节点标 API 端点）</li>
+    <li>路由与守卫表（13 行）+ 深链冲突专项 + 未登录/越权统一处理</li>
+    <li>导航模型（三级分层、当前项高亮、角色决定菜单、桌面与 390px 双形态）</li>
+    <li>四条关键流程（查课表 / 资料问答 / 生成并保存计划 / 管理员批量入库）</li>
+    <li>对话请求生命周期（accepted → running → succeeded/failed/cancelled + 断线分支）</li>
+    <li>状态 → UI 呈现总表（30 行：HTTP 状态 × 业务错误码 → 页内提示/字段错误/引用失效/胶囊/抽屉/整页）</li>
+    <li>会话生命周期（2h 不续期、令牌仅内存、刷新重登、切号清空、清空对话不删计划、禁用即时失效）</li>
+  </ol>
+  <details>
+    <summary>一个需要你知道的设计取舍：助手对话为什么不进 URL</summary>
+    <p style="color:var(--ink-2); margin-top:var(--s2)">
+      通用准则是"URL 应反映当前状态，便于分享与回退"。本项目中 <code>/schedule?date=</code>、
+      <code>/plans/:id</code>、各管理页都遵守它；但 <code>conversation_id</code> / <code>draft_id</code> /
+      <code>request_id</code> <strong>刻意不写进地址栏</strong>。理由：会话只存在当前标签页内存里，刷新即失效；
+      写进 URL 等于向用户<strong>承诺一个不存在的恢复能力</strong> —— 刷新后地址还在但内容已不可恢复，比"URL 不反映状态"更糟。
+      判据一句话：<strong>URL 里出现的东西，刷新后必须仍然成立。</strong>
+      留存诉求改为转移到"显式保存 → plan_id → 可深链的 /plans/:id"。
+    </p>
+  </details>
+</div>
+
+<h2>五、独立校验结果</h2>
+<div class="card">
+  <p style="margin-bottom:var(--s3)">
+    三份方向稿 + IA 草图都经过确定性校验（<code>design/reviews/verify.py</code>，可复现）。
+    当前结论：
+  </p>
+  <table>
+    <caption>校验口径：结构完整性、零外部请求、逐字文案、无障碍计数、WCAG 对比度、裸 hex、标签配平、方向差异真实性、违禁内容、契约一致性。</caption>
+    <thead>
+      <tr><th scope="col">文件</th><th scope="col">15 屏幕块</th><th scope="col">外部请求</th><th scope="col">逐字文案</th><th scope="col">裸 hex（组件）</th><th scope="col">标签配平</th><th scope="col">结论</th></tr>
+    </thead>
+    <tbody>
+      <tr><th scope="row">direction-a.html</th><td class="num">15/15</td><td class="num">0</td><td class="num">15/15</td><td class="num">0</td><td class="num">一致</td><td><span class="pill ok">通过</span></td></tr>
+      <tr><th scope="row">direction-b.html</th><td class="num">15/15</td><td class="num">0</td><td class="num">15/15</td><td class="num">0（24 处在 S14 token 展示表）</td><td class="num">一致</td><td><span class="pill ok">通过</span></td></tr>
+      <tr><th scope="row">direction-c.html</th><td class="num">15/15</td><td class="num">0</td><td class="num">15/15</td><td class="num">0（16 处在 S14 token 展示表）</td><td class="num">一致</td><td><span class="pill ok">通过</span></td></tr>
+      <tr><th scope="row">ia/sitemap.html</th><td class="num">7/7 部分</td><td class="num">0</td><td class="num">不适用</td><td class="num">0</td><td class="num">一致</td><td><span class="pill ok">通过</span></td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:var(--s3); color:var(--ink-2)">
+    <strong>本轮发现并已修复的问题（全部复验通过）：</strong>
+  </p>
+  <ul style="color:var(--ink-2); padding-left:1.2em">
+    <li><strong>A · 对比度</strong>：<code>--ink-3</code> 在页面底上只有 4.34:1（真实作用在 13px 说明文字上）→ 调深为 <code>#475569</code>，现 <strong>6.92:1</strong>；「有依据」胶囊文字由 <code>--teal</code> 改用 <code>--teal-hover</code>，现 <strong>6.15:1</strong>。</li>
+    <li><strong>C · 标记结构</strong>：11 处 <code>&lt;span class="right"&gt;…&lt;/div&gt;</code> 缺 <code>&lt;/span&gt;</code> 且多一个 <code>&lt;/div&gt;</code>，已修正，栈式解析 0 错。</li>
+    <li><strong>C · token 纪律</strong>：组件 CSS 16 处裸 hex 已收敛为 13 个语义 token，现为 0。</li>
+    <li><strong>B · 文档正确性</strong>：token 注释自述比值写错（称 5.8/4.8/3.9，实为 7.02/5.63/4.53），已改为实测值。</li>
+    <li><strong>IA · 路径</strong>：<code>/admin/documents/batches/:batchId</code> 等 3 处已对齐 OpenAPI，现 16 个引用端点<strong>全部命中</strong>、29 个错误码全部落在 SRS §8 枚举内。</li>
+  </ul>
+  <p style="margin-top:var(--s3); color:var(--ink-2)">
+    <strong>全部 35 组对比度配对（按声明的 CSS token 计算）现已 0 处不达标。</strong>
+    独立验证者另出具了 463 行报告，其中<strong>推翻了我的两处判断</strong>：B 的琥珀色不达标是"token 存在但从未这样用"的假阳性（真实用色 #8A4107 = 6.56:1），
+    以及 IA 那 3 个路径并非自造端点（是入口路由与守卫 glob）——这两条我已采纳并修正了自己的校验器。
+  </p>
+  <p style="margin-bottom:0">
+    <a href="../reviews/verify-output.txt">查看完整校验输出</a> ·
+    <a href="../reviews/verify.py">查看校验器</a> ·
+    <a href="../reviews/round1-verification.md">查看独立验证报告（463 行）</a>
+  </p>
+</div>
+
+<div class="callout">
+  <p style="margin-bottom:var(--s2)"><strong>这次没有做真实浏览器渲染验证 —— 请你务必自己打开看一遍。</strong></p>
+  <p style="margin-bottom:0; color:var(--ink-2)">
+    原因是环境性的：<strong>DSH 官方侧栏浏览器不提供 agent 控制能力</strong>，agent 可控的浏览操作由<strong>本地插件</strong>补齐；
+    本次会话中该能力始终不可用（页面从未挂载进侧栏面板，随后会话被空闲回收），
+    本机 Chromium 也无法在沙箱内启动。
+    因此上面的结论全部来自<strong>静态等价检查</strong>（结构、文案、token、对比度、标签配平），
+    <strong>没有</strong>验证真实渲染效果、hover/focus 实际样式、以及实际渲染像素的对比度。
+    完整记录见 <a href="../../docs/tooling/DSH侧栏浏览器-agent控制问题记录_v1.md">DSH 侧栏浏览器 · agent 控制能力问题记录</a>。
+    请双击打开三个 <code>direction-*.html</code>（各自独立、零外部请求），
+    重点看：S13 的 390px 窄屏排布、各方向 S11 的文档状态密度。
+  </p>
+</div>
+
+<h2>六、看完请给我一个决定</h2>
+<div class="card">
+  <p>你只要回答两件事，我就能继续：</p>
+  <ol style="color:var(--ink-2); padding-left:1.4em">
+    <li><strong>选哪个方向</strong>（A / B / C，也可以说"A 的配色 + C 的密度"这种组合）。</li>
+    <li><strong>要什么深度</strong>：
+      <ul style="margin:var(--s2) 0">
+        <li>只要设计文档与规格（设计系统 token、组件规格、页面与状态规格、无障碍与响应式规范、前端技术方案）</li>
+        <li>文档 + 可点击高保真原型（在选定方向上把 15 个屏幕块做成可交互流程）</li>
+        <li>文档 + 原型 + Vue 3 可运行骨架（Vue3 + TS + Pinia，落地 token / 布局壳 / 路由 / 主要页面，mock 数据，不接真实后端）</li>
+      </ul>
+    </li>
+  </ol>
+  <p style="margin-bottom:0; color:var(--ink-3); font-size:var(--fs-13)">
+    我的建议：<strong>方向 A 作为基线，吸收 C 的 S11 文档状态密度与事件可追溯性</strong>。
+    理由是 A 与知识库对"教育/知识库类工具"的独立推荐一致（中性灰 + 链接蓝、Swiss 极简、高可读性），
+    风险最低、学生与管理员共用一套语言；而 C 在"一屏确认 5 种文档状态"和"执行事件可追溯"上明显更强，
+    恰好对应本项目最难的验收点。B 的移动端体验最好，但管理后台密度不足是硬伤。
+  </p>
+</div>
+
+<footer>
+  <p>文件地图：</p>
+  <ul class="files">
+    <li><a href="direction-a.html">direction-a.html</a> — 方向 A 完整稿（15 个屏幕块 + token 表 + 取舍）</li>
+    <li><a href="direction-b.html">direction-b.html</a> — 方向 B 完整稿</li>
+    <li><a href="direction-c.html">direction-c.html</a> — 方向 C 完整稿</li>
+    <li><a href="shared/content-spec.md">shared/content-spec.md</a> — 三方向共同的内容与状态冻结清单（S00–S14、逐字文案、无障碍硬要求、禁止内容）</li>
+    <li><a href="../ia/sitemap.html">../ia/sitemap.html</a> — 信息架构草图（方向无关）</li>
+    <li><a href="../reviews/verify.py">../reviews/verify.py</a> — 确定性校验器（可复现）</li>
+    <li><a href="../reviews/verify-output.txt">../reviews/verify-output.txt</a> — 校验输出</li>
+    <li><a href="../reviews/round1-verification.md">../reviews/round1-verification.md</a> — 独立验证报告</li>
+  </ul>
+</footer>
+
+</div>
+</body>
+</html>
