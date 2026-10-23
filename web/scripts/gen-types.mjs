@@ -4,19 +4,25 @@
  *
  * 依据：PHASE-04 F2 / 前端详细设计 §2.1（`types.gen.ts` 由 openapi 生成，勿手改）/ §14。
  *
- * 真源（**当前以设计包为准**）：
- *   1. 设计包离线契约：`docs/backend/openapi_v0.1.json`（默认；确定性、可离线、含完整响应模型与错误响应）
- *   2. 后端运行时 OpenAPI：`http://127.0.0.1:8100/api/v1/openapi.json`（`--source=http` 时才用）
+ * 真源（二者为同一份契约；**默认 file = 设计包，确定性 + 可离线**）：
+ *   1. 设计包离线契约：`docs/backend/openapi_v0.1.json`（默认）
+ *   2. 后端运行时 OpenAPI：`http://127.0.0.1:8100/api/v1/openapi.json`（`--source=http|auto`）
  *
- * 为什么默认不是运行态（2026-10-23 F4 实测）：后端 FastAPI 尚未声明 `response_model` /
- * `responses=`，运行态 OpenAPI 的 `components.schemas` 只有 13 个请求体、响应模型与
- * 401/403/404/409 等错误响应**未声明**；若以它为类型真源，前端会丢掉全部响应类型。
- * 两者**结构契约目前一致**（26 公开路径 / 34 operationId 全对齐），故以设计包生成，
- * 并用 `scripts/contract-diff.mjs` 对运行态做独立契约门禁；后端补齐 response_model 后可切换。
+ * 为什么当前默认不是运行态（2026-10-23 22:0x 实测，后端已声明 27 paths / 52 schemas）：
+ *   `contract-diff.mjs` 判定**无真实漂移（FAIL=0）**，但运行态仍缺 24 个设计包 schema，
+ *   其中 9 个是 P2/P3 未实现（Citation/Task/Document/Batch/…，这些端点当前是 501 桩）、
+ *   9 个是 internal 工具模型（前端不消费）、其余是设计包的聚合/请求模型（SaveResult、
+ *   ChatInput/ChatState 等）。若以运行态生成，`src/api/types.ts` 门面里对 Citation/Document
+ *   等别名会直接编译失败。**切换条件**：`contract-diff` 的 schema-doc / enum-doc WARN 清零
+ *   （即 P2/P3 合并后运行态声明全部响应模型与枚举），再把默认切 `auto`。
+ *
+ * 双真源可切换的基础：生成前剥离 description/summary/title/example 等非结构性注解，
+ * 只要两边结构契约一致，产出的 types.gen.ts 就逐字节相同；结构性差异由 contract-diff 单独门禁。
  *
  * 用法：
- *   node scripts/gen-types.mjs                     # 生成（source=file：设计包，默认）
- *   node scripts/gen-types.mjs --source=http       # 用后端运行态 OpenAPI 生成（对比/切换用）
+ *   node scripts/gen-types.mjs                     # 生成（默认 source=file）
+ *   node scripts/gen-types.mjs --source=file       # 强制设计包（离线）
+ *   node scripts/gen-types.mjs --source=http       # 强制运行态（不可达即失败，不静默回落）
  *   node scripts/gen-types.mjs --source=auto       # 优先后端、不可达回落设计包
  *   node scripts/gen-types.mjs --check             # 漂移门禁：重新生成到内存并与磁盘逐字节比较
  *   node scripts/gen-types.mjs --check --source=file
@@ -126,11 +132,15 @@ const HEADER = `/**
  * 生成命令：node scripts/gen-types.mjs
  * 漂移门禁：node scripts/gen-types.mjs --check（不一致即 exit 1）
  * 生成器：openapi-typescript（devDependency，版本见 web/pnpm-lock.yaml）
- * 真源：后端运行时 \`GET /api/v1/openapi.json\`，后端不可达时回落
- *       \`docs/backend/openapi_v0.1.json\`（二者为同一份契约）。
+ * 真源：优先后端运行时 \`GET /api/v1/openapi.json\`（--source=auto 默认），
+ *       不可达时回落 \`docs/backend/openapi_v0.1.json\`（同一份契约）。
  *
  * 内网端点：OpenAPI 里的 4 个 \`/internal/v1/*\` 在生成前被**剔除**（§15.2 前端不得调用），
  * 因此前端类型面天然不含这些端点，不变量 8「不引用 /internal/v1」保持零豁免。
+ *
+ * 注释归一：生成前剥离 description/summary/title/example 等**非结构性注解**，
+ * 只保留字段/类型/必填/枚举/格式。这样「设计包」与「运行态」只要**结构契约一致**
+ * 就产出逐字节相同的文件，--check 在后端在线/离线两种情况下都稳定可复现。
  *
  * 业务代码请从 \`@/api/types\`（手写薄门面）取类型：
  * 门面里的每个类型都直接指向本文件的 \`components['schemas'][...]\`，
@@ -139,16 +149,38 @@ const HEADER = `/**
 
 `
 
-function buildHeader(spec) {
-  const info = spec.info ?? {}
-  return HEADER + `/* OpenAPI ${spec.openapi}${info.title ? ` · ${info.title}` : ''}${info.version ? ` · ${info.version}` : ''} */\n\n`
+/** 只保留结构性键；注解键（描述/示例/标题）不影响类型，剥离后保证跨真源稳定。 */
+const ANNOTATION_KEYS = new Set(['description', 'summary', 'title', 'example', 'examples', 'externalDocs'])
+
+/**
+ * 上下文感知地剥离注解键 —— **不能**按字符串无脑删：
+ * `Course.description`、`Plan.title` 是**业务字段名**（位于 `properties` 映射的键上），
+ * 删掉会把响应类型削掉字段（实测会直接让 vue-tsc 报 mock 数据缺字段）。
+ * 因此进入 `properties` 映射时把 `inPropertiesMap` 置真：该层的键是字段名，一律保留；
+ * 只有真正的 schema 节点上的 description/title/example 才剥离。
+ */
+function stripAnnotations(node, inPropertiesMap = false) {
+  if (Array.isArray(node)) return node.map((v) => stripAnnotations(v, inPropertiesMap))
+  if (!node || typeof node !== 'object') return node
+  const out = {}
+  for (const [k, v] of Object.entries(node)) {
+    if (k.startsWith('x-')) continue
+    if (inPropertiesMap) {
+      out[k] = stripAnnotations(v, false) // 字段名保留，字段值继续按 schema 处理
+      continue
+    }
+    if (ANNOTATION_KEYS.has(k)) continue
+    out[k] = stripAnnotations(v, k === 'properties')
+  }
+  return out
 }
 
-async function generate(spec) {
+async function generate(rawSpec) {
+  const spec = stripAnnotations(rawSpec)
   const ast = await openapiTS(spec, { alphabetize: true })
   const body = astToString(ast)
   // 统一 LF（Windows 下不产出 CRLF，保证 --check 逐字节稳定）
-  return `${buildHeader(spec)}${body}`.replace(/\r\n/g, '\n')
+  return `${HEADER}${body}`.replace(/\r\n/g, '\n')
 }
 
 /* ------------------------------ 主流程 ------------------------------ */

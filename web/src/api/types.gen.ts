@@ -4,18 +4,20 @@
  * 生成命令：node scripts/gen-types.mjs
  * 漂移门禁：node scripts/gen-types.mjs --check（不一致即 exit 1）
  * 生成器：openapi-typescript（devDependency，版本见 web/pnpm-lock.yaml）
- * 真源：后端运行时 `GET /api/v1/openapi.json`，后端不可达时回落
- *       `docs/backend/openapi_v0.1.json`（二者为同一份契约）。
+ * 真源：优先后端运行时 `GET /api/v1/openapi.json`（--source=auto 默认），
+ *       不可达时回落 `docs/backend/openapi_v0.1.json`（同一份契约）。
  *
  * 内网端点：OpenAPI 里的 4 个 `/internal/v1/*` 在生成前被**剔除**（§15.2 前端不得调用），
  * 因此前端类型面天然不含这些端点，不变量 8「不引用 /internal/v1」保持零豁免。
+ *
+ * 注释归一：生成前剥离 description/summary/title/example 等**非结构性注解**，
+ * 只保留字段/类型/必填/枚举/格式。这样「设计包」与「运行态」只要**结构契约一致**
+ * 就产出逐字节相同的文件，--check 在后端在线/离线两种情况下都稳定可复现。
  *
  * 业务代码请从 `@/api/types`（手写薄门面）取类型：
  * 门面里的每个类型都直接指向本文件的 `components['schemas'][...]`，
  * 因此契约字段漂移会在 `vue-tsc` 阶段变成编译错误。
  */
-
-/* OpenAPI 3.1.0 · 校园课程智能助手后端 Interface · 0.1.0 */
 
 export interface paths {
     "/api/v1/admin/courses": {
@@ -25,16 +27,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * listCourses
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         get: operations["listCourses"];
         put?: never;
-        /**
-         * createCourse
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         post: operations["createCourse"];
         delete?: never;
         options?: never;
@@ -55,10 +49,6 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * patchCourse
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         patch: operations["patchCourse"];
         trace?: never;
     };
@@ -71,10 +61,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * uploadBatch
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         post: operations["uploadBatch"];
         delete?: never;
         options?: never;
@@ -89,10 +75,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * getBatch
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         get: operations["getBatch"];
         put?: never;
         post?: never;
@@ -109,10 +91,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * listDocuments
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         get: operations["listDocuments"];
         put?: never;
         post?: never;
@@ -132,10 +110,6 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /**
-         * deleteDocument
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         delete: operations["deleteDocument"];
         options?: never;
         head?: never;
@@ -151,10 +125,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * retryCleanup
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         post: operations["retryCleanup"];
         delete?: never;
         options?: never;
@@ -171,10 +141,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * rebuildDocument
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         post: operations["rebuildDocument"];
         delete?: never;
         options?: never;
@@ -189,10 +155,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * previewDocument
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         get: operations["previewDocument"];
         put?: never;
         post?: never;
@@ -209,16 +171,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * adminSchedules
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         get: operations["adminSchedules"];
         put?: never;
-        /**
-         * createSchedule
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         post: operations["createSchedule"];
         delete?: never;
         options?: never;
@@ -236,17 +190,9 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /**
-         * deleteSchedule
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         delete: operations["deleteSchedule"];
         options?: never;
         head?: never;
-        /**
-         * patchSchedule
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         patch: operations["patchSchedule"];
         trace?: never;
     };
@@ -257,16 +203,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * listStudents
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         get: operations["listStudents"];
         put?: never;
-        /**
-         * createStudent
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         post: operations["createStudent"];
         delete?: never;
         options?: never;
@@ -287,10 +225,6 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * patchStudent
-         * @description 仅管理员；后端校验角色并审计，学生403。
-         */
         patch: operations["patchStudent"];
         trace?: never;
     };
@@ -303,7 +237,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** login */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -320,7 +253,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** logout */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -335,7 +267,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getChatState */
         get: operations["getChatState"];
         put?: never;
         post?: never;
@@ -354,7 +285,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** cancelChat */
         post: operations["cancelChat"];
         delete?: never;
         options?: never;
@@ -371,7 +301,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** streamChat */
         post: operations["streamChat"];
         delete?: never;
         options?: never;
@@ -386,7 +315,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getCitation */
         get: operations["getCitation"];
         put?: never;
         post?: never;
@@ -403,7 +331,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getMe */
         get: operations["getMe"];
         put?: never;
         post?: never;
@@ -420,14 +347,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getDraft */
         get: operations["getDraft"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** reviseDraft */
         patch: operations["reviseDraft"];
         trace?: never;
     };
@@ -440,7 +365,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** saveDraft */
         post: operations["saveDraft"];
         delete?: never;
         options?: never;
@@ -455,10 +379,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listPlans */
         get: operations["listPlans"];
         put?: never;
-        /** createPlan */
         post: operations["createPlan"];
         delete?: never;
         options?: never;
@@ -473,15 +395,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getPlan */
         get: operations["getPlan"];
         put?: never;
         post?: never;
-        /** deletePlan */
         delete: operations["deletePlan"];
         options?: never;
         head?: never;
-        /** patchPlan */
         patch: operations["patchPlan"];
         trace?: never;
     };
@@ -492,7 +411,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** mySchedules */
         get: operations["mySchedules"];
         put?: never;
         post?: never;
@@ -509,7 +427,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getWriteOperation */
         get: operations["getWriteOperation"];
         put?: never;
         post?: never;
@@ -930,7 +847,6 @@ export interface components {
         } & (unknown & unknown);
     };
     responses: {
-        /** @description 稳定错误码；身份/角色/归属、冲突、超限及依赖错误按正文映射。 */
         ErrorResponse: {
             headers: {
                 [name: string]: unknown;
@@ -943,7 +859,6 @@ export interface components {
     parameters: {
         ExpectedVersion: number;
         FromDate: string;
-        /** @description 同一逻辑写入必须复用；草稿保存必须匹配服务端版本绑定。 */
         IdempotencyKey: string;
         Page: number;
         PageSize: number;
@@ -969,7 +884,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1009,7 +923,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1051,7 +964,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1091,7 +1003,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -1129,7 +1040,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1170,7 +1080,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1210,7 +1119,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -1241,7 +1149,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description 同一逻辑写入必须复用；草稿保存必须匹配服务端版本绑定。 */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -1251,7 +1158,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -1282,7 +1188,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description 同一逻辑写入必须复用；草稿保存必须匹配服务端版本绑定。 */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -1296,7 +1201,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -1337,7 +1241,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1379,7 +1282,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1419,7 +1321,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1459,7 +1360,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1501,7 +1401,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1542,7 +1441,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1582,7 +1480,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1624,7 +1521,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1664,7 +1560,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1700,7 +1595,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1738,7 +1632,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1776,7 +1669,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1816,7 +1708,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description SSE；六类事件data见sse_events_v0.1.schema.json；终态及引用在写出边界核实。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1851,7 +1742,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1887,7 +1777,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1925,7 +1814,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1967,7 +1855,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1998,7 +1885,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description 同一逻辑写入必须复用；草稿保存必须匹配服务端版本绑定。 */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
@@ -2012,7 +1898,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 相同操作既有结果，不新建 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2024,7 +1909,6 @@ export interface operations {
                     };
                 };
             };
-            /** @description 成功 */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2036,7 +1920,6 @@ export interface operations {
                     };
                 };
             };
-            /** @description 提交结果待核实，不能解释为创建成功 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -2076,7 +1959,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2107,7 +1989,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description 同一逻辑写入必须复用；草稿保存必须匹配服务端版本绑定。 */
                 "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
@@ -2119,7 +2000,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 相同操作既有结果，不新建 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2131,7 +2011,6 @@ export interface operations {
                     };
                 };
             };
-            /** @description 成功 */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2143,7 +2022,6 @@ export interface operations {
                     };
                 };
             };
-            /** @description 提交结果待核实，不能解释为创建成功 */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -2181,7 +2059,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2221,7 +2098,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2263,7 +2139,6 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2304,7 +2179,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2342,7 +2216,6 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
