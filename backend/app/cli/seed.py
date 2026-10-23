@@ -160,8 +160,8 @@ async def _ensure_demo_plan(user: User) -> bool:
             draft_id=None,
             draft_version=None,
             content_digest=digest,
-            state="succeeded",
-            resolution="confirmed",
+            state="pending",
+            resolution="recovering",
             plan_id=None,
             error_code=None,
             retryable=False,
@@ -169,6 +169,8 @@ async def _ensure_demo_plan(user: User) -> bool:
             updated_at=now,
         )
         tx.session.add(operation)
+        # 显式 flush：ORM 未声明 FK，需保证 write_operations 先于 study_plans 落库。
+        await tx.session.flush()
         plan = StudyPlan(
             id=new_id(PREFIX_PLAN),
             user_id=user.id,
@@ -188,6 +190,9 @@ async def _ensure_demo_plan(user: User) -> bool:
         tx.session.add(plan)
         await tx.session.flush()
         operation.plan_id = plan.id
+        operation.state = "succeeded"
+        operation.resolution = "confirmed"
+        operation.updated_at = now
         await tx.commit()
         return True
 
