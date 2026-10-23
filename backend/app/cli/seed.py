@@ -197,6 +197,35 @@ async def _ensure_demo_plan(user: User) -> bool:
         return True
 
 
+async def _ensure_demo_corpus() -> None:
+    """开发/演示：解除资料发布冻结（迁移默认 TRUE 是安全默认）。
+
+    仅影响本机演示库；生产切换必须按后端详细设计 §11.3 的向量空间迁移流程显式解除，
+    不得把本函数当作试点发布步骤。
+    """
+    from app.adapters.db.models import CorpusControl
+
+    async with uow() as tx:
+        row = (
+            await tx.session.execute(
+                select(CorpusControl).where(CorpusControl.singleton_id == 1)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            row = CorpusControl(
+                singleton_id=1,
+                revision=0,
+                active_vector_space=None,
+                publish_frozen=False,
+                updated_at=to_db(now_utc()),
+            )
+            tx.session.add(row)
+        elif row.publish_frozen:
+            row.publish_frozen = False
+            row.updated_at = to_db(now_utc())
+        await tx.commit()
+
+
 async def seed_demo() -> dict[str, object]:
     settings = get_settings()
     admin, admin_created = await _ensure_user(DEMO_ADMIN, "演示管理员", "admin")
@@ -220,10 +249,12 @@ async def seed_demo() -> dict[str, object]:
         await _ensure_schedule(student.id, ds.id, next_monday, "14:00", "15:40", "实验楼 C-101")
     )
     plan_created = int(await _ensure_demo_plan(student))
+    await _ensure_demo_corpus()
 
     return {
         "database": settings.database_name,
         "school_timezone": settings.school_timezone,
+        "corpus_publish_frozen": False,
         "users": {
             "admin_demo": {"id": admin.id, "created": admin_created},
             "student_demo": {"id": student.id, "created": student_created},
