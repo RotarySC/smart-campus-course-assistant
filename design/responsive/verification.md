@@ -301,6 +301,20 @@ Lead 报告的两个缺陷（320 溢出、caption 竖排）我都确认已修；
 
 ## R0. 冻结点复核 —— 一致
 
+> ⚠ **本节的哈希已被阶段 A（实现期）取代，仅作历史留痕，不要据它校验当前文件。**
+> 阶段 A 修了 W1/W2/W3 与原型 #1/#3/#6，`rb.css` / `shell.html` / `b-responsive.html` 的字节均已变化。
+> **当前冻结点**（以 [`../reviews/rb-verify-report.md`](../reviews/rb-verify-report.md) §1 为准）：
+>
+> | 文件 | 阶段 A 后的 MD5 |
+> | --- | --- |
+> | `design/responsive/rb.css` | `0749FA7A47BC155F52A12406123DF6CC` |
+> | `design/responsive/shell.html` | `E8B7294B9B4A8424ACA94C17068F2F60` |
+> | `design/responsive/b-responsive.html` | `5B73454136F261AC13E9A0203C0C6D73` |
+>
+> 另外本节及下文出现的 **74 个共同 token / 518 个 token** 均为阶段 A 之前的数值；
+> 阶段 A 后为 **75 / 519**（新增 L3 `--root-scroll-offset`）。
+> 本文件记录的 W1/W2/W3 结论（当时为 FAIL / 缺陷确认）**已被 `rb-verify-report.md` 取代**（6 项全 PASS）。
+
 | 文件 | Lead 声明 MD5（新冻结点） | 我实测 MD5 | 一致 | 与首轮相比 |
 | --- | --- | --- | --- | --- |
 | `design/responsive/rb.css` | 94DF48EDFFC1DC33858A545C3574048F | 94DF48EDFFC1DC33858A545C3574048F | ✅ | **已变**（M1） |

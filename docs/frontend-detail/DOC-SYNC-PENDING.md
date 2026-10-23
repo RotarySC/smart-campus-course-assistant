@@ -1,18 +1,37 @@
 # 文档待同步登记册（阶段 A 收口后）
 
+> ## ✅ 已结清（2026-10-23，分支 `docs/align-rb-fix`）
+>
+> 本登记册列出的 TODO-1…TODO-6 **已全部处理完毕**，全量回归 6 个校验器 **0 FAIL**。
+> 处理方式与「为什么当初只登记不立即改」如下：
+>
+> | TODO | 处置 | 实际改法 |
+> | --- | --- | --- |
+> | TODO-1 §8.4 判据 | ✅ 已改 | 判据换成**实测遮挡量** `occlusion = appbar.bottom − target.top ≤ 0.5px`，并**补齐 768/772/774**；删掉对 `#main` 恒为 false 的 `top >= 61.5` |
+> | TODO-2 计数 | ✅ 已改 | `design/README.md`（2 处）、`docs/frontend-detail/build.py`（`:408` 源头、`:45` 移出已落地的处方 token） |
+> | TODO-3 分册计数 | ✅ 已改 | `parts/10-…:13`、`parts/50-…:4/14/39/142/153`、`parts/90-…:28`；随后**重跑 `build.py` 重建主文档**（生成物，禁止手改） |
+> | TODO-4 冻结哈希 | ✅ 已改 | `design/responsive/verification.md` 加 superseding 声明块（**保留原哈希**，不改写历史）；主文档 §8.6 表**新增「阶段 A 已完成」行** |
+> | TODO-5 既有瑕疵 | ✅ 已改 | `design/system/components/02-actions-status.md:375` 的 `.pill--ok` 出处改正（原写 `records.html:203` 实为 `.pill--evidence`；真实 `check` 实例已逐一核到 `assistant.html:130/142/249/261/536`、`admin.html:67/279`） |
+> | TODO-6 判据缺口 | ⬜ **未改（有意保留）** | `verify-system.py` 仍无「消费表解析值 vs `tokens.flat.json`」比对。**这属于新增判据，不属于「文档待同步」**，留作下一轮工程任务；本轮只在 README 侧记录 |
+>
+> **证据纪律**：所有历史验证报告（`design/responsive/verification.md`、`docs/frontend-detail/verification.md`）
+> 内的旧哈希与旧计数**一律保留原值、只加注**——它们是当时的实测记录，回溯改写会破坏证据链。
+>
+> **主文档重建后**：`366,448 B / 4,388 行`，MD5 `725BECD070AA1FA8172499ECEB91CE04`，组装 **0 FAIL**。
+
 **建立日期**：2026-10-23
 **建立人**：lead（Team Lead）
 **性质**：**登记，不是缺陷**。以下条目全部是「事实已改变、文档未跟上」，不涉及任何未修复的实现缺陷。
 **来源**：`design/reviews/rb-fix-report.md` §6（执行清单）与 `design/reviews/rb-verify-report.md` §13（独立核对）。
-**状态**：**待同步**。TODO-1/2/3 需要一次 `docs/` 重建（会改变主文档字节与哈希），故按「一次改完 + 一次重建 + 一次机械复核」处理，留待下一轮。
+**状态**：**已结清**（见上方小结）；下列原始登记内容保留供追溯。
 
 ---
 
-## 0. 为什么不立即改
+## 0. 为什么不立即改（当时的判断，已由后续分支执行）
 
 `docs/校园课程智能助手_前端详细设计_v0.1.md` 是**生成物**（由 `docs/frontend-detail/build.py` + `parts/*.md` 组装）。改它＝改分册 + 重跑组装 + 主文档字节与哈希变化。
 
-本阶段（阶段 A）的独立验证报告锁定了 13 个文件的字节作为验收目标；立即改文档会让「已通过验证」的对象与仓库当前字节不一致，反而降低可核对性。因此本轮**只登记**，并把清单做成可直接执行的表单。
+阶段 A 收口时，独立验证报告锁定了 13 个文件的字节作为验收目标；当时立即改文档会让「已通过验证」的对象与仓库当前字节不一致，反而降低可核对性。因此当时**只登记**，并把清单做成可直接执行的表单；随后在独立分支 `docs/align-rb-fix` 上一次改完、一次重建、一次机械复核。
 
 ---
 
@@ -131,3 +150,8 @@ foreach ($s in @('design\system\generate.py','design\system\build-system.py',
 ```
 
 **同步完成后必须重跑 `docs/frontend-detail/build.py`** —— 主文档是生成物，手改会被下次组装覆盖，且 `build.py` 的检查会报错。
+
+---
+
+（以下为**当时的登记原文**，保留供追溯；实际处置见开头小结。）
+

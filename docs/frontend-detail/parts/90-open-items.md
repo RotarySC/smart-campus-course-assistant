@@ -25,7 +25,7 @@
 | J3 | §8.7 | 必修项 #1（处理中误用 `pill--warn`）要改 `parts/admin.html` 的标记，是否与 rb.css 同批 | **同批**。`pill--warn → pill--info` 必然改动 `parts/admin.html`，而同批还要重建 `b-responsive.html`、重跑六宽度渲染验证——分开做会让同样的验证跑两遍 | 前置批次的目标产物包含冻结原型的 3 个文件 |
 | J4 | §10.4/§12.4 | `.table-wrap` 是否默认 `tabindex="0"` + `role="region"` | **按「是否可能滚动」静态决定**，不无条件加：非 `--stackable` 的 `.table-wrap` 以及 `--stackable` 在 `≥768` 时加 `tabindex="0" role="region"` + `aria-label`（表格标题）；`<768` 的 `--stackable` 已 `overflow-x:visible`（栈化），**不加**——否则会多出一个滚不动却能聚焦的无意义 tab stop | 管理端表格可键盘横向滚动 |
 | J5 | §12.2/§12.9 | 「朗读整段回答」控件在文案未冻结前是否渲染 | **不渲染**（与必修项 #6 同性质）。未冻结文案前不得新增任何面向用户的字符串 | 见 T3 |
-| J6 | §12.9 | 流式提交阈值（240 字符 / 1000ms）该进 token 源还是留在代码 | **留在 `a11y/live.ts` 常量**。token 层承载的是**视觉与布局**决策；朗读节奏不是视觉决策，进了 token 源反而会让「518 个 token 都有视觉语义」这条不成立 | 无 |
+| J6 | §12.9 | 流式提交阈值（240 字符 / 1000ms）该进 token 源还是留在代码 | **留在 `a11y/live.ts` 常量**。token 层承载的是**视觉与布局**决策；朗读节奏不是视觉决策，进了 token 源反而会让「519 个 token 都有视觉语义」这条不成立 | 无 |
 | J7 | §8.5 | `prose` 组的 6 个 token 描述的是全局元素规则（`rb.css:106–109`），搬进 `Prose.vue` 的 `scoped` 会静默丢失 | **确认，且是硬约束**：这些规则必须留在 `global.css`。`tokens.json` 的 `prose` 组 `_note` 已写明「这是语义归组而非作用域」 | 实现期不得把 `h1–h4/p/a/code` 规则收进组件作用域 |
 | J8 | §8.7 附注 | W3 的修法是否要显式消费 `--cite-border-w` / `--cite-head-gap-x` | **不需要**。W3 是 `overflow-wrap` 与 `minmax(0,1fr)` 的问题，与边框宽度无关；这两个 token 是收口时补的建模缺口，另在 §8.5 的字段/引用范围里 | 无 |
 | J9 | 04 分册 §0.4 | `.textarea[readonly]` / `.textarea[disabled]` / `.select[readonly]` 在 `rb.css` 未定义 | **登记为缺口，实现期若要使用必须先补 `rb.css` 并重测**。当前屏幕未触发这些组合，不得就地写样式（会绕过设计系统） | 见 16.3 前置批次 |

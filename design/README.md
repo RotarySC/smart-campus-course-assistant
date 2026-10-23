@@ -16,7 +16,7 @@
 配套规范 → [`responsive/b-responsive-spec.md`](responsive/b-responsive-spec.md)
 
 **第三步：设计系统 · 三层 token 与组件 API 规格（当前交付）。**
-把方向 B 的视觉形式化为 L1 primitive → L2 semantic → L3 component 四层 518 个 token
+把方向 B 的视觉形式化为 L1 primitive → L2 semantic → L3 component 四层 519 个 token
 + 4 份组件 API 规格 + 一个**只消费 L3 token** 的活样式手册。
 
 评审入口 → **[`system/system.html`](system/system.html)** — 双击打开：27 个组件族、
@@ -148,11 +148,17 @@ python design\system\verify-system.py # 独立于生成器的确定性校验，2
 
 ## 下一步可选
 
-1. ~~**设计系统与组件规格**~~ —— **已完成**（本目录第三步）。三层 token 518 个、4 份组件 API 规格、
+1. ~~**设计系统与组件规格**~~ —— **已完成**（本目录第三步）。三层 token 519 个、4 份组件 API 规格、
    只消费 L3 的活样式手册、31 项独立确定性校验；独立渲染验证 11 项见
    [`system/verification.md`](system/verification.md)。
-   **落地前必须先修** [`system/README.md`](system/README.md) 里的 6 个必修项（#3/#4/#5 + W1/W2/W3）——
-   它们是真实的无障碍/可用性问题，因冻结约定本轮未改。
+   **落地前必修的 6 项已由阶段 A 修完**（#1/#3/#6 + W1/W2/W3）：见
+   [`reviews/rb-fix-report.md`](reviews/rb-fix-report.md)（修复）与
+   [`reviews/rb-verify-report.md`](reviews/rb-verify-report.md)（独立验证，6 项全 PASS）。
+   > 追加修复：修复过程中独立验证发现 768–774px 顶栏会因 navlink 换行升到 **72.17px**，
+   > 使 `scroll-padding-top:62px` 失效（仍遮 10px）。已用 `white-space:nowrap` 治本，
+   > 18 个宽度顶栏恒 56.67px。
+   > 既有产物哈希随之变化：`rb.css = 0749FA7A47BC155F52A12406123DF6CC`、
+   > `b-responsive.html = 5B73454136F261AC13E9A0203C0C6D73`；token 合计 **519**。
 2. ~~**前端详细设计**~~ —— **已完成**：见
    [`../docs/校园课程智能助手_前端详细设计_v0.1.md`](../docs/校园课程智能助手_前端详细设计_v0.1.md)（16 章）。
    它把本目录的设计产物接到实现：目标目录与模块边界、SSE 流式客户端（分包/编码边界/去重/终态唯一/
@@ -161,7 +167,11 @@ python design\system\verify-system.py # 独立于生成器的确定性校验，2
    配套：写作契约 [`../docs/frontend-detail/CONTRACT.md`](../docs/frontend-detail/CONTRACT.md)、
    字段参考 [`../docs/frontend-detail/API-REFERENCE.md`](../docs/frontend-detail/API-REFERENCE.md)（由 openapi 生成）、
    独立验证 [`../docs/frontend-detail/verification.md`](../docs/frontend-detail/verification.md)。
-3. **Vue 3 可运行响应式骨架**：按前端详细设计 §2.1 的目录落地，Vue3 + TS + Pinia，
-   `import './tokens.css'`，组件 `<style>` 只消费 L3 token，用 `tokens.ts` 的 `breakpoints` 驱动 `matchMedia`；mock 数据，不接真实后端。
+3. ~~**Vue 3 可运行响应式骨架**~~ —— **已完成**（阶段 B）：见 [`../web/`](../web/)，
+   Vue 3 + TS + Pinia + vue-router 4，8 个 store、10 条路由、SSE 字节级解析（P1–P12）+ 状态机、
+   27 个组件族、S01–S12 视图、mock 层（同源 `/api/v1`，零外部请求）。
+   验收与未覆盖项见 [`../web/BUILD-REPORT.md`](../web/BUILD-REPORT.md)。
+   > ⚠ DSH 沙箱内 `pnpm build` 走不通（`stdio:'pipe'` 被拒），**沙箱外可正常构建**；
+   > 详见 [`../CONTRIBUTING.md`](../CONTRIBUTING.md) §4。
 4. **补齐交互**：原型现在是静态状态展示；可补流式回答、引用展开、草稿保存、重叠确认等真实交互与状态机。
 5. **组件规格 → 代码生成**：`tokens.json` 已经是机器可读真源，可再产 Tailwind theme / Figma variables / 组件类型定义。

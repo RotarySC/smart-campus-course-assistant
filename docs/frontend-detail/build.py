@@ -42,7 +42,8 @@ ROUTES = ["/login", "/assistant", "/me/schedules", "/me/plans", "/me/plans/:plan
           "/admin/schedules", "/admin/students"]
 # 本文档**处方的**新 token：它们在 §16.3 的前置批次里才落地，落地后就不再是幽灵。
 # 但必须显式登记，否则"处方一个新 token"与"写错一个 token 名"就分不出来了。
-PROPOSED_TOKENS = {"--root-scroll-offset", "--appbar-scroll-offset"}
+# 阶段 A（实现期）已落地 `--root-scroll-offset`（现为 `tokens.css` 里的真实 token，已移出本集合）。
+PROPOSED_TOKENS = {"--appbar-scroll-offset"}
 # 组件组名前缀（与 tokens.json 的 component 分组一致）。**不要**用 L2 前缀来猜，
 # 否则 `.btn--danger` 里的 `--danger` 会被误判成 token（这个坑在设计系统那轮已踩过一次）。
 GROUP_PREFIX = {"root", "focus", "skiplink", "sr", "appbar", "brand", "navlink", "tabbar",
@@ -405,7 +406,7 @@ def main():
         "",
         "> 本文件由 `docs/frontend-detail/build.py` 从 7 个分册组装而成，**请勿手改**；改动请改分册后重跑组装。",
         "> 字段名的唯一来源是 [`API-REFERENCE.md`](frontend-detail/API-REFERENCE.md)（由 OpenAPI 机械生成）；",
-        "> 样式与组件的唯一来源是 [`design/system/`](../design/system/)（518 个 token 的四层设计系统 + 27 个组件族规格）；",
+        "> 样式与组件的唯一来源是 [`design/system/`](../design/system/)（519 个 token 的四层设计系统 + 27 个组件族规格）；",
         "> 写作契约与冻结口径见 [`CONTRACT.md`](frontend-detail/CONTRACT.md)；独立验证见 "
         "[`verification.md`](frontend-detail/verification.md)。",
         "",

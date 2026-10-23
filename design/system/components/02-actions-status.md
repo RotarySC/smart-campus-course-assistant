@@ -372,7 +372,7 @@
 
 | 变体 | 图标（Lucide 名 · 冻结原型出处） | 文字（逐字来源） |
 | --- | --- | --- |
-| `.pill--ok` | `check`（assistant.html:131/262、records.html:203 后置） | 「完成 · 2 条记录」「完成 · 3 个片段」「已保存 · 计划编号 plan_7Q2F9K」（content-spec:74/75/107） |
+| `.pill--ok` | `check`（assistant.html:130/142/249/261/536、admin.html:67/279） | 「完成 · 2 条记录」「完成 · 3 个片段」「已保存 · 计划编号 plan_7Q2F9K」「启用」「可检索」（content-spec:74/75/107） |
 | `.pill--warn` / `--pending` | `triangle-alert`（assistant.html:408）、`signpost`（assistant.html:559 待确认、assistant.html:480 未保存） | 「未保存」（content-spec:100）、「待确认 · 写入结果未知」（content-spec:109）、「需确认后继续」（content-spec:167–170 场景） |
 | `.pill--danger` | `circle-x`（assistant.html:375/434）、`triangle-alert`（admin.html:374） | 「失败 · 未取得片段」「引用已失效」「不可恢复」（content-spec:79/89/138） |
 | `.pill--info` | `loader-circle`（assistant.html:155 进行中、admin.html:232/302 处理中） | 「进行中」（content-spec:76）、「处理中」（content-spec:155） |

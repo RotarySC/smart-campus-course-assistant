@@ -1,7 +1,7 @@
 <!-- part: 50-design-system-and-a11y; chapters: 8,10,12; owner: sys-convo -->
 ## 8. 设计系统落地
 
-本章把已冻结并独立验证的 **设计系统**（`design/system/`：518 个 token、27 个组件族规格、只消费 L3 的活样式手册）
+本章把已冻结并独立验证的 **设计系统**（`design/system/`：519 个 token、27 个组件族规格、只消费 L3 的活样式手册）
 落进 `web/` 工程。**本章不重新设计任何样式**；样式与 token 的唯一真源是 `design/system/`，
 每个属性依据见 `design/system/components/*.md` 的行号锚点与 `rb.css`。
 
@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- |
 | L1 primitive `--p-*` | `design/system/tokens.json` → `primitive` | `web/src/styles/tokens.css` | `python design/system/generate.py` | **否**（生成物） |
 | L2 semantic `--bg-*`/`--text-*`/… | 同上 → `semantic` | 同上 | 同上 | **否** |
-| L3 component `--<组件>-<部位>-<属性>` | 同上 → `component`（27 组、336 个） | 同上 | 同上 | **否** |
+| L3 component `--<组件>-<部位>-<属性>` | 同上 → `component`（27 组、337 个） | 同上 | 同上 | **否** |
 | L0 compat `--c-*`/`--sp-*`/… | 同上 → `compat`（50 个，deprecated） | 同上 | 同上 | **否**（迁移完成后删除，见 §8.6） |
 | 组件样式 | `design/system/components/01–04*.md` | `web/src/styles/base.css` + 各 `components/base/*.vue` 的 `<style>` | 手工按锚点抄写，**只能消费 L3** | 是（但受 §8.2 门禁） |
 
@@ -36,7 +36,7 @@ $env:PYTHONIOENCODING="utf-8"; python design\system\verify-system.py   # 独立�
 | --- | --- | --- |
 | 1 | `python design/system/generate.py --check` | `tokens.css`/`tokens.md`/`tokens.ts`/`tokens.flat.json` 与 `tokens.json` 一致；不一致以非 0 退出（生成器已具备该语义：任一项 FAIL 即不产出） |
 | 2 | 逐字节比对 `design/system/tokens.css` ↔ `web/src/styles/tokens.css` | 必须完全相同（同步即整文件复制，不做任何人工修补） |
-| 3 | `python design/system/verify-system.py` | token 一致性、规格↔token 覆盖、**J 项：注释感知剥离后每条规则 prelude 恰好 `:root`、518/518 token 可达** |
+| 3 | `python design/system/verify-system.py` | token 一致性、规格↔token 覆盖、**J 项：注释感知剥离后每条规则 prelude 恰好 `:root`、519/519 token 可达** |
 | 4 | `npx stylelint "src/**/*.{css,vue}"` | §8.2 的分层纯度门 |
 
 > **为什么第 3 步不可省**：M1 缺陷（`generate.py` 文件头注释里的 `*/` 提前闭合注释）让品牌色 `:root`
@@ -131,7 +131,7 @@ module.exports = {
 | **#1** | 「处理中」误用琥珀警告态 | `admin.html:1686`/`1756` 用 `pill--warn` 表示处理中（2 处橙色）；另「未保存」误用 `pill--warn`（视觉等价但语义标签错，应 `pill--pending`） | ① 语义污染：琥珀在本设计系统**专用于「未保存 / 待确认」**（`tokens.md` §3 `color.pending`「不得用于其他语义」），处理中混进来后，用户无法用颜色区分「在跑」与「没保存」；② 屏幕阅读器与自动化断言无法区分两类状态；③ `--pending*` 与 `--state-warning` 两条 token 通路被抹平 | 处理中 → `.pill--info`（`--pill-info-bg/fg`，`#E3EEF2`/`#164A5B`）；未保存 → `.pill--pending` | 全仓（含 `web/`）`pill--warn` 仅出现在：依据不足、待确认、需确认后继续三类；「处理中/进行中」0 处使用 `pill--warn` |
 | **#3** | 危险胶囊自身缺图标 | `records.html:273` 的 `.pill--danger`「不可恢复」无 `<svg>`（其父卡片标题有 24×24 警告三角） | 违反「状态三重表达」（CONTRACT §3.7 第 7 条、NFR-UX-001）：删除确认这一**最危险**的状态只剩颜色 + 文字；色盲用户与灰度打印下与普通胶囊难分 | 按 `components/02-actions-status.md` §Pill 的规格补 24×24 内联 SVG（`stroke-width:1.75`、`fill:none`、`aria-hidden="true" focusable="false"`） | `web/src/components/base/Pill.vue` 在 `variant==='danger'` 时**必须有** icon slot 内容；单测断言「danger 无 icon 时警告/报错」 |
 | **#6** | 密码显示/隐藏切换的文案从未冻结 | `content-spec.md:54` 要求密码字段「带显示/隐藏切换」，`parts/login.html:29–33` **未实现**，且该按钮文案、图标、`aria-pressed` 语义在任何上游文件里都没有 | ① 实现者只能自造文案 → 直接违反 CONTRACT §3.7 第 3 条「不得发明文案」；② 密码框无法在移动端核对输入，登录失败率上升；③ 若只给图标不给可访问名，读屏用户拿不到控件语义 | **先冻结再实现**：在 `content-spec.md` 补一组两态可访问名（明文态 / 密文态各一）+ `aria-pressed` 语义；在某 `tokens.json` 组补图标槽 token（如需）。**在此之前 `LoginView` 该槽位不得实现**（`components/01-shell-navigation.md:936` 已明写） | `content-spec.md` 出现该按钮的两条逐字文案且被 §15 追踪表引用；`LoginView` 切换按钮有 `aria-pressed` + `aria-controls` + 两态可访问名；`npm run docs:gate` 能检出「未冻结文案」用例 |
-| **W1** | 缺 `scroll-padding-top`，锚点/skip-link 被顶栏遮挡 | 实测 `#v-S11` 跳转后目标 `top=0.3px`、sticky 顶栏底 `56.7px` → **遮挡 56.4px**；skip-link 到 `#main` 遮挡 **56.7px**；`rb.css`、`system.html`、token 层 `scroll-padding-*` **各 0 条** | ① 键盘/读屏用户点「跳到主要内容」后，**焦点与目标内容都藏在顶栏下**（WCAG 2.2 2.4.11 焦点不被遮挡）；② 所有页内锚点（S11 批次定位、错误摘要跳字段）全部偏上 56px | `html{scroll-padding-top:calc(var(--appbar-min-h) + var(--sp-1))}`（= 56 + 6 = **62px**）。**落到工程里**：在 `tokens.json` 的 `root` 组新增 `--root-scroll-offset`（指向 L1 求和，禁止组件硬编码），`global.css` 消费它 | Playwright：`page.keyboard.press('Tab')` 聚焦 skip-link → `Enter` → 断言 `#main` 的 `getBoundingClientRect().top >= 62 - 0.5` 且 `document.activeElement === #main`；六个宽度各跑一次 |
+| **W1** | 缺 `scroll-padding-top`，锚点/skip-link 被顶栏遮挡 | 实测 `#v-S11` 跳转后目标 `top=0.3px`、sticky 顶栏底 `56.7px` → **遮挡 56.4px**；skip-link 到 `#main` 遮挡 **56.7px**；`rb.css`、`system.html`、token 层 `scroll-padding-*` **各 0 条** | ① 键盘/读屏用户点「跳到主要内容」后，**焦点与目标内容都藏在顶栏下**（WCAG 2.2 2.4.11 焦点不被遮挡）；② 所有页内锚点（S11 批次定位、错误摘要跳字段）全部偏上 56px | `html{scroll-padding-top:calc(var(--appbar-min-h) + var(--sp-1))}`（= 56 + 6 = **62px**）。**落到工程里**：在 `tokens.json` 的 `root` 组新增 `--root-scroll-offset`（指向 L1 求和，禁止组件硬编码），`global.css` 消费它 | Playwright：`page.keyboard.press('Tab')` 聚焦 skip-link → `Enter` → 断言**实测遮挡量** `occlusion = .appbar.getBoundingClientRect().bottom - 目标.getBoundingClientRect().top` **≤ 0.5px**，且 `document.activeElement === #main`；**必须覆盖 320 / 390 / 480 / 767 / 768 / 772 / 774 / 775 / 1024 / 1366**（768–774 是顶栏在修复前会因 navlink 换行升到 72.17px 的窄带） |
 | **W2** | `.steps__toggle` 聚焦无任何可见焦点 | 它是 `.sr-only` 的 1×1 `clip:rect(0 0 0 0)` 元素（rb.css:113–114），聚焦后 `outline-style:none`，且**没有** `.steps__toggle:focus-visible ~ .steps__summary` 联动规则 | **WCAG 2.4.7 Focus Visible（AA）失败**：`<480` 折叠态下键盘用户 Tab 到该控件时，页面上没有任何焦点指示——他们无法知道当前焦点在过程区折叠开关上，也无法发现 Space 能展开过程 | 给**可见的摘要行**加补偿环（3 行，见 `design/system/verification.md` §6.1）：`.steps__toggle:focus-visible ~ .steps__summary{outline:var(--focus-outline-w) solid var(--focus-outline-color); outline-offset:var(--focus-outline-offset)}`；并在 `rb.css` 补 token | 键盘实测（真实 Tab，非 `.focus()`）：`<480` 下 Tab 到 toggle 时 `.steps__summary` 的 `outline-style !== 'none'` 且宽度 ≥3px；≥480 下摘要 `display:none`，改用 `.steps` 容器可见焦点（需一并裁定，见 §8.7 待裁决 3） |
 | **W3** | 长串溢出，两条独立根因 | 注入 60 字符**无空格**串，320px 下页面级溢出：`.kv__v` **+523px**、`.cite__name` **+359px**、`.card__body` **+375px**、`.bubble` **+375px** | ① `.kv__row{grid-template-columns:8em 1fr}` 的 `1fr` = `minmax(auto,1fr)`，下限 **min-content**，第 2 轨实测被撑到 **657.9px** → 整页横向滚动；② **`overflow-wrap` 不影响 min-content，所以它救不了 `.kv__v`**；③ 其余三处是 `overflow-wrap:normal`（无空格串没有断点）。**注意**：两轮验证都放行是因为夹具里没有超长无空格串——「页面级溢出 = 0」是**内容相关**结论 | 两处分别修：① `.kv__row{grid-template-columns:var(--kv-row-key-col) minmax(0,1fr)}`；② `.cite__name`、`.card__body`、`.bubble` 及同类文本容器加 `overflow-wrap:anywhere`（**仅非表格容器**；表格单元格仍用 `break-word` + `min-width`，见 `b-responsive-spec.md` §5 与 content-spec §1） | 对四个容器各注入 60 字符无空格串：320px 下 `documentElement.scrollWidth - clientWidth === 0`；`.table--stack` 的 `<td>` 仍为 `break-word` + `min-width:180px`（不得改成 `anywhere`） |
 
@@ -139,7 +139,8 @@ module.exports = {
 
 1. 改 `design/responsive/rb.css`（#1 的两处 `pill--info` 在原型 markup 侧；W1/W2/W3 在 rb.css）——
    **哈希变化** → 上一阶段「六宽度页面级溢出 = 0」的验证失效，必须重跑。产物：新的 `rb.css` 哈希。
-2. 在 `tokens.json` 补 W1 的 `--root-scroll-offset`、W2 的焦点补偿 token（如需要）；产物：518 → 518+n。
+2. 在 `tokens.json` 补 W1 的 `--root-scroll-offset`、W2 的焦点补偿 token（如需要）；产物：518 → 519。
+   > **阶段 A（实现期）已完成**：`root` 组已新增 `--root-scroll-offset`；W2 按 §8.7 裁决 J2 改为「`<480` 给摘要行加 `:focus-visible` 补偿环 + `≥480` 直接 `display:none`」，**不需要**新增 token。合计 **519**，`generate.py` 的 rb.css 逐值等价为 **75/75**。
 3. `python design/system/generate.py` + `verify-system.py` → 生成物与独立校验全绿。
 4. 同步 `web/src/styles/tokens.css`，重跑六宽度渲染验证与键盘走查 → 新的验收基线。
 
@@ -150,7 +151,7 @@ module.exports = {
 
 | 文件 | 内容 | 允许消费 | 锚点要求 | 依据 |
 | --- | --- | --- | --- | --- |
-| `tokens.css` | 从 `design/system/tokens.css` **整文件同步**（L1/L2/L3/L0 四层 `:root`，518 个 token） | — | — | CONTRACT §3.2 |
+| `tokens.css` | 从 `design/system/tokens.css` **整文件同步**（L1/L2/L3/L0 四层 `:root`，519 个 token） | — | — | CONTRACT §3.2 |
 | `global.css` | `html`/`body`/`*`/`h1–h4`/`p`/`a`/`code`/`.sr-only`/`.skip-link`/`:focus-visible`/`reduced-motion`/`scroll-padding-top` | L3（`--root-*`、`--focus-outline-*`、`--skiplink-*`、`--sr-*`） | 每条规则注 `rb.css:行号` | rb.css:93–118、106–110 |
 | `base.css` | 27 个组件族样式，**按族分块**；每块首行注释 `/* ==== 族名（design/system/components/0X-*.md §N；rb.css:A–B）==== */` | 只 L3，且只消费**本族** token | 同左 | `design/system/components/*.md` §5 |
 
@@ -187,6 +188,7 @@ module.exports = {
 | 阶段 | `rb.css` | L0（`--c-*`/`--sp-*`/`--fs-*`…50 个） | 判据 |
 | --- | --- | --- | --- |
 | **当前（本轮）** | 冻结、只读、哈希不变（`94DF48EDFFC1DC33858A545C3574048F`） | 保留 | 原型零改动继续工作 |
+| **阶段 A（实现期）已完成** | **已改**：6 个必修项修完（+ W1-b 顶栏窄带治本），新哈希 `0749FA7A47BC155F52A12406123DF6CC`；产物 `b-responsive.html = 5B73454136F261AC13E9A0203C0C6D73` | 保留（`generate.py` 已逐值比对新的 `rb.css`，**75/75**） | §8.4 验收判据全绿（遮挡实测 0px，13 个宽度）；独立验证见 `design/reviews/rb-verify-report.md` |
 | **M0 前置修复** | 6 个必修项改完 + 重跑六宽度验证 | 保留（`generate.py` 重新逐值比对新的 `rb.css`） | §8.4 验收判据全绿 |
 | **M1 迁移** | 仍保留作对照 | 保留 | `web/` 的 `base.css` 覆盖全部 27 族，`a11y` 与断点走 token |
 | **M2 退役** | **删除 `rb.css` 与 `b-responsive.html` 在 `web/` 的引用** | **删除 L0 段** | ① `web/` 全仓 0 处引用 `--c-`/`--sp-`/`--fs-`/`--r-card`/`--w-*`/`--h-*`/`--tap`/`--font-*`；② 计算样式等价性复测通过；③ `generate.py` 去掉 `compat` 段后仍全绿 |

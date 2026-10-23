@@ -10,7 +10,7 @@
 | 上游需求 | `PRD_v0.1.md`、`SRS_v0.1.md`、`HLD_v0.1.md` | 本文的实现依据；编号引用一律用 `PRD §x` / `FR-xxx` / `HLD-Dxx` |
 | 上游契约 | `docs/backend/openapi_v0.1.json`、`sse_events_v0.1.schema.json`、`mcp_tools_v0.1.json`、`cca_schema_v0.1.sql` | 端点、字段、事件、工具白名单的**唯一来源** |
 | 上游设计 | `design/responsive/`（已冻结并通过六宽度渲染验证的响应式原型 + `rb.css`） | 视觉与响应式行为的基线 |
-| 上游设计 | `design/system/`（518 个 token 的四层设计系统 + 27 个组件族 API 规格 + 活样式手册） | 样式与组件的唯一真源；本文**引用而不复制** |
+| 上游设计 | `design/system/`（519 个 token 的四层设计系统 + 27 个组件族 API 规格 + 活样式手册） | 样式与组件的唯一真源；本文**引用而不复制** |
 | 上游内容 | `design/directions/shared/content-spec.md`（S01–S13 逐字文案） | 用户可见文案的唯一来源 |
 | 本文 | 16 章；分册见 `docs/frontend-detail/CONTRACT.md` | 前端实现入口条件见 §16 |
 | 下游 | Vue 3 + TypeScript 工程（目前尚未创建，目标目录见 §2.1） | 本文交付后进入实现 |
