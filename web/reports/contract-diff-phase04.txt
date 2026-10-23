@@ -1,0 +1,19 @@
+== 契约对比：设计包 vs 运行态 ==
+design : C:\Users\Rotary\Documents\Comprehensive\Files\Projects\Smart Campus Course Assistant\.worktrees\p04-web\docs\backend\openapi_v0.1.json
+runtime: http://127.0.0.1:8100/api/v1/openapi.json
+
+WARN  [path] 运行态多出设计包没有的路径：/api/v1/health
+WARN  [request-body] POST /API/V1/ADMIN/DOCUMENTS/{ID}/REBUILD：设计声明请求体 Rebuild，运行态未声明（需确认后端实现是否接收）
+WARN  [request-body] POST /API/V1/CHAT/STREAM：设计声明请求体 ChatInput，运行态未声明（需确认后端实现是否接收）
+WARN  [status-doc] POST /API/V1/ADMIN/DOCUMENT-BATCHES：运行态未声明响应码 [202]（设计含 14 个）
+WARN  [status-doc] POST /API/V1/ADMIN/DOCUMENTS/{ID}/REBUILD：运行态未声明响应码 [202]（设计含 14 个）
+WARN  [status-doc] DELETE /API/V1/ADMIN/DOCUMENTS/{ID}：运行态未声明响应码 [202]（设计含 14 个）
+WARN  [status-doc] POST /API/V1/ADMIN/DOCUMENTS/{ID}/CLEANUP-RETRY：运行态未声明响应码 [202]（设计含 14 个）
+WARN  [schema-doc] 运行态缺 24/56 个 schema（响应模型/错误模型未声明）：Citation,SaveResult,Task,Document,DocumentPage,Batch,Upload,DocumentText …
+WARN  [enum-doc] ErrorDetails.state：设计有 enum，运行态未声明（需确认实现）
+WARN  [enum-doc] SaveCreatedResult.status：设计有 enum，运行态未声明（需确认实现）
+INFO  公开路径：设计 26 / 运行态 27；操作：设计 34 / 运行态 35
+INFO  schema：设计 56 / 运行态 52
+
+OK    无真实契约漂移（FAIL=0；WARN=10，均为运行态 OpenAPI 文档化缺口）
+      切换 gen-types 真源为运行态的前置条件：WARN 中的 schema-doc / status-doc 清零。

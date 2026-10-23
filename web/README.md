@@ -1,23 +1,38 @@
-# web/ —— 校园课程智能助手前端骨架（阶段 B）
+# web/ —— 校园课程智能助手前端
 
-Vue 3 + TypeScript + Pinia + vue-router 4，Vite 构建，**mock 数据、不接真实后端**。
+Vue 3 + TypeScript + Pinia + vue-router 4，Vite 构建。**Phase 4 起默认走真实后端**（`/api/v1` 经 Vite proxy → `127.0.0.1:8100`），mock 降级为**显式开启**的开发夹具。
 
-> 本目录是**阶段 B 的交付物**：按 [`docs/校园课程智能助手_前端详细设计_v0.1.md`](../docs/校园课程智能助手_前端详细设计_v0.1.md)
-> §2.1 的目标目录落地，可跑通「登录 → 课程助手（SSE 流式 mock）→ 我的课表 → 学习计划 → 管理员」核心链路。
-> 完整自验记录与未覆盖项见 [`BUILD-REPORT.md`](BUILD-REPORT.md)。
+> 本目录以 [`docs/校园课程智能助手_前端详细设计_v0.1.md`](../docs/校园课程智能助手_前端详细设计_v0.1.md)
+> §2.1 的目标目录为骨架；阶段 B 交付 mock 骨架，**阶段 4（并行车道 F）完成真实后端联调**：
+> `types.gen.ts` 由 OpenAPI 生成、401 统一会话失效、HTTP 级 E2E + 浏览器冒烟、契约漂移门禁。
+> 证据与未覆盖项：阶段 B 见 [`BUILD-REPORT.md`](BUILD-REPORT.md)，阶段 4 见 [`reports/PHASE-04-REPORT.md`](reports/PHASE-04-REPORT.md)。
 
 ---
 
-## 0. 三条命令
+## 0. 常用命令
 
 ```powershell
 cd web
-pnpm install
-pnpm build        # 期望 exit 0
-pnpm dev          # http://localhost:5173
+pnpm install                 # 仅首次（本工作树的 node_modules 是联接，见 §1.4）
+pnpm build                   # 期望 exit 0
+pnpm dev                     # http://localhost:5173，默认连真实后端 8100
+pnpm check                   # 前端车道门禁（tokens/类型/SFC/不变量/types 漂移/流式冒烟/stylelint）
+pnpm types:gen               # 由 OpenAPI 生成 src/api/types.gen.ts（默认设计包真源）
+pnpm types:check             # 生成物漂移门禁（不一致 exit 1）
+pnpm types:diff              # 设计包 vs 后端运行态 OpenAPI 的结构契约门禁（需后端在线）
+pnpm e2e                     # HTTP 级真实链路 E2E（需后端 8100）
+pnpm e2e:proxy               # 同上，但经 Vite proxy（验证 /api 代理）
+pnpm smoke:browser           # 浏览器冒烟（Edge headless + CDP；--login/--pages 见脚本头）
 ```
 
-mock 默认开启（`.env.development` 的 `VITE_USE_MOCK=true`）。改成 `false` 即走原生 `fetch` + `server.proxy`（§14.3）。
+**mock 是显式 opt-in**：`VITE_USE_MOCK` 只有等于 `'true'` 才启用 mock 传输层；未设置/其他值一律走真实后端。
+这样生产构建不会因为漏配 `.env` 而把 mock 假数据当成产品发布（PHASE-PLAN D5：验收以真实后端为准）。
+
+```powershell
+# 仅调试 UI、没有后端时：
+$env:VITE_USE_MOCK='true'; pnpm dev      # PowerShell
+# 或：VITE_USE_MOCK=true pnpm dev          （bash）
+```
 
 ## 1. 本机环境的两个**刻意**设置（换机器要看这一节）
 
@@ -166,7 +181,11 @@ node scripts\sync-tokens.mjs --check        # CI 门：不一致即非 0
 
 ---
 
-## 4. mock 层：不接后端，但**跑真实代码路径**
+## 4. mock 层：开发夹具，**显式开启**，跑真实代码路径
+
+> **Phase 4 起 mock 不再是默认路径**：验收一律 `VITE_USE_MOCK=false` + 真实后端 8100；
+> mock 只用于没有后端时调试 UI。`useMock()` 仅在 `VITE_USE_MOCK === 'true'` 时返回真，
+> 未设置/其他值都走真实 `fetch`（防止生产构建漏配 env 时把假数据当产品发布）。
 
 `api/transport.ts` 把「怎么发请求」抽成可替换的 `Transport`：
 
@@ -178,7 +197,7 @@ node scripts\sync-tokens.mjs --check        # CI 门：不一致即非 0
 mock 的 SSE 流还**故意按 7 字节切片**，必然把中文/多字节字符切在中间，
 从而在冒烟阶段就真实覆盖 `TextDecoder({stream:true})` 的码点边界。
 
-切到真实后端只需 `VITE_USE_MOCK=false`。
+切到 mock（仅调试 UI）：`$env:VITE_USE_MOCK='true'; pnpm dev`；切回真实后端：去掉该环境变量即可。
 
 ### mock 数据的时间锚点与演示触发词
 
