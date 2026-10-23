@@ -20,6 +20,7 @@ from app.modules.assistant.router import router as assistant_router
 from app.modules.identity.router import router as identity_router
 from app.modules.knowledge.router import router as knowledge_router
 from app.modules.planning.router import router as planning_router
+from app.shared.api_models import Envelope, Health
 from app.shared.http import (
     RequestContextMiddleware,
     enforce_strict_query,
@@ -41,7 +42,7 @@ def build_api_router() -> APIRouter:
         dependencies=[Depends(enforce_strict_query)],
     )
 
-    @router.get("/health", tags=["ops"], operation_id="health")
+    @router.get("/health", tags=["ops"], operation_id="health", response_model=Envelope[Health])
     async def health(request: Request):
         database_ok = await check_database()
         return envelope(

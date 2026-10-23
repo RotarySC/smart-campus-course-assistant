@@ -48,8 +48,9 @@ class StudentCreate(RequestModel):
 
 
 class StudentPatch(RequestModel):
-    display_name: str | None = Field(default=None, min_length=1, max_length=50)
-    enabled: StrictBool | None = None
+    # 可选但非 nullable：缺省不出现；显式 null 由类型校验拒绝（与设计包一致）
+    display_name: str = Field(default=None, min_length=1, max_length=50)  # type: ignore[assignment]
+    enabled: StrictBool = Field(default=None)  # type: ignore[assignment]
     expected_version: ExpectedVersion
 
     @model_validator(mode="after")

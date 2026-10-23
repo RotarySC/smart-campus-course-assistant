@@ -22,6 +22,7 @@ from app.modules.assistant.contracts import CancelOutput, ChatInput
 from app.modules.assistant.runtime import get_runtime
 from app.modules.assistant.sse import iter_sse
 from app.modules.identity.interface import get_actor
+from app.shared.api_models import ERROR_RESPONSES
 from app.shared.context import ActorContext
 from app.shared.http import envelope, request_id_of
 
@@ -38,7 +39,7 @@ SSE_HEADERS = {
 }
 
 
-@router.post("/chat/stream", operation_id="streamChat")
+@router.post("/chat/stream", operation_id="streamChat", responses=ERROR_RESPONSES)
 async def stream_chat(
     request: Request,
     body: ChatInput,
@@ -57,7 +58,9 @@ async def stream_chat(
     )
 
 
-@router.get("/chat/requests/{request_id}", operation_id="getChatState")
+@router.get(
+    "/chat/requests/{request_id}", operation_id="getChatState", responses=ERROR_RESPONSES
+)
 async def get_chat_state(
     request: Request,
     request_id: str = ID_PATH,
@@ -67,7 +70,9 @@ async def get_chat_state(
     return envelope(request, state.model_dump(mode="json", exclude_none=True))
 
 
-@router.post("/chat/requests/{request_id}/cancel", operation_id="cancelChat")
+@router.post(
+    "/chat/requests/{request_id}/cancel", operation_id="cancelChat", responses=ERROR_RESPONSES
+)
 async def cancel_chat(
     request: Request,
     request_id: str = ID_PATH,

@@ -50,6 +50,7 @@ from app.modules.assistant.save import save_study_plan
 from app.modules.assistant.schedule_tool import get_my_schedule
 from app.modules.operations.service import append_audit
 from app.shared.clock import isoformat, now_utc, to_db
+from app.shared.api_models import ERROR_RESPONSES
 from app.shared.context import ActorContext
 from app.shared.errors import ApiError
 from app.shared.http import envelope, request_id_of
@@ -155,7 +156,7 @@ async def _audit_tool(
 # --------------------------------------------------------------------------- #
 # 1. 委派兑换
 # --------------------------------------------------------------------------- #
-@router.post("/delegations/exchange", operation_id="exchangeDelegation")
+@router.post("/delegations/exchange", operation_id="exchangeDelegation", responses=ERROR_RESPONSES)
 async def exchange_delegation(request: Request, body: DelegationExchangeInput):
     _require_service(request)
     claims = verify_delegation(body.delegation, expected_audience=AUD_MCP)
@@ -191,7 +192,7 @@ async def exchange_delegation(request: Request, body: DelegationExchangeInput):
 # --------------------------------------------------------------------------- #
 # 2. 三工具
 # --------------------------------------------------------------------------- #
-@router.post("/tools/get-my-schedule", operation_id="internalSchedule")
+@router.post("/tools/get-my-schedule", operation_id="internalSchedule", responses=ERROR_RESPONSES)
 async def internal_schedule(request: Request, body: ScheduleToolInput):
     _require_service(request)
     claims = verify_delegation(
@@ -233,7 +234,7 @@ async def internal_schedule(request: Request, body: ScheduleToolInput):
     return envelope(request, output.model_dump(mode="json", exclude_none=True))
 
 
-@router.post("/tools/search-course-docs", operation_id="internalSearch")
+@router.post("/tools/search-course-docs", operation_id="internalSearch", responses=ERROR_RESPONSES)
 async def internal_search(request: Request, body: SearchToolInput):
     _require_service(request)
     claims = verify_delegation(
@@ -296,7 +297,7 @@ async def internal_search(request: Request, body: SearchToolInput):
     return envelope(request, output.model_dump(mode="json", exclude_none=True))
 
 
-@router.post("/tools/save-study-plan", operation_id="internalSave")
+@router.post("/tools/save-study-plan", operation_id="internalSave", responses=ERROR_RESPONSES)
 async def internal_save(request: Request, body: SaveToolInput):
     _require_service(request)
     claims = verify_delegation(

@@ -60,11 +60,12 @@ class PlanCreate(RequestModel):
 
 
 class PlanPatch(RequestModel):
-    title: str | None = Field(default=None, min_length=1, max_length=100)
+    # title/content 可选但非 nullable；goal/dates 可显式 null 清空
+    title: str = Field(default=None, min_length=1, max_length=100)  # type: ignore[assignment]
     goal: str | None = Field(default=None, max_length=500)
     start_date: date | None = None
     end_date: date | None = None
-    content: str | None = Field(default=None, min_length=1, max_length=10000)
+    content: str = Field(default=None, min_length=1, max_length=10000)  # type: ignore[assignment]
     expected_version: ExpectedVersion
 
     @model_validator(mode="after")
@@ -80,11 +81,12 @@ class PlanPatch(RequestModel):
 
 
 class DraftPatch(RequestModel):
-    title: str | None = Field(default=None, min_length=1, max_length=100)
+    # title/content 可选但非 nullable；goal/dates 可显式 null 清空
+    title: str = Field(default=None, min_length=1, max_length=100)  # type: ignore[assignment]
     goal: str | None = Field(default=None, max_length=500)
     start_date: date | None = None
     end_date: date | None = None
-    content: str | None = Field(default=None, min_length=1, max_length=10000)
+    content: str = Field(default=None, min_length=1, max_length=10000)  # type: ignore[assignment]
     expected_draft_version: StrictInt = Field(ge=1)
 
     @model_validator(mode="after")
