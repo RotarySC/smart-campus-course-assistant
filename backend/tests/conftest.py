@@ -287,6 +287,7 @@ async def make_draft(seeded: dict[str, Any]) -> Callable[..., Awaitable[dict[str
                     updated_at=to_db(now),
                 )
             )
+            await tx.session.flush()
             tx.session.add(
                 ChatRequest(
                     id=request_id,
@@ -306,6 +307,7 @@ async def make_draft(seeded: dict[str, Any]) -> Callable[..., Awaitable[dict[str
                     fence=1,
                 )
             )
+            await tx.session.flush()
             tx.session.add(
                 PlanDraft(
                     id=draft_id,
@@ -321,6 +323,7 @@ async def make_draft(seeded: dict[str, Any]) -> Callable[..., Awaitable[dict[str
                     updated_at=to_db(now),
                 )
             )
+            await tx.session.flush()
             tx.session.add(
                 PlanDraftVersion(
                     draft_id=draft_id,

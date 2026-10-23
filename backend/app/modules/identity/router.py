@@ -12,7 +12,9 @@ from app.shared.http import envelope, page_query, parse_optional_bool, request_i
 
 router = APIRouter(tags=["identity"])
 
-ID_PATH = Path(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+def id_path():
+    """每次返回新的 Path 实例：FastAPI 会按参数名回填 alias，复用同一实例会串名。"""
+    return Path(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 @router.post("/auth/login", operation_id="login")
@@ -68,7 +70,7 @@ async def create_student(
 async def patch_student(
     request: Request,
     body: StudentPatch,
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_admin),
 ):
     data = await service.patch_student(actor, id, body, request_id_of(request))

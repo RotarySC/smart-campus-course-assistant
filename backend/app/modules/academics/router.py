@@ -20,8 +20,11 @@ from app.shared.validation import ExpectedVersion
 
 router = APIRouter(tags=["academics"])
 
-ID_PATH = Path(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-STUDENT_ID_QUERY = Query(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+def id_path():
+    """每次返回新的 Path 实例：FastAPI 会按参数名回填 alias，复用同一实例会串名。"""
+    return Path(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+def student_id_query():
+    return Query(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 # ---- 课程 ----
@@ -58,7 +61,7 @@ async def create_course(
 async def patch_course(
     request: Request,
     body: CoursePatch,
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_admin),
 ):
     data = await service.patch_course(actor, id, body, request_id_of(request))
@@ -91,7 +94,7 @@ async def admin_schedules(
     pagination: tuple[int, int] = Depends(page_query),
     from_date: date | None = Query(default=None),
     to_date: date | None = Query(default=None),
-    student_id: str = STUDENT_ID_QUERY,
+    student_id: str = student_id_query(),
     actor: ActorContext = Depends(get_admin),
 ):
     page, page_size = pagination
@@ -120,7 +123,7 @@ async def create_schedule(
 async def patch_schedule(
     request: Request,
     body: SchedulePatch,
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_admin),
 ):
     data = await service.patch_schedule(actor, id, body, request_id_of(request))
@@ -131,7 +134,7 @@ async def patch_schedule(
 async def delete_schedule(
     request: Request,
     expected_version: ExpectedVersion = Query(...),
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_admin),
 ):
     data = await service.delete_schedule(

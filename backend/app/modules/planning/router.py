@@ -13,8 +13,11 @@ from app.shared.validation import ExpectedVersion
 
 router = APIRouter(tags=["planning"])
 
-ID_PATH = Path(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-OPERATION_PATH = Path(..., min_length=1, max_length=96, pattern=r"^[A-Za-z0-9._:-]+$")
+def id_path():
+    """每次返回新的 Path 实例：FastAPI 会按参数名回填 alias，复用同一实例会串名。"""
+    return Path(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+def operation_path():
+    return Path(..., min_length=1, max_length=96, pattern=r"^[A-Za-z0-9._:-]+$")
 IDEMPOTENCY_KEY = Header(
     ...,
     alias="Idempotency-Key",
@@ -55,7 +58,7 @@ async def create_plan(
 @router.get("/me/plans/{id}", operation_id="getPlan")
 async def get_plan(
     request: Request,
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     data = await service.get_plan(actor, id)
@@ -66,7 +69,7 @@ async def get_plan(
 async def patch_plan(
     request: Request,
     body: PlanPatch,
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     data = await service.patch_plan(actor, id, body, request_id_of(request))
@@ -77,7 +80,7 @@ async def patch_plan(
 async def delete_plan(
     request: Request,
     expected_version: ExpectedVersion = Query(...),
-    id: str = ID_PATH,
+    id: str = id_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     data = await service.delete_plan(
@@ -89,7 +92,7 @@ async def delete_plan(
 @router.get("/me/drafts/{draft_id}", operation_id="getDraft")
 async def get_draft(
     request: Request,
-    draft_id: str = ID_PATH,
+    draft_id: str = id_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     data = await service.get_draft(actor, draft_id)
@@ -100,7 +103,7 @@ async def get_draft(
 async def revise_draft(
     request: Request,
     body: DraftPatch,
-    draft_id: str = ID_PATH,
+    draft_id: str = id_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     data = await service.revise_draft(actor, draft_id, body, request_id_of(request))
@@ -112,7 +115,7 @@ async def save_draft(
     request: Request,
     body: DraftSave,
     idempotency_key: str = IDEMPOTENCY_KEY,
-    draft_id: str = ID_PATH,
+    draft_id: str = id_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     status_code, data = await service.save_draft(
@@ -128,7 +131,7 @@ async def save_draft(
 @router.get("/me/write-operations/{operation_id}", operation_id="getWriteOperation")
 async def get_write_operation(
     request: Request,
-    operation_id: str = OPERATION_PATH,
+    operation_id: str = operation_path(),
     actor: ActorContext = Depends(get_actor),
 ):
     data = await service.get_write_operation(actor, operation_id)

@@ -483,16 +483,24 @@ async def patch_schedule(
         if start_time >= end_time:
             raise validation_error(("end_time", "结束时间必须晚于开始时间，且不支持跨日记录"))
 
-        overlaps = await _check_conflicts(
-            tx,
-            user_id=schedule.user_id,
-            course_id=course_id,
-            class_date=class_date,
-            start_time=start_time,
-            end_time=end_time,
-            acknowledged=command.overlap_acknowledged,
-            reason=command.reason,
-            exclude_id=schedule_id,
+        # 仅排课字段变化时才重查冲突；只改地点不应要求重新确认既有重叠。
+        time_changed = bool(
+            provided.intersection({"course_id", "class_date", "start_time", "end_time"})
+        )
+        overlaps = (
+            await _check_conflicts(
+                tx,
+                user_id=schedule.user_id,
+                course_id=course_id,
+                class_date=class_date,
+                start_time=start_time,
+                end_time=end_time,
+                acknowledged=command.overlap_acknowledged,
+                reason=command.reason,
+                exclude_id=schedule_id,
+            )
+            if time_changed
+            else []
         )
 
         schedule.course_id = course_id
