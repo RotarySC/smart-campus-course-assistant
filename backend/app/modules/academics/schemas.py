@@ -38,9 +38,10 @@ class CourseCreate(RequestModel):
 
 
 class CoursePatch(RequestModel):
-    name: str | None = Field(default=None, min_length=1, max_length=100)
+    # 可选但非 nullable（description 可显式 null 清空）
+    name: str = Field(default=None, min_length=1, max_length=100)  # type: ignore[assignment]
     description: str | None = Field(default=None, max_length=2000)
-    enabled: StrictBool | None = None
+    enabled: StrictBool = Field(default=None)  # type: ignore[assignment]
     expected_version: ExpectedVersion
 
     @model_validator(mode="after")
@@ -63,8 +64,8 @@ class ScheduleCreate(RequestModel):
     start_time: str = Field(pattern=TIME_PATTERN)
     end_time: str = Field(pattern=TIME_PATTERN)
     location: str | None = Field(default=None, max_length=200)
-    overlap_acknowledged: StrictBool | None = None
-    reason: str | None = Field(default=None, min_length=1, max_length=500)
+    overlap_acknowledged: StrictBool = Field(default=None)  # type: ignore[assignment]
+    reason: str = Field(default=None, min_length=1, max_length=500)  # type: ignore[assignment]
 
     @model_validator(mode="after")
     def _times_ordered(self) -> "ScheduleCreate":
@@ -74,13 +75,14 @@ class ScheduleCreate(RequestModel):
 
 
 class SchedulePatch(RequestModel):
-    course_id: str | None = Field(default=None, min_length=1, max_length=64, pattern=ID_PATTERN)
-    class_date: date | None = None
-    start_time: str | None = Field(default=None, pattern=TIME_PATTERN)
-    end_time: str | None = Field(default=None, pattern=TIME_PATTERN)
+    # 可选但非 nullable；location 可显式 null 清空
+    course_id: str = Field(default=None, min_length=1, max_length=64, pattern=ID_PATTERN)  # type: ignore[assignment]
+    class_date: date = Field(default=None)  # type: ignore[assignment]
+    start_time: str = Field(default=None, pattern=TIME_PATTERN)  # type: ignore[assignment]
+    end_time: str = Field(default=None, pattern=TIME_PATTERN)  # type: ignore[assignment]
     location: str | None = Field(default=None, max_length=200)
-    overlap_acknowledged: StrictBool | None = None
-    reason: str | None = Field(default=None, min_length=1, max_length=500)
+    overlap_acknowledged: StrictBool = Field(default=None)  # type: ignore[assignment]
+    reason: str = Field(default=None, min_length=1, max_length=500)  # type: ignore[assignment]
     expected_version: ExpectedVersion
 
     @model_validator(mode="after")
