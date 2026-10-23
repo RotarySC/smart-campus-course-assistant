@@ -184,8 +184,8 @@ class Runner:
         )
         self._renew_task = asyncio.create_task(self._renew_loop())
 
-        context = self._build_context()
         while True:
+            context = self._build_context()
             boundary = await self._check_boundary()
             if boundary is not None:
                 state, reason, code = boundary
