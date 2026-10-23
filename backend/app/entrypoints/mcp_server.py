@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date
 from typing import Annotated, Any
@@ -148,7 +149,24 @@ async def _call_internal(
     except Exception:  # noqa: BLE001 - 不把内部细节暴露给模型
         logger.exception("mcp tool crashed tool=%s", tool_name)
         return _tool_error("MCP_UNAVAILABLE", "工具服务暂不可用")
-    return output_model(**result.data)
+    return _tool_success(output_model(**result.data))
+
+
+def _tool_success(output: Any) -> CallToolResult:
+    """成功结果：``structuredContent`` 必须能通过已发布的 outputSchema 校验。
+
+    MCP 客户端（mcp 2.3.0 ``ClientSession.call_tool`` → ``validate_tool_result``）会用
+    ``list_tools`` 公布的 outputSchema 对 structuredContent 做 jsonschema 校验。设计包中
+    ``page_number`` 等字段是“可选非 nullable”，但 SDK 默认 ``model_dump`` 会把缺省字段
+    序列化成 ``null`` → 校验失败（Invalid structured content）。因此显式按
+    ``exclude_none=True`` 序列化：缺省键省略，与 outputSchema/设计包一致。
+    """
+    payload = output.model_dump(mode="json", exclude_none=True)
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))],
+        structuredContent=payload,
+        isError=False,
+    )
 
 
 def create_server() -> MCPServer:

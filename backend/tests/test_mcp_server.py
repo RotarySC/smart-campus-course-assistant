@@ -8,13 +8,17 @@
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import jwt
 import pytest
 
-from app.adapters.mcp.client import DELEGATION_HEADER, SERVICE_HEADER
+from app.adapters.mcp.client import DELEGATION_HEADER, SERVICE_HEADER, McpToolClient
 from app.adapters.mcp.delegation import (
     ALGORITHM,
     AUD_INTERNAL,
@@ -28,6 +32,16 @@ from app.adapters.mcp.delegation import (
 from app.config import get_settings
 from app.entrypoints import mcp_server
 from app.main import create_internal_app
+from app.modules.assistant.contracts import (
+    EvidenceChunkOut,
+    ReferenceOut,
+    SearchToolOutput,
+)
+from tests._knowledge_helpers import (  # noqa: F401 - autouse fixtures
+    publish_batch,
+    txt_bytes,
+    unfreeze_corpus,
+)
 from tests.assistant_support import (
     call_mcp_tool,
     contract_tools,
@@ -38,6 +52,31 @@ from tests.assistant_support import (
     serve_app,
     session_id_for_token,
 )
+
+# Windows 路径长度：知识链路落盘用系统临时短目录（任务/版本目录会超 260）
+_DOC_PARA = (
+    "第{n}段：实验课预习要求包括完成预习报告、写明实验目的与步骤、提前提交。"
+    "预习报告需在实验开始前通过课程平台提交，未提交者不得进入实验室。"
+)
+DOC_ONE = "实验课预习与评分说明.txt"
+DOC_ONE_TEXT = "实验课预习与评分说明\n" + "\n".join(
+    _DOC_PARA.format(n=i) for i in range(1, 8)
+)
+DOC_TWO = "实验课评分补充说明.txt"
+DOC_TWO_TEXT = "实验课评分与预习补充说明\n" + "\n".join(
+    _DOC_PARA.format(n=i) + "实验课预习要求同样适用于补做实验。" for i in range(8, 15)
+)
+
+
+@pytest.fixture(autouse=True)
+def short_knowledge_storage(monkeypatch):
+    base = Path(tempfile.mkdtemp(prefix="cca_mcp_"))
+    monkeypatch.setenv("CCA_FILESTORE_ROOT", str(base / "u"))
+    monkeypatch.setenv("CCA_VECTOR_ROOT", str(base / "v"))
+    monkeypatch.setenv("CCA_CHUNK_SIZE", "120")
+    monkeypatch.setenv("CCA_CHUNK_OVERLAP", "20")
+    yield base
+    shutil.rmtree(base, ignore_errors=True)
 
 
 def _delegation(chat: dict, scope: str, *, ttl: int = 30) -> str:
@@ -361,3 +400,109 @@ async def test_exchange_rejects_wrong_audience(seeded, mcp_env):
         )
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+# --------------------------------------------------------------------------- #
+# 回归（Phase 5 缺陷）：structuredContent 必须与已发布 outputSchema 一致
+# --------------------------------------------------------------------------- #
+async def test_success_payload_omits_none_and_passes_advertised_output_schema():
+    """缺省的可选字段不得序列化成 null（否则 MCP 客户端校验失败 → MCP_UNAVAILABLE）。"""
+    import jsonschema
+
+    output = SearchToolOutput(
+        status="ok",
+        corpus_empty=False,
+        revision=0,
+        chunks=[
+            EvidenceChunkOut(
+                chunk_id="chk_regress_1",
+                reference_id="cit_regress_1",
+                document_id="doc_regress_1",
+                version_id="dvs_regress_1",
+                text="实验课预习要求：提前提交预习报告。",
+                location_label="第 1 段",  # 无页码（txt）
+            )
+        ],
+        references=[
+            ReferenceOut(
+                reference_id="cit_regress_1",
+                document_id="doc_regress_1",
+                version_id="dvs_regress_1",
+                file_name="实验课预习.txt",
+                location_label="第 1 段",
+            )
+        ],
+    )
+    result = mcp_server._tool_success(output)
+    assert result.is_error is False
+    payload = result.structured_content or {}
+    assert "page_number" not in payload["chunks"][0]
+    assert "page_number" not in payload["references"][0]
+
+    tools = await mcp_server.get_server().list_tools()
+    schema = next(tool.output_schema for tool in tools if tool.name == "search_course_docs")
+    jsonschema.validate(instance=payload, schema=schema)
+
+
+async def test_search_multi_document_multi_chunk_via_api_client(
+    client, seeded, mcp_env
+):
+    """真实回环 MCP + 多文档/多 chunk：必须成功映射 references（不得 MCP_UNAVAILABLE）。"""
+    from datetime import timedelta
+
+    from app.adapters.model.gateway import ToolCall
+    from app.shared.clock import now_utc
+    from app.shared.context import ActorContext, ExecutionContext
+
+    await publish_batch(
+        client,
+        seeded["admin_headers"],
+        [(DOC_ONE, txt_bytes(DOC_ONE_TEXT)), (DOC_TWO, txt_bytes(DOC_TWO_TEXT))],
+    )
+    student = seeded["student"]
+    session_id = await session_id_for_token(seeded["student_token"])
+    chat = await make_chat_request(user_id=student["id"], session_id=session_id)
+
+    api_client = McpToolClient(url=mcp_env["mcp_url"])
+    actor = ActorContext(
+        user_id=student["id"],
+        session_id=session_id,
+        auth_version=1,
+        role="student",
+        trace_request_id="req_regress_mcp",
+    )
+    context = ExecutionContext(
+        actor=actor,
+        chat_request_id=chat["request_id"],
+        conversation_id=chat["conversation_id"],
+        accepted_at=now_utc(),
+        school_timezone="Asia/Shanghai",
+        deadline_at=now_utc() + timedelta(seconds=60),
+        execution_fence=1,
+    )
+    record = await api_client.execute(
+        ToolCall(
+            tool_name="search_course_docs",
+            arguments={"query": "实验课预习要求是什么？"},
+        ),
+        context,
+    )
+    assert record.success is True, record.payload
+    assert record.result_status == "ok"
+    evidence = record.payload.get("_evidence")
+    assert evidence is not None and evidence.status == "ok"
+    assert len(evidence.chunks) >= 1
+    assert len(evidence.references) >= 1
+    assert all(item.reference_id.startswith("cit_") for item in evidence.references)
+    published = {DOC_ONE, DOC_TWO}
+    assert {item.file_name for item in evidence.references} <= published
+
+    # 原始 structuredContent 中不得出现 null 的可选字段（根因回归断言）
+    raw = await api_client._call_tool(
+        "search_course_docs",
+        {"query": "实验课预习要求是什么？"},
+        _delegation(chat, SCOPE_DOCS_SEARCH),
+    )
+    structured = raw.structured_content or {}
+    for item in (structured.get("chunks") or []) + (structured.get("references") or []):
+        assert item.get("page_number") is not None or "page_number" not in item

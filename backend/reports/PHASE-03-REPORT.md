@@ -175,6 +175,39 @@ asyncio.run(main())
 
 ---
 
+## 6.1 Phase 5 缺陷修复：资料检索 MCP_UNAVAILABLE（真实引用丢失）
+
+**现象**（Lead 联调）：资料问句 → `tool_end(success=false, code=MCP_UNAVAILABLE)`、`done.citations=[]`；
+MCP/内部 API 日志均 200；`knowledge.search` 直调正常返回多 chunks/references。
+
+**根因**：MCP 2.3.0 客户端 `ClientSession.call_tool` 会用 `list_tools` 公布的 **outputSchema**
+对结果 `structuredContent` 做 jsonschema 校验（`validate_tool_result`）。Phase 5 注解收口把
+`ReferenceOut.page_number` / `EvidenceChunkOut.page_number` 标为「可选非 nullable」（`type: integer`），
+而 MCPServer 默认 `model_dump` 会把**缺省字段序列化成 `null`**。真实文档（txt，无页码）命中的
+chunk/reference 带 `"page_number": null` → 客户端校验失败
+`RuntimeError: Invalid structured content ... None is not of type 'integer'`（包在 anyio
+ExceptionGroup 中）→ API 侧 catch-all 映射成 `MCP_UNAVAILABLE`。空库/无命中时不触发；多 chunk/多文档结果必现。
+
+**修复**（不伪装成功、不放松分类）：
+1. `entrypoints/mcp_server.py`：新增 `_tool_success()`，成功结果显式
+   `model_dump(mode="json", exclude_none=True)` 构造 `CallToolResult(structuredContent=...)`，
+   缺省键省略，与已发布 outputSchema/设计包「可选非 nullable」一致；错误路径仍 `isError=true`。
+2. `adapters/mcp/client.py`：catch-all 增加 `logger.exception`（记录异常类型/栈，不记录正文/令牌），
+   技术失败仍分类为 `MCP_UNAVAILABLE`，不伪装 empty/成功。
+
+**回归用例**：
+- `test_mcp_server.py::test_success_payload_omits_none_and_passes_advertised_output_schema`
+  （缺省字段不输出 null + 用 **list_tools 真实 outputSchema** 做 jsonschema 校验）；
+- `test_mcp_server.py::test_search_multi_document_multi_chunk_via_api_client`
+  （真实回环 MCP + 2 文档/多 chunk → `McpToolClient.execute` 成功、`references>=1`、原始
+  structuredContent 无 null 可选字段）；
+- `test_assistant_e2e_knowledge.py::test_real_evidence_over_mcp_transport_into_citations`
+  （真实 MCP 传输 → SSE `tool_end(ok)` → `done.citations` 非空 → `GET /citations/{id}` 可用）。
+
+**命令与结果**：6 个测试文件 `68 passed in 165s`。
+
+---
+
 ## 7. 未验证项 / 已知缺口（如实登记）
 
 1. **真实大模型与 Embedding**（TBD-04 未冻结）：仅确定性 Provider；未做真实 AI 质量评测。真实 Adapter 为显式失败的占位。
