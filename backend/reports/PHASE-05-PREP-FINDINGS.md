@@ -131,3 +131,33 @@ pytest tests/test_security_isolation.py tests/test_release_migration.py -q
   - pytest basetemp 产物 `backend/pytest-of-Rotary/` 当前未被 `.gitignore` 覆盖（本任务只改测试文件，提交前已清理）；建议 Lead 在 `.gitignore` 增加该路径。
   - Windows 传统 MAX_PATH(260)：知识注入用例的 `attempts/<task>/<fence>/<version>/...` 键在 pytest `tmp_path` 下会超长；该用例改用系统临时短路径并在用例结束清理（`request.addfinalizer`）。
 
+---
+
+## Phase 5 前置（三）· 全端点契约一致性门禁（运行态 ↔ 设计包）
+
+- **覆盖**：`tests/test_contract_openapi_diff.py` 扩展为 **38 个操作**（34 公共 + 4 内部）。
+  公共取 `GET /api/v1/openapi.json`，内部取 `create_internal_app().openapi()`；设计包缺失时 skip。
+  逐端点递归对比：路径/方法/operationId、请求体 media/属性/必填/类型/枚举、
+  成功状态码集合、错误状态码集合、响应 data 字段/必填/类型/枚举（含数组元素与嵌套对象）。
+- **等价规则（非白名单）**：`const x` ≡ 单值 `enum [x]`；`anyOf[T, null]` 解包为可空 T。
+- **已裁决接受（精确条目，逐条必须命中）**：
+  - 运行态多 `/api/v1/health`（运维端点，设计包未列）；
+  - 5 个 PATCH 端点的对象级 `anyOf`（“至少一个可变字段”）约束无法用 Pydantic 表达（业务仍 422）；
+  - `POST /api/v1/chat/stream` 200 为 SSE（`text/event-stream`），不适合 JSON Envelope 表达（事件由 SSE schema 约束）。
+  - 内部端点不出现在公共 OpenAPI（由测试结构断言固定，不是白名单掩盖）。
+- **真实差异（未裁决，门禁严格失败）**：共 **27 条**，按 owner 分组：
+
+| Owner | 条数 | 差异 | 修复建议 |
+| --- | --- | --- | --- |
+| backend-core（Phase 1 响应模型） | 5 | `Reference.page_number` 设计为可选非 nullable，运行态 `int\|None` 为 nullable（Plan/Draft 的 5 个响应） | 改为 `page_number: int = Field(default=None)` |
+| backend-knowledge（Phase 2 响应模型） | 11 | `Batch/Document/Task.error_code` 设计为可选非 nullable string，运行态 nullable（10 处）；`Citation.reference.page_number` 同上（1 处） | 改为 `error_code: str = Field(default=None)`、`page_number: int = Field(default=None)` |
+| backend-assistant（Phase 3 请求/响应模型） | 11 | chat `conversation_id/history` 与内部课表 `from_date/to_date` 运行态允许显式 null（4 处）；chat state/cancel、内部 exchange/3 个工具共 7 个响应 schema 为空（未声明 response_model）；内部 save 缺 202 文档响应（1 处） | 可选字段去掉 `\| None`；补 `response_model=Envelope[设计包同名 Schema]`；save 补 202 |
+
+- **门禁现状**：`test_full_openapi_structure_matches_design` 对上述 27 条**严格失败**并逐条打印 [owner]；
+  白名单/已知差异条目若未被命中也会失败（防陈旧条目掩盖）。`test_design_package_shape_is_38_operations`
+  与 `test_all_operations_document_errors_and_success` 通过。
+- **结果**：`pytest tests/test_contract_openapi_diff.py -q` → **1 failed（27 条已知缺口）/ 2 passed**；
+  `pytest tests/test_contract_core.py -q` → **11 passed**（回归无影响）。
+- **后续**：owner 修复后删除 `KNOWN_DOC_GAPS` 对应条目并复跑；全绿即 Phase 5 M3 机器判据成立。
+
+
