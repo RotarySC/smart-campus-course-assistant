@@ -250,6 +250,11 @@ const ctx = {
   operationId: null,
   chatRequestId: null,
   chatCitations: [],
+  chatOperationId: null,
+  chatPlanId: null,
+  draftId: null,
+  draftVersion: 0,
+  cleanedDraftPlanId: null,
 }
 
 async function main() {
@@ -476,6 +481,14 @@ async function main() {
       assert(typeof ev.data?.seq === 'number' && ev.data.seq > lastSeq, `seq 非严格递增：${ev.data?.seq} ≤ ${lastSeq}（${ev.event}）`)
       lastSeq = ev.data.seq
       assert(ev.data.request_id === ctx.chatRequestId, `事件 request_id 不一致：${ev.data.request_id}`)
+      // F6 草稿/写入链路骨架：从事件里收集草稿与写操作标识（done/tool_end/status 都可能携带）
+      const d = ev.data
+      if (typeof d.draft_id === 'string' && !ctx.draftId) {
+        ctx.draftId = d.draft_id
+        ctx.draftVersion = typeof d.draft_version === 'number' ? d.draft_version : 1
+      }
+      if (typeof d.operation_id === 'string' && !ctx.chatOperationId) ctx.chatOperationId = d.operation_id
+      if (typeof d.plan_id === 'string' && !ctx.chatPlanId) ctx.chatPlanId = d.plan_id
     }
     // 终态唯一
     const terminals = events.filter((e) => e.event === 'done' || e.event === 'error')
@@ -513,6 +526,92 @@ async function main() {
     assert(r.data?.reference?.reference_id === ref.reference_id, 'reference_id 不一致')
     assert(typeof r.data.text === 'string' && r.data.text.length > 0, '引用片段为空')
     return `reference_id=${ref.reference_id}，片段 ${r.data.text.length} 字，${rid(r)}`
+  })
+
+  /* ------------------------- 草稿链路（F6 骨架，501 时 SKIP） ------------------------- */
+
+  await step('草稿读取 + 编辑（expected_draft_version）', 'GET/PATCH /me/drafts/{draft_id}', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    if (!ctx.draftId) throw new Skip('本轮未产生草稿（P3 SSE 未就绪或未命中写意图）')
+    const id = encodeURIComponent(ctx.draftId)
+    const get = await request(`/me/drafts/${id}`, { token: ctx.token })
+    if (isNotImplemented(get)) throw new Skip('端点返回 501')
+    assert(get.status === 200, `读取草稿期望 200，实际 ${get.status}（${ecode(get)}，${rid(get)}）`)
+    assert(get.data?.draft_id === ctx.draftId, 'draft_id 不一致')
+    assert(typeof get.data.draft_version === 'number', '草稿缺 draft_version')
+    assert(typeof get.data.content === 'string', '草稿缺 content')
+    const patch = await request(`/me/drafts/${id}`, {
+      method: 'PATCH',
+      token: ctx.token,
+      body: { content: `${get.data.content}\nE2E 草稿编辑`, expected_draft_version: get.data.draft_version },
+    })
+    assert(patch.status === 200, `编辑草稿期望 200，实际 ${patch.status}（${ecode(patch)}，${rid(patch)}）`)
+    assert(patch.data?.draft_version === get.data.draft_version + 1, `draft_version 期望 +1，实际 ${patch.data?.draft_version}`)
+    ctx.draftVersion = patch.data.draft_version
+    return `draft=${ctx.draftId} version ${get.data.draft_version}→${ctx.draftVersion}，${rid(patch)}`
+  })
+
+  await step('草稿保存（Idempotency-Key 幂等 + 写入状态）', 'POST /me/drafts/{draft_id}/save', async () => {
+    require_(ctx.token && ctx.draftId && ctx.draftVersion, '无草稿（上游失败）')
+    const id = encodeURIComponent(ctx.draftId)
+    const key = `e2e-draft-${Date.now()}`
+    const body = { draft_version: ctx.draftVersion }
+    const save = await request(`/me/drafts/${id}/save`, { method: 'POST', token: ctx.token, body, idempotencyKey: key })
+    if (isNotImplemented(save)) throw new Skip('端点返回 501')
+    assert([200, 201, 202].includes(save.status), `保存草稿期望 200/201/202，实际 ${save.status}（${ecode(save)}，${rid(save)}）`)
+    let operationId
+    let planId
+    if (save.status === 202) {
+      assert(typeof save.data?.operation_id === 'string', '202 缺 operation_id')
+      operationId = save.data.operation_id
+      const op = await pollWriteOp(operationId)
+      assert(op.state === 'succeeded' || op.state === 'deleted', `写操作未成功：state=${op.state} code=${op.error_code ?? '-'}`)
+      planId = op.plan_id
+    } else {
+      assert(save.data?.status === 'created' || save.data?.status === 'existing', `保存回执 status 非法：${save.data?.status}`)
+      operationId = save.data.operation_id
+      planId = save.data.plan_id
+    }
+    // 幂等重放：同 key 必须 200 existing 且 operation_id 一致
+    const replay = await request(`/me/drafts/${id}/save`, { method: 'POST', token: ctx.token, body, idempotencyKey: key })
+    assert(replay.status === 200, `幂等重放期望 200，实际 ${replay.status}（${ecode(replay)}，${rid(replay)}）`)
+    assert(replay.data?.operation_id === operationId, `重放 operation_id 不一致：${replay.data?.operation_id} vs ${operationId}`)
+    if (planId) assert(replay.data?.plan_id === planId, `重放 plan_id 不一致：${replay.data?.plan_id} vs ${planId}`)
+    // 写入状态可核实
+    const opCheck = await request(`/me/write-operations/${encodeURIComponent(operationId)}`, { token: ctx.token })
+    assert(opCheck.status === 200, `写操作核实期望 200，实际 ${opCheck.status}（${ecode(opCheck)}，${rid(opCheck)}）`)
+    assert(['succeeded', 'deleted'].includes(opCheck.data?.state), `写操作状态非成功：${opCheck.data?.state}`)
+    // 清理：草稿保存产生的计划（用学生令牌当场删除，避免残留）
+    if (planId) {
+      const plan = await request(`/me/plans/${encodeURIComponent(planId)}`, { token: ctx.token })
+      if (plan.status === 200) {
+        const del = await request(`/me/plans/${encodeURIComponent(planId)}`, {
+          method: 'DELETE',
+          token: ctx.token,
+          query: { expected_version: plan.data.version },
+        })
+        assert(del.status === 200, `清理草稿计划失败：HTTP ${del.status}（${rid(del)}）`)
+        ctx.cleanedDraftPlanId = planId
+      }
+    }
+    return `save=${save.status} op=${operationId} plan=${planId ?? '-'}${ctx.cleanedDraftPlanId ? '（计划已清理）' : ''}，${rid(save)}`
+  })
+
+  await step('对话取消接口（骨架）', 'POST /chat/requests/{request_id}/cancel', async () => {
+    require_(ctx.token && ctx.chatRequestId, '无 request_id（SSE 未就绪）')
+    const r = await request(`/chat/requests/${encodeURIComponent(ctx.chatRequestId)}/cancel`, {
+      method: 'POST',
+      token: ctx.token,
+    })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501（Phase 3 未实现）')
+    // 请求已结束：取消要么被幂等接受（200），要么明确拒绝（409/404）；不得 5xx。
+    assert([200, 409, 404].includes(r.status), `取消已结束请求返回意外状态 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    if (r.status === 200) {
+      assert(typeof r.data?.accepted === 'boolean', 'cancel.accepted 应为 boolean')
+      return `200 accepted=${r.data.accepted}，${rid(r)}`
+    }
+    assertErrorEnvelope(r, r.status, ['RESOURCE_NOT_FOUND', 'CHAT_IN_PROGRESS', 'VERSION_CONFLICT'])
+    return `HTTP ${r.status} ${r.error.code}（已结束请求拒绝取消），${rid(r)}`
   })
 
   /* ---------------------------- 管理端文档批次 ---------------- */
