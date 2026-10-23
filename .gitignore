@@ -68,3 +68,10 @@ pytest-of-*/
 backend/pytest-of-*/
 /backend/tmp*
 
+
+# ---- 独立验证产物 ----
+verification/evidence/
+verification/runtime/
+verification/**/*.log
+verification/**/*.pid
+
