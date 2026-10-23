@@ -111,3 +111,23 @@ pytest tests/test_security_isolation.py tests/test_release_migration.py -q
 
 - 跨用户 `GET /me/write-operations/{id}` 返回 200 `pending(recovering)`（而非 404），与“完全不存在的操作”响应完全一致 → 不泄露存在性；符合 Phase 1 裁决（未知提交不解释为确定失败）。若 Phase 5 要求严格 404，需产品/设计裁决，不建议在测试里硬判。
 - 空档期并发重叠存在两种合法提交顺序（未确认者先提交 → 两条都成功；确认者先提交 → 未确认者 409）。用例按**不变量**断言（未确认者必须是先提交者），不强行要求 1 条 201 + 1 条 409，避免把合法顺序判成失败。
+
+---
+
+## Phase 5 前置（二）· 契约与 xfail 收口（P2/P3 合并后）
+
+- **前置**：`git merge dev`（dev tip `f5d5742`，含 Phase 2/3）。
+- **契约收口**（`tests/test_contract_core.py`）：
+  - 移除 knowledge 8 条 + `/chat/*` 3 条的 501 清单；
+  - 新增 11 端点真实契约断言：路径/operationId、请求必填字段与属性集合、成功状态码集合（202/200）、标准错误响应集合（400–504 且统一 `Error` schema）；
+  - 新增断言：公共 API 不再存在任何 501 响应；内部 4 端点在公共 OpenAPI 中不存在（公共入口访问返回 404 信封），只存在于内部应用 OpenAPI。
+- **xfail 收口**（`tests/test_security_isolation.py`，3 个 `xfail(strict)` 全部转真断言）：
+  1. 取消/保存并发：取消先提交 → `SAVE_NOT_AUTHORIZED` 且零新增；保存先提交 → 取消不撤回（计划仍在、操作仍 succeeded）。
+  2. 伪造历史与 audience：chat `history` 的 system/tool 角色、历史项保留字段、顶层 user_id/session_id → 422；内部 API 无服务凭据/浏览器 Bearer → 401、错服务凭据 → 403、错 audience（aud=cca-mcp 当内部凭据、aud=cca-internal 再兑换）→ 403、伪造执行上下文 → 401/403。
+  3. 资料注入与伪造引用：注入文本可作为检索内容展示，但伪造 `reference_id` 不进入权威引用清单、不可展开（410），注入内容不产生任何 `study_plans`/`save_grants`；真实引用可展开；未发布批次内容不可检索。
+- **结果**：`pytest tests/test_contract_core.py tests/test_contract_openapi_diff.py tests/test_security_isolation.py -q` → **29 passed（0 xfailed / 0 failed，68.5s）**。
+- **新发现**：无业务缺陷。
+- **环境提示（非业务缺陷）**：
+  - pytest basetemp 产物 `backend/pytest-of-Rotary/` 当前未被 `.gitignore` 覆盖（本任务只改测试文件，提交前已清理）；建议 Lead 在 `.gitignore` 增加该路径。
+  - Windows 传统 MAX_PATH(260)：知识注入用例的 `attempts/<task>/<fence>/<version>/...` 键在 pytest `tmp_path` 下会超长；该用例改用系统临时短路径并在用例结束清理（`request.addfinalizer`）。
+
