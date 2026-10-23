@@ -63,6 +63,17 @@ def _final_result(operation: WriteOperation) -> dict[str, Any] | None:
     return None
 
 
+def _validate_user_row(user: Any, claims: DelegationClaims) -> Any:
+    """锁内复核 enabled / auth_version（与 Phase 1 F-01 同一不变量，§5.1）。"""
+    if (
+        user is None
+        or not bool(user.enabled)
+        or int(user.auth_version) != int(claims.auth_version)
+    ):
+        raise ApiError("SESSION_EXPIRED")
+    return user
+
+
 def _insert_plan(tx: Any, *, user_id: str, operation_id: str, payload: dict[str, Any]) -> StudyPlan:
     from datetime import date
 
@@ -140,7 +151,7 @@ async def save_study_plan(
     plan_id: str | None = None
     try:
         async with uow() as tx:
-            await tx.lock_user(claims.sub)
+            _validate_user_row(await tx.lock_user(claims.sub), claims)
             requests = await tx.lock_chat_requests(request_ids)
             await _validate_execution_requests(requests, claims, request_ids)
 
@@ -273,7 +284,7 @@ async def _ensure_pending_intent(
     """建立 pending 意图（唯一键收敛并发）；已终结返回既有结果。"""
     now = _now_db()
     async with uow() as tx:
-        await tx.lock_user(claims.sub)
+        _validate_user_row(await tx.lock_user(claims.sub), claims)
         operation = await tx.lock_operation(claims.sub, operation_id)
         if operation is not None:
             if operation.content_digest != digest:

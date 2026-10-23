@@ -602,3 +602,107 @@ async def wait_for_request_state(
             }
         await asyncio.sleep(0.02)
     raise AssertionError(f"等待 chat_request 状态 {states} 超时")
+
+
+class InternalToolExecutor:
+    """真实内部 API 的工具执行器（跳过 MCP 一跳，用于 A8 保存语义测试）。
+
+    每次调用都走「签发 aud=cca-mcp 委派 → /delegations/exchange → 工具端点」，
+    与 MCP 侧同一路径；MCP 本身已由 test_mcp_server.py 覆盖。
+    """
+
+    _TOOL_PATHS = {
+        "get_my_schedule": "/internal/v1/tools/get-my-schedule",
+        "search_course_docs": "/internal/v1/tools/search-course-docs",
+        "save_study_plan": "/internal/v1/tools/save-study-plan",
+    }
+
+    def __init__(self, internal_url: str, service_token: str) -> None:
+        from app.adapters.mcp.client import InternalToolClient
+
+        self._client = InternalToolClient(internal_url, service_token=service_token)
+
+    async def execute(self, call: Any, context: Any) -> Any:
+        from app.adapters.mcp.client import (
+            TOOL_SCOPE,
+            InternalServiceError,
+            InternalServiceUnavailable,
+        )
+        from app.adapters.mcp.delegation import mint_delegation, AUD_MCP
+        from app.adapters.model.gateway import ToolExecutionRecord
+
+        delegation = mint_delegation(
+            audience=AUD_MCP,
+            user_id=context.actor.user_id,
+            session_id=context.actor.session_id,
+            auth_version=context.actor.auth_version,
+            request_id=context.chat_request_id,
+            conversation_id=context.conversation_id,
+            scope=[TOOL_SCOPE[call.tool_name]],
+            fence=context.execution_fence,
+            deadline_at=context.deadline_at,
+        )
+        try:
+            exchanged = await self._client.exchange(delegation)
+            result = await self._client.call_tool(
+                self._TOOL_PATHS[call.tool_name],
+                call.arguments,
+                execution_context=str(exchanged["delegation"]),
+            )
+        except InternalServiceError as exc:
+            return ToolExecutionRecord(
+                tool_name=call.tool_name,
+                arguments=call.arguments,
+                success=False,
+                result_status="failed",
+                dependency_state="failed",
+                code=exc.code,
+                payload={"code": exc.code, "message": exc.message},
+            )
+        except InternalServiceUnavailable:
+            return ToolExecutionRecord(
+                tool_name=call.tool_name,
+                arguments=call.arguments,
+                success=False,
+                result_status="failed",
+                dependency_state="failed",
+                code="MCP_UNAVAILABLE",
+                payload={"code": "MCP_UNAVAILABLE"},
+            )
+
+        data = dict(result.data)
+        if call.tool_name == "get_my_schedule":
+            status = str(data.get("status") or "empty")
+            return ToolExecutionRecord(
+                tool_name=call.tool_name,
+                arguments=call.arguments,
+                success=True,
+                result_status=status,
+                dependency_state="satisfied" if status == "ok" else "empty",
+                payload=data,
+            )
+        if call.tool_name == "search_course_docs":
+            from app.adapters.mcp.client import _evidence_from_payload
+
+            evidence = _evidence_from_payload(data)
+            data["_evidence"] = evidence
+            status = evidence.status
+            return ToolExecutionRecord(
+                tool_name=call.tool_name,
+                arguments=call.arguments,
+                success=True,
+                result_status=status,
+                dependency_state="satisfied" if status == "ok" else "empty",
+                payload=data,
+            )
+        save_status = str(data.get("status") or "failed")
+        return ToolExecutionRecord(
+            tool_name=call.tool_name,
+            arguments=call.arguments,
+            success=save_status in ("created", "existing"),
+            result_status=save_status,
+            dependency_state=(
+                "satisfied" if save_status in ("created", "existing") else "failed"
+            ),
+            payload=data,
+        )
