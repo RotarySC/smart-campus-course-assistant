@@ -8,13 +8,12 @@
  *   1. 设计包离线契约：`docs/backend/openapi_v0.1.json`（默认）
  *   2. 后端运行时 OpenAPI：`http://127.0.0.1:8100/api/v1/openapi.json`（`--source=http|auto`）
  *
- * 为什么当前默认不是运行态（2026-10-23 22:0x 实测，后端已声明 27 paths / 52 schemas）：
- *   `contract-diff.mjs` 判定**无真实漂移（FAIL=0）**，但运行态仍缺 24 个设计包 schema，
- *   其中 9 个是 P2/P3 未实现（Citation/Task/Document/Batch/…，这些端点当前是 501 桩）、
- *   9 个是 internal 工具模型（前端不消费）、其余是设计包的聚合/请求模型（SaveResult、
- *   ChatInput/ChatState 等）。若以运行态生成，`src/api/types.ts` 门面里对 Citation/Document
- *   等别名会直接编译失败。**切换条件**：`contract-diff` 的 schema-doc / enum-doc WARN 清零
- *   （即 P2/P3 合并后运行态声明全部响应模型与枚举），再把默认切 `auto`。
+ * 为什么默认不是运行态（2026-10-23 联调后实测，后端 27 paths / 67 schemas）：
+ *   `contract-diff.mjs` 判定**无真实漂移（FAIL=0）**；剩余 WARN 经 Lead 裁决为**命名/文档差异**
+ *   （internal 工具模型不进公共 OpenAPI、SaveResult 聚合 vs 拆分等价、Upload/EmptyInput/
+ *   HistoryMessage/ChatState/Cancel 以 inline 表达、2 处 enum 未声明但结构等价），**不追清零**。
+ *   因此默认真源**保持 file**（设计包，确定性 + 可离线）；`--source=http|auto` 保留作对比。
+ *   Phase 5 M3 的判定口径 = 「路径/operationId/请求字段/状态码/错误码零差异 + 上述命名差异已裁决」。
  *
  * 双真源可切换的基础：生成前剥离 description/summary/title/example 等非结构性注解，
  * 只要两边结构契约一致，产出的 types.gen.ts 就逐字节相同；结构性差异由 contract-diff 单独门禁。

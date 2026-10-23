@@ -241,10 +241,8 @@ if (JSON_OUT) writeFileSync(String(JSON_OUT), JSON.stringify(report, null, 2))
 
 console.log('')
 if (fails.length === 0) {
-  console.log(`OK    无真实契约漂移（FAIL=0；WARN=${warns.length}，均为运行态 OpenAPI 文档化缺口）`)
-  if (warns.length > 0) {
-    console.log('      切换 gen-types 真源为运行态的前置条件：WARN 中的 schema-doc / status-doc 清零。')
-  }
+  console.log(`OK    无真实契约漂移（FAIL=0；WARN=${warns.length}，均为已裁决的运行态命名/文档差异）`)
+  console.log('      裁决（PHASE-04 报告 §3.3）：WARN 不追清零；gen-types 默认真源保持 file，--source=http 仅作对比。')
   process.exit(0)
 } else {
   console.log(`FAIL  真实契约漂移 ${fails.length} 项（WARN=${warns.length}）；详见上方 FAIL 行。`)

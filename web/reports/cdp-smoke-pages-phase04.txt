@@ -1,0 +1,43 @@
+== 浏览器冒烟（Edge headless + CDP）==
+WEB_BASE=http://localhost:5173  FULL=false
+PASS  前端 dev server 可达 — HTTP 200
+PASS  G2 未登录访问 /me/schedules → /login — 实际 /login
+PASS  main#main 存在（skip-link 目标）
+PASS  登录表单字段存在（#login-account/#login-password/submit）
+PASS  document.title 带固定后缀 — 登录 · 校园课程智能助手
+PASS  G6 刷新后仍在 /login（令牌不持久化） — 实际 /login
+PASS  控制台无 error
+PASS  无未捕获异常
+PASS  截图已保存 — reports\artifacts\smoke-login.png
+PASS  填入账号 — student_demo
+PASS  填入密码 — ******
+PASS  提交登录
+PASS  登录后落到 /assistant（G7） — 实际 /assistant
+PASS  助手页输入框存在（.composer textarea）
+PASS  S02 边界提示条逐字存在
+PASS  导航外壳存在（nav）
+PASS  助手页 document.title — 助手 · 校园课程智能助手
+PASS  S07 我的课表渲染真实课表行 — 1 行
+PASS  S07 未把「读取失败」与「当天无课」混为一谈
+PASS  S09 学习计划列表渲染（种子计划） — 1 行
+PASS  S09 打开新建表单（「新建计划」）
+PASS  S09 新建表单已展开（#plan-title 出现）
+PASS  S09 填标题
+PASS  S09 填正文
+PASS  S09 取消
+PASS  S09 取消后表单收起（不产生写入）
+PASS  G8 顶栏「退出登录」
+PASS  G8 登出后回到 /login
+PASS  管理员登录落地 /assistant — /assistant
+PASS  管理员可见「管理中心」入口
+PASS  S10 课程列表渲染 — 13 行
+PASS  S10 列表包含种子课程 CS101
+PASS  S10 打开「新建课程」
+PASS  S10 填课程代码
+PASS  S10 填课程名称
+PASS  S10 取消
+PASS  S10 取消后未创建课程（列表无该代码）
+PASS  逐屏走查后控制台仍无 error
+PASS  逐屏走查无未捕获异常
+
+== 结果：39/39 PASS ==
