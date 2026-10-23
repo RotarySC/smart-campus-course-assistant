@@ -26,6 +26,8 @@ const ADMIN_ACCOUNT = process.env.E2E_ADMIN_ACCOUNT ?? 'admin_demo'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'demo1234'
 const TIMEOUT_MS = Number(process.env.E2E_BATCH_TIMEOUT_MS ?? 240_000)
 const BATCH_ID_ARG = (process.argv.find((a) => a.startsWith('--batch-id=')) ?? '').split('=')[1] ?? ''
+// 续跑既有批次时，上传内容里的 marker 由调用方传入（脚本无法从服务端反推原文）
+const MARKER_ARG = (process.argv.find((a) => a.startsWith('--marker=')) ?? '').split('=')[1] ?? ''
 
 const rows = []
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -81,7 +83,9 @@ async function request(path, { method = 'GET', token, body, query, timeoutMs = 3
 const rid = (r) => (r.requestId ? `request_id=${r.requestId}` : 'request_id=<缺失>')
 
 let token = null
-let marker = `E2E-DOC-MARKER-${Date.now()}`
+let marker = MARKER_ARG || `E2E-DOC-MARKER-${Date.now()}`
+/** 续跑既有批次且未给 --marker 时，无法知道上传原文里的 marker → 只断言文本非空。 */
+const strictMarker = MARKER_ARG !== '' || !BATCH_ID_ARG
 /** 上游 NEED_WORKER 后，依赖「已发布」的步骤一律 SKIP（不把等待当失败）。 */
 let blockedByWorker = false
 
@@ -114,6 +118,7 @@ async function main() {
     assert(Array.isArray(r.data.tasks), 'tasks 不是数组')
     batchId = r.data.batch_id
     console.log(`BATCH_ID=${batchId}`)
+    console.log(`MARKER=${marker}`)
     return `batch_id=${batchId}，documents=${r.data.documents.length}，${rid(r)}`
   })
 
@@ -155,17 +160,47 @@ async function main() {
     const inBatch = (list.data?.items ?? []).filter((d) => d.batch_id === batchId)
     assert(inBatch.length > 0, `列表中没有批次 ${batchId} 的文档`)
     const doc = inBatch.find((d) => d.processing_state === 'available') ?? inBatch[0]
+    if (['deleting', 'deleted'].includes(doc.processing_state)) {
+      throw new Skip(`文档已进入删除流程（state=${doc.processing_state}），跳过预览`)
+    }
     assert(doc.processing_state === 'available', `文档未 available：${doc.processing_state}`)
     docId = doc.id
     docVersion = doc.version
     const txt = await request(`/admin/documents/${encodeURIComponent(docId)}/text`, { token, query: { offset: 0, limit: 2000 } })
     assert(txt.status === 200, `文本预览期望 200，实际 ${txt.status}（${txt.error?.code ?? '-'}，${rid(txt)}）`)
-    assert(typeof txt.data?.text === 'string' && txt.data.text.includes(marker), `预览文本未含 marker（前 80 字：${txt.data?.text?.slice(0, 80)}）`)
-    return `${docId}（${doc.original_name}）预览 ${txt.data.text.length} 字，${rid(txt)}`
+    const text = txt.data?.text ?? ''
+    if (strictMarker) {
+      assert(typeof text === 'string' && text.includes(marker), `预览文本未含 marker（前 80 字：${text.slice(0, 80)}）`)
+    } else {
+      assert(text.length > 0, '预览文本为空')
+    }
+    return `${docId}（${doc.original_name}）预览 ${text.length} 字${strictMarker ? '' : '（续跑：未给 --marker，只断言非空）'}，${rid(txt)}`
   })
 
   await step('删除文档 → 失效复核', 'DELETE /admin/documents/{id}', async () => {
     if (blockedByWorker) throw new Skip('等待 worker 发布（上游 NEED_WORKER）')
+    // 文档可能已被（外部）清理流程置为 deleting/deleted：此时只需复核「删除后不可读」。
+    if (!docId) {
+      const list = await request('/admin/documents', { token, query: { page: 1, page_size: 100 } })
+      const doc = (list.data?.items ?? []).find((d) => d.batch_id === batchId)
+      if (!doc || ['deleting', 'deleted'].includes(doc.processing_state)) {
+        const id = doc?.id
+        if (id) {
+          const deadline0 = Date.now() + 120_000
+          for (;;) {
+            const l2 = await request('/admin/documents', { token, query: { page: 1, page_size: 100 } })
+            const d2 = (l2.data?.items ?? []).find((x) => x.id === id)
+            if (!d2 || d2.processing_state === 'deleted') break
+            if (Date.now() > deadline0) throw new Fail(`文档 120s 未删除（state=${d2.processing_state}）`)
+            await sleep(3000)
+          }
+          const after0 = await request(`/admin/documents/${encodeURIComponent(id)}/text`, { token })
+          assert([404, 410].includes(after0.status), `删除后文本预览期望 404/410，实际 ${after0.status}`)
+          return `文档 ${id} 已在删除流程并完成（state=deleted），text HTTP ${after0.status}`
+        }
+        throw new Skip('批次内已无文档（可能已被清理）')
+      }
+    }
     assert(docId, '无可用文档（上游失败）')
     const del = await request(`/admin/documents/${encodeURIComponent(docId)}`, {
       method: 'DELETE',

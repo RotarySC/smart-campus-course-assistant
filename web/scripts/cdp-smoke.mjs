@@ -417,6 +417,67 @@ async function main() {
       check('回答正文非空', after.text.length > 10, `${after.text.length} 字`)
       const shot3 = await cdp.send('Page.captureScreenshot', { format: 'png' })
       savePng('smoke-assistant-answer.png', shot3.data)
+
+      // ---- 7b) --full：第二轮「资料问句」→ 真实引用卡 → 展开片段（F6）----
+      if (FULL) {
+        const docQuestion = process.env.E2E_CHAT_DOC_MESSAGE ?? '实验课预习要求是什么？'
+        const focused2 = await evaluate(`(() => {
+          const el = document.querySelector('.composer textarea');
+          if (!el) return false;
+          el.focus();
+          Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, '');
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          return document.activeElement === el;
+        })()`)
+        if (focused2) await cdp.send('Input.insertText', { text: docQuestion })
+        check('第二轮：填入资料问句', focused2)
+        check(
+          '第二轮：发送',
+          await evaluate(`(() => {
+            const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '发送' && !x.disabled);
+            if (!b) return false;
+            b.click();
+            return true;
+          })()`),
+        )
+        const citeCount = await waitFor(
+          async () => {
+            const n = await evaluate("document.querySelectorAll('.cite').length")
+            return n > 0 ? n : false
+          },
+          { label: '引用卡出现', timeoutMs: 60_000 },
+        )
+        check('真实引用卡渲染（.cite）', citeCount > 0, `${citeCount} 张`)
+        // 展开第一张引用的片段（真实 GET /citations/{id}）
+        const expanded = await evaluate(`(() => {
+          const card = document.querySelector('.cite');
+          if (!card) return false;
+          const b = [...card.querySelectorAll('button')].find((x) => x.textContent.trim() === '展开片段');
+          if (!b) return false;
+          b.click();
+          return true;
+        })()`)
+        check('点击「展开片段」', expanded)
+        let snippet = ''
+        try {
+          snippet = await waitFor(
+            async () => {
+              const t = await evaluate("document.querySelector('.cite__body')?.innerText?.trim() ?? ''")
+              return t.length > 10 ? t : false
+            },
+            { label: '引用片段正文', timeoutMs: 30_000 },
+          )
+        } catch {
+          snippet = ''
+        }
+        check('引用片段正文展开（.cite__body）', snippet.length > 10, `${snippet.length} 字`)
+        const invalidShown = await evaluate(
+          "document.body.innerText.includes('这条引用已失效')",
+        )
+        check('引用未显示失效文案（410 未发生）', invalidShown === false)
+        const shot4 = await cdp.send('Page.captureScreenshot', { format: 'png' })
+        savePng('smoke-assistant-citations.png', shot4.data)
+      }
     }
 
     // ---- 8) 逐屏 UI 走查（--pages）：学生课表/计划（含 UI 新建+删除）→ 管理员课程 ----

@@ -169,7 +169,7 @@ onMounted(() => {
       :fields="drafts.fields"
       :basis-schedule="drafts.basisTypes.includes('schedule')"
       :basis-documents="drafts.basisTypes.includes('documents')"
-      @save="drafts.save(`save_${drafts.draftId}_${drafts.draftVersion}`)"
+      @save="drafts.save()"
       @edit="openPlan"
       @query-status="queryWriteStatus"
     />

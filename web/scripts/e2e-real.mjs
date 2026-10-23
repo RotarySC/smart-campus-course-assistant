@@ -45,6 +45,8 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'demo1234'
 const ADMIN_ACCOUNT = process.env.E2E_ADMIN_ACCOUNT ?? 'admin_demo'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'demo1234'
 const CHAT_MESSAGE = process.env.E2E_CHAT_MESSAGE ?? '明天有什么课？'
+const DOC_CHAT_MESSAGE = process.env.E2E_CHAT_DOC_MESSAGE ?? '实验课预习要求是什么？'
+const PLAN_CHAT_MESSAGE = process.env.E2E_CHAT_PLAN_MESSAGE ?? '帮我制定一份学习计划'
 const DAY = 86_400_000
 
 /* ------------------------------- 结果与断言 ------------------------------- */
@@ -238,6 +240,62 @@ async function chatStream(body, token) {
   return { notOk: false, status: res.status, events }
 }
 
+/** SSE 契约公共断言：首事件 ACCEPTED+conversation_id、seq 严格递增、request_id 一致、工具配对、终态唯一。 */
+function assertChatEnvelope(events, label) {
+  assert(events.length > 0, `${label}：SSE 未收到任何事件`)
+  const first = events[0]
+  assert(first.event === 'status', `${label}：首个事件应为 status，实际 ${first.event}`)
+  assert(first.data?.code === 'ACCEPTED', `${label}：status.code 期望 ACCEPTED，实际 ${first.data?.code}`)
+  assert(typeof first.data.conversation_id === 'string' && first.data.conversation_id.length > 0, `${label}：ACCEPTED 缺 conversation_id（schema 强制）`)
+  const requestId = first.data.request_id
+  assert(typeof requestId === 'string' && requestId.length > 0, `${label}：缺 request_id`)
+
+  let lastSeq = 0
+  const starts = new Map()
+  for (const ev of events) {
+    assert(typeof ev.data?.seq === 'number' && ev.data.seq > lastSeq, `${label}：seq 非严格递增 ${ev.data?.seq} ≤ ${lastSeq}（${ev.event}）`)
+    lastSeq = ev.data.seq
+    assert(ev.data.request_id === requestId, `${label}：事件 request_id 不一致`)
+    if (ev.event === 'tool_start') {
+      assert(
+        ['get_my_schedule', 'search_course_docs', 'save_study_plan'].includes(ev.data.tool_name),
+        `${label}：tool_name 不在三工具白名单：${ev.data.tool_name}`,
+      )
+      starts.set(ev.data.tool_call_id, ev.data.tool_name)
+    }
+    if (ev.event === 'tool_end') {
+      assert(starts.has(ev.data.tool_call_id), `${label}：孤立 tool_end（无对应 tool_start）${ev.data.tool_call_id}`)
+      assert(typeof ev.data.success === 'boolean', `${label}：tool_end 缺 success`)
+      if (ev.data.success === false) assert(typeof ev.data.code === 'string', `${label}：失败 tool_end 缺 code`)
+    }
+  }
+  const terminals = events.filter((e) => e.event === 'done' || e.event === 'error')
+  assert(terminals.length === 1, `${label}：终态事件数应为 1，实际 ${terminals.length}`)
+  const term = terminals[0]
+  if (term.event === 'done') {
+    assert(['succeeded', 'cancelled'].includes(term.data.state), `${label}：done.state 非法 ${term.data.state}`)
+    assert(Array.isArray(term.data.citations), `${label}：done.citations 必须是数组`)
+  } else {
+    assert(typeof term.data.code === 'string', `${label}：error 缺 code`)
+    assert(
+      !(term.data.code === 'AUTH_REQUIRED' || term.data.code === 'SESSION_EXPIRED') ||
+        (term.data.plan_id === undefined && term.data.operation_id === undefined),
+      `${label}：认证类 error 不得携带 plan_id/operation_id`,
+    )
+  }
+  return { requestId, term, events, starts: [...starts.values()] }
+}
+
+async function runChat(label, message) {
+  const clientRequestId = `e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  const res = await chatStream({ client_request_id: clientRequestId, message }, ctx.token)
+  if (res.notOk) {
+    if (res.status === 501) throw new Skip(`${label}：端点返回 501（Phase 3 未实现）`)
+    assert(false, `${label}：期望 200 text/event-stream，实际 ${res.status}（${res.error?.code ?? '<无错误码>'}）`)
+  }
+  return assertChatEnvelope(res.events, label)
+}
+
 /* ---------------------------------- 主流程 ---------------------------------- */
 
 const ctx = {
@@ -249,12 +307,15 @@ const ctx = {
   planVersion: 0,
   operationId: null,
   chatRequestId: null,
+  chatDocRequestId: null,
   chatCitations: [],
   chatOperationId: null,
   chatPlanId: null,
   draftId: null,
   draftVersion: 0,
+  draftOperationId: null,
   cleanedDraftPlanId: null,
+  docsNeedsWorker: false,
 }
 
 async function main() {
@@ -458,52 +519,41 @@ async function main() {
 
   /* ------------------------------ 助手 SSE ---------------- */
 
-  await step('对话流（SSE 事件序列）', 'POST /chat/stream', async () => {
+  await step('对话流 · 课表工具（get_my_schedule）', 'POST /chat/stream', async () => {
     require_(ctx.token, '无令牌（登录失败）')
-    const clientRequestId = `e2e-${Date.now().toString(36)}`
-    const res = await chatStream({ client_request_id: clientRequestId, message: CHAT_MESSAGE }, ctx.token)
-    if (res.notOk) {
-      if (res.status === 501) throw new Skip('端点返回 501（Phase 3 未实现）')
-      assert(false, `期望 200 text/event-stream，实际 ${res.status}（${res.error?.code ?? '<无错误码>'}）`)
-    }
-    const events = res.events
-    assert(events.length > 0, 'SSE 未收到任何事件')
-    const first = events[0]
-    assert(first.event === 'status', `首个事件应为 status，实际 ${first.event}`)
-    assert(typeof first.data?.request_id === 'string', 'status 事件缺 request_id')
-    ctx.chatRequestId = first.data.request_id
-    assert(first.data.code === 'ACCEPTED', `status.code 期望 ACCEPTED，实际 ${first.data.code}`)
-    assert(typeof first.data.conversation_id === 'string' && first.data.conversation_id.length > 0, 'ACCEPTED 缺 conversation_id（schema 强制）')
+    const r = await runChat('课表问句', CHAT_MESSAGE)
+    ctx.chatRequestId = r.requestId
+    assert(r.starts.includes('get_my_schedule'), `期望触发 get_my_schedule，实际工具=[${r.starts.join(',')}]`)
+    assert(r.term.event === 'done' && r.term.data.state === 'succeeded', `终态异常：${r.term.event}:${r.term.data.state ?? r.term.data.code}`)
+    const answerChars = r.events.filter((e) => e.event === 'token').reduce((n, e) => n + (e.data.text_delta ?? '').length, 0)
+    assert(answerChars > 0, '未收到 token（回答正文为空）')
+    return `${r.events.length} 事件，工具=[${r.starts.join(',')}]，正文 ${answerChars} 字，${r.requestId}`
+  })
 
-    // seq 严格递增（按 (request_id, seq) 去重后不得回退/重复）
-    let lastSeq = 0
-    for (const ev of events) {
-      assert(typeof ev.data?.seq === 'number' && ev.data.seq > lastSeq, `seq 非严格递增：${ev.data?.seq} ≤ ${lastSeq}（${ev.event}）`)
-      lastSeq = ev.data.seq
-      assert(ev.data.request_id === ctx.chatRequestId, `事件 request_id 不一致：${ev.data.request_id}`)
-      // F6 草稿/写入链路骨架：从事件里收集草稿与写操作标识（done/tool_end/status 都可能携带）
-      const d = ev.data
-      if (typeof d.draft_id === 'string' && !ctx.draftId) {
-        ctx.draftId = d.draft_id
-        ctx.draftVersion = typeof d.draft_version === 'number' ? d.draft_version : 1
-      }
-      if (typeof d.operation_id === 'string' && !ctx.chatOperationId) ctx.chatOperationId = d.operation_id
-      if (typeof d.plan_id === 'string' && !ctx.chatPlanId) ctx.chatPlanId = d.plan_id
+  await step('对话流 · 资料检索 + 真实引用（search_course_docs）', 'POST /chat/stream', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await runChat('资料问句', DOC_CHAT_MESSAGE)
+    assert(r.starts.includes('search_course_docs'), `期望触发 search_course_docs，实际工具=[${r.starts.join(',')}]`)
+    assert(r.term.event === 'done', `终态应为 done，实际 ${r.term.event}（${r.term.data.code ?? '-'}）`)
+    const citations = r.term.data.citations ?? []
+    assert(citations.length > 0, 'done.citations 为空：检索链路未返回引用')
+    for (const c of citations) {
+      assert(typeof c.reference_id === 'string' && c.reference_id.startsWith('cit_'), `reference_id 形态异常：${c.reference_id}（疑似桩值）`)
+      assert(typeof c.document_id === 'string' && typeof c.file_name === 'string', '引用缺 document_id/file_name')
     }
-    // 终态唯一
-    const terminals = events.filter((e) => e.event === 'done' || e.event === 'error')
-    assert(terminals.length === 1, `终态事件数应为 1，实际 ${terminals.length}`)
-    const term = terminals[0]
-    if (term.event === 'done') {
-      assert(['succeeded', 'cancelled'].includes(term.data.state), `done.state 非法：${term.data.state}`)
-      assert(Array.isArray(term.data.citations), 'done.citations 必须是数组')
-      ctx.chatCitations = term.data.citations
-    } else {
-      assert(typeof term.data.code === 'string', 'error 事件缺 code')
-      assert(!(term.data.code === 'AUTH_REQUIRED' || term.data.code === 'SESSION_EXPIRED') || (term.data.plan_id === undefined && term.data.operation_id === undefined), '认证类 error 不得携带 plan_id/operation_id')
-    }
-    const codes = events.map((e) => e.event)
-    return `${events.length} 事件（${[...new Set(codes)].join('/')}），终态 ${term.event}${term.data.state ? `:${term.data.state}` : ''}，${ctx.chatRequestId}`
+    ctx.chatCitations = citations
+    ctx.chatDocRequestId = r.requestId
+    return `${citations.length} 条真实引用：${citations.map((c) => c.reference_id).join(',')}，${r.requestId}`
+  })
+
+  await step('对话流 · 学习计划草稿（DRAFT_READY）', 'POST /chat/stream', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await runChat('计划问句', PLAN_CHAT_MESSAGE)
+    const draftEv = r.events.find((e) => e.event === 'status' && typeof e.data?.draft_id === 'string')
+    assert(draftEv, `未收到带 draft_id 的 status 事件（DRAFT_READY）；事件=${r.events.map((e) => e.event).join('/')}`)
+    ctx.draftId = draftEv.data.draft_id
+    ctx.draftVersion = typeof draftEv.data.draft_version === 'number' ? draftEv.data.draft_version : 1
+    return `draft=${ctx.draftId}@${ctx.draftVersion}，工具=[${r.starts.join(',') || '无'}]，${r.requestId}`
   })
 
   await step('对话状态可核实', 'GET /chat/requests/{request_id}', async () => {
@@ -540,6 +590,7 @@ async function main() {
     assert(get.data?.draft_id === ctx.draftId, 'draft_id 不一致')
     assert(typeof get.data.draft_version === 'number', '草稿缺 draft_version')
     assert(typeof get.data.content === 'string', '草稿缺 content')
+    assert(typeof get.data.operation_id === 'string' && get.data.operation_id.length > 0, '草稿缺 operation_id（保存幂等键来源）')
     const patch = await request(`/me/drafts/${id}`, {
       method: 'PATCH',
       token: ctx.token,
@@ -548,13 +599,20 @@ async function main() {
     assert(patch.status === 200, `编辑草稿期望 200，实际 ${patch.status}（${ecode(patch)}，${rid(patch)}）`)
     assert(patch.data?.draft_version === get.data.draft_version + 1, `draft_version 期望 +1，实际 ${patch.data?.draft_version}`)
     ctx.draftVersion = patch.data.draft_version
-    return `draft=${ctx.draftId} version ${get.data.draft_version}→${ctx.draftVersion}，${rid(patch)}`
+    // 保存的 Idempotency-Key 必须是**服务端为该版本预分配的 operation_id**（后端强校验）。
+    const current = await request(`/me/drafts/${id}`, { token: ctx.token })
+    assert(current.status === 200, `编辑后重读草稿失败：HTTP ${current.status}`)
+    assert(typeof current.data?.operation_id === 'string' && current.data.operation_id.length > 0, '编辑后草稿缺 operation_id')
+    ctx.draftOperationId = current.data.operation_id
+    return `draft=${ctx.draftId} version ${get.data.draft_version}→${ctx.draftVersion}，operation_id=${ctx.draftOperationId}，${rid(patch)}`
   })
 
   await step('草稿保存（Idempotency-Key 幂等 + 写入状态）', 'POST /me/drafts/{draft_id}/save', async () => {
     require_(ctx.token && ctx.draftId && ctx.draftVersion, '无草稿（上游失败）')
+    require_(ctx.draftOperationId, '无 draft.operation_id（无法构造合法幂等键）')
     const id = encodeURIComponent(ctx.draftId)
-    const key = `e2e-draft-${Date.now()}`
+    // 契约（真实后端强校验）：Idempotency-Key === draft_version 的 operation_id
+    const key = ctx.draftOperationId
     const body = { draft_version: ctx.draftVersion }
     const save = await request(`/me/drafts/${id}/save`, { method: 'POST', token: ctx.token, body, idempotencyKey: key })
     if (isNotImplemented(save)) throw new Skip('端点返回 501')
@@ -786,13 +844,16 @@ async function main() {
     assert(Array.isArray(r.data.documents), 'documents 不是数组')
     ctx.batchId = r.data.batch_id
     ctx.uploadName = name
+    console.log(`BATCH_ID=${ctx.batchId}`)
+    console.log(`MARKER=${marker}`)
     return `batch_id=${ctx.batchId}，${r.data.documents.length} 个文档，${rid(r)}`
   })
 
   await step('批次轮询至发布', 'GET /admin/document-batches/{id}', async () => {
     if (SKIP.has('docs')) throw new Skip('--skip=docs')
     require_(ctx.adminToken && ctx.batchId, '无 batch_id（上游失败）')
-    const deadline = Date.now() + 90_000
+    const batchTimeoutMs = Number(process.env.E2E_BATCH_TIMEOUT_MS ?? 90_000)
+    const deadline = Date.now() + batchTimeoutMs
     let last = null
     for (;;) {
       const r = await request(`/admin/document-batches/${encodeURIComponent(ctx.batchId)}`, { token: ctx.adminToken })
@@ -800,7 +861,17 @@ async function main() {
       assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
       last = r.data
       if (['published', 'failed', 'compensating'].includes(last.state)) break
-      if (Date.now() > deadline) throw new Fail(`批次 90s 未达终态（最后 state=${last?.state}）`)
+      if (Date.now() > deadline) {
+        // 演示库 publish_frozen=FALSE：accepted/processing 是**正常中间态**，等 worker 不是失败。
+        if (['accepted', 'processing'].includes(last.state)) {
+          ctx.docsNeedsWorker = true
+          throw new Skip(
+            `批次仍为 ${last.state}（等 ${Math.round(batchTimeoutMs / 1000)}s）：需 Lead 跑 worker --once 发布。` +
+              `用 node scripts/e2e-docs.mjs --batch-id=${ctx.batchId} --marker=${marker} 续跑`,
+          )
+        }
+        throw new Fail(`批次 ${Math.round(batchTimeoutMs / 1000)}s 未达终态（最后 state=${last?.state}）`)
+      }
       await sleep(3000)
     }
     assert(last.state === 'published' && last.published === true, `批次未发布：state=${last.state} published=${last.published} err=${last.error_code ?? '-'}`)
@@ -812,6 +883,7 @@ async function main() {
 
   await step('文档列表与文本预览', 'GET /admin/documents + /{id}/text', async () => {
     if (SKIP.has('docs')) throw new Skip('--skip=docs')
+    if (ctx.docsNeedsWorker) throw new Skip('等待 worker 发布（上游 NEED_WORKER）')
     require_(ctx.adminToken && ctx.batchId, '无批次（上游失败）')
     if (!docId) throw new Skip('文档尚未 available（可能仍在处理）')
     const list = await request('/admin/documents', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
@@ -826,6 +898,7 @@ async function main() {
 
   await step('文档删除 → 清理', 'DELETE /admin/documents/{id}', async () => {
     if (SKIP.has('docs')) throw new Skip('--skip=docs')
+    if (ctx.docsNeedsWorker) throw new Skip('等待 worker 发布（上游 NEED_WORKER）')
     require_(ctx.adminToken && docId, '无文档（上游失败）')
     const doc = (await request('/admin/documents', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })).data?.items?.find((d) => d.id === docId)
     const version = doc?.version ?? 1
