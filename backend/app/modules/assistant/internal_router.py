@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.shared.api_models import ERROR_RESPONSES
 from app.shared.http import not_implemented
 
 router = APIRouter(tags=["internal"])
@@ -14,21 +15,21 @@ router = APIRouter(tags=["internal"])
 PHASE = "Phase 3（内部委派与工具）"
 
 
-@router.post("/delegations/exchange", operation_id="exchangeDelegation")
+@router.post("/delegations/exchange", operation_id="exchangeDelegation", responses=ERROR_RESPONSES)
 async def exchange_delegation(request: Request):
     return not_implemented(request, f"委派兑换（{PHASE}）")
 
 
-@router.post("/tools/get-my-schedule", operation_id="internalSchedule")
+@router.post("/tools/get-my-schedule", operation_id="internalSchedule", responses=ERROR_RESPONSES)
 async def internal_schedule(request: Request):
     return not_implemented(request, f"课表工具（{PHASE}）")
 
 
-@router.post("/tools/search-course-docs", operation_id="internalSearch")
+@router.post("/tools/search-course-docs", operation_id="internalSearch", responses=ERROR_RESPONSES)
 async def internal_search(request: Request):
     return not_implemented(request, f"检索工具（{PHASE}）")
 
 
-@router.post("/tools/save-study-plan", operation_id="internalSave")
+@router.post("/tools/save-study-plan", operation_id="internalSave", responses=ERROR_RESPONSES)
 async def internal_save(request: Request):
     return not_implemented(request, f"保存工具（{PHASE}）")

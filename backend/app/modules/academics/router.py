@@ -15,6 +15,15 @@ from app.modules.academics.schemas import (
 )
 from app.modules.identity.interface import get_actor, get_admin
 from app.shared.context import ActorContext
+from app.shared.api_models import (
+    ERROR_RESPONSES,
+    Course,
+    CoursePage,
+    Envelope,
+    Schedule,
+    ScheduleDelete,
+    SchedulePage,
+)
 from app.shared.http import envelope, page_query, parse_optional_bool, request_id_of
 from app.shared.validation import ExpectedVersion
 
@@ -28,7 +37,7 @@ def student_id_query():
 
 
 # ---- 课程 ----
-@router.get("/admin/courses", operation_id="listCourses")
+@router.get("/admin/courses", operation_id="listCourses", response_model=Envelope[CoursePage], responses=ERROR_RESPONSES)
 async def list_courses(
     request: Request,
     pagination: tuple[int, int] = Depends(page_query),
@@ -47,7 +56,7 @@ async def list_courses(
     return envelope(request, data)
 
 
-@router.post("/admin/courses", operation_id="createCourse")
+@router.post("/admin/courses", operation_id="createCourse", status_code=201, response_model=Envelope[Course], responses=ERROR_RESPONSES)
 async def create_course(
     request: Request,
     body: CourseCreate,
@@ -57,7 +66,7 @@ async def create_course(
     return envelope(request, data, status_code=201)
 
 
-@router.patch("/admin/courses/{id}", operation_id="patchCourse")
+@router.patch("/admin/courses/{id}", operation_id="patchCourse", response_model=Envelope[Course], responses=ERROR_RESPONSES)
 async def patch_course(
     request: Request,
     body: CoursePatch,
@@ -69,7 +78,7 @@ async def patch_course(
 
 
 # ---- 课表 ----
-@router.get("/me/schedules", operation_id="mySchedules")
+@router.get("/me/schedules", operation_id="mySchedules", response_model=Envelope[SchedulePage], responses=ERROR_RESPONSES)
 async def my_schedules(
     request: Request,
     pagination: tuple[int, int] = Depends(page_query),
@@ -88,7 +97,7 @@ async def my_schedules(
     return envelope(request, data)
 
 
-@router.get("/admin/schedules", operation_id="adminSchedules")
+@router.get("/admin/schedules", operation_id="adminSchedules", response_model=Envelope[SchedulePage], responses=ERROR_RESPONSES)
 async def admin_schedules(
     request: Request,
     pagination: tuple[int, int] = Depends(page_query),
@@ -109,7 +118,7 @@ async def admin_schedules(
     return envelope(request, data)
 
 
-@router.post("/admin/schedules", operation_id="createSchedule")
+@router.post("/admin/schedules", operation_id="createSchedule", status_code=201, response_model=Envelope[Schedule], responses=ERROR_RESPONSES)
 async def create_schedule(
     request: Request,
     body: ScheduleCreate,
@@ -119,7 +128,7 @@ async def create_schedule(
     return envelope(request, data, status_code=201)
 
 
-@router.patch("/admin/schedules/{id}", operation_id="patchSchedule")
+@router.patch("/admin/schedules/{id}", operation_id="patchSchedule", response_model=Envelope[Schedule], responses=ERROR_RESPONSES)
 async def patch_schedule(
     request: Request,
     body: SchedulePatch,
@@ -130,7 +139,7 @@ async def patch_schedule(
     return envelope(request, data)
 
 
-@router.delete("/admin/schedules/{id}", operation_id="deleteSchedule")
+@router.delete("/admin/schedules/{id}", operation_id="deleteSchedule", response_model=Envelope[ScheduleDelete], responses=ERROR_RESPONSES)
 async def delete_schedule(
     request: Request,
     expected_version: ExpectedVersion = Query(...),
