@@ -517,7 +517,7 @@ async function main() {
 
   /* ---------------------------- 管理端文档批次 ---------------- */
 
-  let adminOk = false
+  let adminOk = true
   await step('管理员登录', 'POST /auth/login（admin）', async () => {
     const r = await request('/auth/login', { method: 'POST', body: { account: ADMIN_ACCOUNT, password: ADMIN_PASSWORD } })
     if (isNotImplemented(r) || r.status === 401) throw new Skip(`管理员种子账号不可用（HTTP ${r.status}）`)
@@ -526,6 +526,150 @@ async function main() {
     ctx.adminToken = r.data.access_token
     adminOk = true
     return `admin=${r.data.user.account}，${rid(r)}`
+  })
+
+  /* ------------------------------ 管理端：课程 / 学生 / 课表（F5） ---------------- */
+
+  const suffix = Date.now().toString(36)
+  await step('管理端课程：列表 + 创建 + 编辑（版本冲突）', 'GET/POST/PATCH /admin/courses', async () => {
+    require_(ctx.adminToken, '无管理员令牌（上游失败）')
+    const list = await request('/admin/courses', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+    if (isNotImplemented(list)) throw new Skip('端点返回 501')
+    assert(list.status === 200, `课程列表期望 200，实际 ${list.status}（${ecode(list)}，${rid(list)}）`)
+    assert(Array.isArray(list.data?.items), '课程列表 items 不是数组')
+    assert(list.data.total >= 2, `种子课程应 ≥2，实际 total=${list.data.total}`)
+
+    const code = `E2E-${suffix}`.toUpperCase()
+    const create = await request('/admin/courses', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { code, name: 'E2E 联调课程', enabled: true },
+    })
+    assert(create.status === 201, `创建课程期望 201，实际 ${create.status}（${ecode(create)}，${rid(create)}）`)
+    assert(create.data?.code === code, `课程 code 不一致：${create.data?.code}`)
+    ctx.courseId = create.data.id
+    ctx.courseVersion = create.data.version
+
+    const patch = await request(`/admin/courses/${encodeURIComponent(ctx.courseId)}`, {
+      method: 'PATCH',
+      token: ctx.adminToken,
+      body: { name: 'E2E 联调课程（已改名）', expected_version: ctx.courseVersion },
+    })
+    assert(patch.status === 200, `编辑课程期望 200，实际 ${patch.status}（${ecode(patch)}，${rid(patch)}）`)
+    assert(patch.data?.version === ctx.courseVersion + 1, `课程 version 期望 +1，实际 ${patch.data?.version}`)
+    const stale = await request(`/admin/courses/${encodeURIComponent(ctx.courseId)}`, {
+      method: 'PATCH',
+      token: ctx.adminToken,
+      body: { name: '陈旧写入', expected_version: ctx.courseVersion },
+    })
+    assertErrorEnvelope(stale, 409, 'VERSION_CONFLICT')
+    ctx.courseVersion = patch.data.version
+    // 备注：**不在本步停用**——后面要用它建课表（禁用课程不可选，content-spec:164；
+    // 后端对禁用目标建课表会 404）。「启停」验证放在末尾清理步。
+    return `course=${ctx.courseId}（${code}）创建→改名，陈旧版本 409，${rid(create)}`
+  })
+
+  await step('管理端学生：列表 + 创建 + 编辑', 'GET/POST/PATCH /admin/students', async () => {
+    require_(ctx.adminToken, '无管理员令牌（上游失败）')
+    const list = await request('/admin/students', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+    if (isNotImplemented(list)) throw new Skip('端点返回 501')
+    assert(list.status === 200, `学生列表期望 200，实际 ${list.status}（${ecode(list)}，${rid(list)}）`)
+    assert(list.data?.items?.some((u) => u.account === ACCOUNT), `学生列表未包含种子账号 ${ACCOUNT}`)
+    const account = `e2e_${suffix}`
+    const create = await request('/admin/students', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { account, display_name: 'E2E 联调学生', initial_password: 'E2ePass123!' },
+    })
+    assert(create.status === 201, `创建学生期望 201，实际 ${create.status}（${ecode(create)}，${rid(create)}）`)
+    assert(create.data?.account === account, `学生 account 不一致：${create.data?.account}`)
+    assert(create.data?.enabled === true, '新建学生应 enabled=true')
+    ctx.studentId = create.data.id
+    ctx.studentVersion = create.data.version
+    // 编辑（改名）验证 PATCH + expected_version；**不在本步禁用**（后面要用它建课表）。
+    const rename = await request(`/admin/students/${encodeURIComponent(ctx.studentId)}`, {
+      method: 'PATCH',
+      token: ctx.adminToken,
+      body: { display_name: 'E2E 联调学生（已改名）', expected_version: ctx.studentVersion },
+    })
+    if (isNotImplemented(rename)) throw new Skip('PATCH 学生返回 501')
+    assert(rename.status === 200, `编辑学生期望 200，实际 ${rename.status}（${ecode(rename)}，${rid(rename)}）`)
+    assert(rename.data?.display_name === 'E2E 联调学生（已改名）', `学生显示名未更新：${rename.data?.display_name}`)
+    ctx.studentVersion = rename.data.version
+    // 禁用（启停）验证放在末尾清理步。
+    return `student=${ctx.studentId}（${account}）创建→改名，${rid(create)}`
+  })
+
+  await step('管理端课表：创建 + 重叠 409 → 确认放行 + 精确重复拒绝', 'POST /admin/schedules', async () => {
+    require_(ctx.adminToken && ctx.studentId && ctx.courseId, '缺少 E2E 学生/课程（上游失败）')
+    const classDate = addDays(shanghaiToday(), 60)
+    const base = {
+      student_id: ctx.studentId,
+      course_id: ctx.courseId,
+      class_date: classDate,
+      location: 'E2E 教室',
+    }
+    const create = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '08:00', end_time: '09:40' },
+    })
+    if (isNotImplemented(create)) throw new Skip('端点返回 501')
+    assert(create.status === 201, `创建课表期望 201，实际 ${create.status}（${ecode(create)}，${rid(create)}）`)
+    ctx.scheduleA = { id: create.data.id, version: create.data.version }
+    assert(create.data?.class_date === classDate, `课表日期不一致：${create.data?.class_date}`)
+
+    // 重叠时段（09:00–10:40）未确认 → 409 SCHEDULE_OVERLAP
+    const overlap = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '09:00', end_time: '10:40' },
+    })
+    assertErrorEnvelope(overlap, 409, 'SCHEDULE_OVERLAP')
+    if (overlap.error?.details?.overlaps !== undefined) {
+      assert(Array.isArray(overlap.error.details.overlaps), 'details.overlaps 应为数组')
+    }
+    // 确认重叠 + 原因 → 201
+    const acked = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '09:00', end_time: '10:40', overlap_acknowledged: true, reason: 'E2E 联调：确认时段重叠' },
+    })
+    assert(acked.status === 201, `确认重叠后期望 201，实际 ${acked.status}（${ecode(acked)}，${rid(acked)}）`)
+    ctx.scheduleB = { id: acked.data.id, version: acked.data.version }
+
+    // 精确重复（同日同起止）→ 409 DUPLICATE_SCHEDULE，**不可确认放行**
+    const dup = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '08:00', end_time: '09:40', overlap_acknowledged: true, reason: 'E2E 重复尝试' },
+    })
+    assertErrorEnvelope(dup, 409, 'DUPLICATE_SCHEDULE')
+    const list = await request('/admin/schedules', {
+      token: ctx.adminToken,
+      query: { student_id: ctx.studentId, from_date: classDate, to_date: classDate, page: 1, page_size: 100 },
+    })
+    assert(list.status === 200, `管理端课表列表期望 200，实际 ${list.status}（${ecode(list)}）`)
+    assert(list.data?.items?.length === 2, `应有 2 条课表，实际 ${list.data?.items?.length}`)
+    return `课表 ${ctx.scheduleA.id}/${ctx.scheduleB.id}，重叠 409→确认 201，精确重复 409，${rid(create)}`
+  })
+
+  await step('管理端课表：删除（expected_version 在 query）', 'DELETE /admin/schedules/{id}', async () => {
+    require_(ctx.adminToken && ctx.scheduleA && ctx.scheduleB, '无 E2E 课表（上游失败）')
+    for (const key of ['scheduleA', 'scheduleB']) {
+      const s = ctx[key]
+      const r = await request(`/admin/schedules/${encodeURIComponent(s.id)}`, {
+        method: 'DELETE',
+        token: ctx.adminToken,
+        query: { expected_version: s.version },
+      })
+      assert(r.status === 200, `删除课表期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+      assert(r.data?.schedule_id === s.id, '删除回执 schedule_id 不一致')
+      assert(typeof r.data?.audit_id === 'string' && r.data.audit_id.length > 0, '删除回执缺 audit_id')
+    }
+    ctx.scheduleA = null
+    ctx.scheduleB = null
+    return '两条 E2E 课表已删除（含 audit_id）'
   })
 
   const marker = `E2E-MARKER-${Date.now()}`
@@ -625,6 +769,54 @@ async function main() {
     const after = await request('/me', { token: ctx.token })
     assertErrorEnvelope(after, 401, ['AUTH_REQUIRED', 'SESSION_EXPIRED'])
     return `revoked，旧令牌 /me 401 ${after.error.code}，${rid(r)}`
+  })
+
+  /* ------------------------------ 清理 E2E 测试数据 ---------------- */
+
+  await step('清理 E2E 测试数据（课表删除 + 课程/学生停用验证）', 'DELETE /admin/schedules + PATCH /admin/{courses,students}', async () => {
+    require_(ctx.adminToken, '无管理员令牌（无法清理；残留见报告）')
+    const residual = []
+    // 课表：正常路径已在专用步骤删除；若中途失败，这里再尝试一次
+    for (const key of ['scheduleA', 'scheduleB']) {
+      const s = ctx[key]
+      if (!s) continue
+      const r = await request(`/admin/schedules/${encodeURIComponent(s.id)}`, {
+        method: 'DELETE',
+        token: ctx.adminToken,
+        query: { expected_version: s.version },
+      })
+      if (r.status !== 200) residual.push(`schedule ${s.id} 删除失败 HTTP ${r.status}`)
+      else ctx[key] = null
+    }
+    // 课程 / 学生：契约无 DELETE 端点 → 以「停用」作为清理，残留登记为 disabled 记录
+    async function disable(kind, id, expectedVersion) {
+      if (!id) return
+      let r = await request(`/admin/${kind}/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        token: ctx.adminToken,
+        body: { enabled: false, expected_version: expectedVersion },
+      })
+      if (r.status === 409) {
+        // 版本已变：从列表取最新 version 后重试一次
+        const list = await request(`/admin/${kind}`, { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+        const cur = list.data?.items?.find((x) => x.id === id)
+        if (cur) {
+          r = await request(`/admin/${kind}/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            token: ctx.adminToken,
+            body: { enabled: false, expected_version: cur.version },
+          })
+        }
+      }
+      if (r.status !== 200 || r.data?.enabled !== false) residual.push(`${kind} ${id} 未能停用（HTTP ${r.status}）`)
+    }
+    await disable('courses', ctx.courseId, ctx.courseVersion)
+    await disable('students', ctx.studentId, ctx.studentVersion)
+    const note =
+      `E2E 计划/课表已删除；契约无 DELETE 的 E2E 课程（${ctx.courseId ?? '-'}）与 E2E 学生（${ctx.studentId ?? '-'}）已**停用**（enabled=false，启停路径已验证），` +
+      `记录仍存在于 cca 库（未改动种子数据）。`
+    if (residual.length > 0) throw new Fail(`${note} 清理残留：${residual.join('；')}`)
+    return note
   })
 
   printTable()
