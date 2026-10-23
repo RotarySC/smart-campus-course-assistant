@@ -23,6 +23,7 @@ import { overlapText } from '@/domain/mapError'
 import { formatTimeRange } from '@/domain/format'
 import { canAcknowledgeOverlap, validateScheduleForm } from '@/domain/validate'
 import type { AppError } from '@/api/errors'
+import type { ScheduleCreate } from '@/api/types'
 import { useAdminStore } from '@/stores/admin'
 import { useSchedulesStore } from '@/stores/schedules'
 
@@ -71,8 +72,8 @@ async function load() {
   await admin.listAdminSchedules({ student_id: form.value.student_id, from_date: form.value.class_date, to_date: form.value.class_date }).catch(() => undefined)
 }
 
-function payload(acknowledged: boolean) {
-  return {
+function payload(acknowledged: boolean): ScheduleCreate {
+  const base: ScheduleCreate = {
     student_id: form.value.student_id,
     course_id: form.value.course_id,
     class_date: form.value.class_date,
@@ -80,8 +81,10 @@ function payload(acknowledged: boolean) {
     end_time: form.value.end_time,
     location: form.value.location,
     overlap_acknowledged: acknowledged,
-    reason: acknowledged ? form.value.reason : null,
   }
+  // OpenAPI `ScheduleCreate.reason` 是**非空字符串**（minLength 1，不可为 null）：
+  // 未确认重叠时**不发送**该字段（而不是发 null），否则真实后端会 422。
+  return acknowledged ? { ...base, reason: form.value.reason } : base
 }
 
 async function submit(acknowledged: boolean) {

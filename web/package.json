@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "校园课程智能助手 · 前端骨架（Vue 3 + TS + Pinia + vue-router 4）。mock 数据，不接真实后端。",
+  "description": "校园课程智能助手 · 前端（Vue 3 + TS + Pinia + vue-router 4）。mock 可作开发夹具，验收走真实后端。",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -12,11 +12,14 @@
     "lint:styles": "node node_modules/stylelint/bin/stylelint.mjs \"src/**/*.{css,vue}\"",
     "tokens:sync": "node scripts/sync-tokens.mjs",
     "tokens:check": "node scripts/sync-tokens.mjs --check",
+    "types:gen": "node scripts/gen-types.mjs",
+    "types:check": "node scripts/gen-types.mjs --check",
     "check:invariants": "node scripts/invariants.mjs",
     "check:sfc": "node scripts/check-sfc.mjs",
     "check:gates": "node scripts/verify-gates.mjs",
     "smoke": "node --import ./scripts/ts-alias-hook.mjs scripts/smoke-sse.mjs",
-    "check": "node scripts/sync-tokens.mjs --check && node node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json && node scripts/check-sfc.mjs && node scripts/invariants.mjs && node --import ./scripts/ts-alias-hook.mjs scripts/smoke-sse.mjs && node node_modules/stylelint/bin/stylelint.mjs \"src/**/*.{css,vue}\""
+    "e2e": "node scripts/e2e-real.mjs",
+    "check": "node scripts/sync-tokens.mjs --check && node node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json && node scripts/check-sfc.mjs && node scripts/invariants.mjs && node scripts/gen-types.mjs --check && node --import ./scripts/ts-alias-hook.mjs scripts/smoke-sse.mjs && node node_modules/stylelint/bin/stylelint.mjs \"src/**/*.{css,vue}\""
   },
   "dependencies": {
     "pinia": "^2.3.0",

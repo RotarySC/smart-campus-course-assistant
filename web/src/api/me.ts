@@ -23,7 +23,7 @@ import type {
   SaveResult,
   SchedulePage,
   WriteOperation,
-} from './types.gen'
+} from './types'
 
 /** `GET /api/v1/me`（operationId `getMe`） */
 export function getMe(auth: AuthSnapshot): Promise<Me> {

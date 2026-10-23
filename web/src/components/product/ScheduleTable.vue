@@ -10,7 +10,7 @@ import { computed } from 'vue'
 import DataTable from '@/components/base/DataTable.vue'
 import { S07 } from '@/domain/copy'
 import { formatTimeRange } from '@/domain/format'
-import type { Schedule } from '@/api/types.gen'
+import type { Schedule } from '@/api/types'
 
 const props = defineProps<{ items: Schedule[]; caption: string }>()
 

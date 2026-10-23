@@ -10,7 +10,7 @@
  */
 
 import { IDEMPOTENT_ENDPOINTS } from '@/domain/constants'
-import type { Envelope } from './types.gen'
+import type { Envelope } from './types'
 import { abortedError, httpError, networkError, protocolError, timeoutError } from './errors'
 import type { AppError } from './errors'
 import { send } from './transport'

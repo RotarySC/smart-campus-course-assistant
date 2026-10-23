@@ -14,7 +14,7 @@ import * as authApi from '@/api/auth'
 import * as meApi from '@/api/me'
 import type { AuthSnapshot } from '@/api/client'
 import type { AppError } from '@/api/errors'
-import type { User } from '@/api/types.gen'
+import type { User } from '@/api/types'
 import { useUiStore } from './ui'
 
 export type AuthFailureReason = 'HTTP_401' | 'SSE_ERROR'
