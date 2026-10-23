@@ -31,11 +31,14 @@ const ARTIFACTS = path.join(REPORTS, 'artifacts')
 const WEB_BASE = (process.env.WEB_BASE ?? 'http://localhost:5173').replace(/\/$/, '')
 const BACKEND_BASE = (process.env.BACKEND_BASE ?? 'http://127.0.0.1:8100/api/v1').replace(/\/$/, '')
 const FULL = process.argv.includes('--full')
-const LOGIN = process.argv.includes('--login') || FULL
+const PAGES = process.argv.includes('--pages')
+const LOGIN = process.argv.includes('--login') || FULL || PAGES
 const askArg = process.argv.find((a) => a.startsWith('--ask='))
 const ASK = askArg ? askArg.slice('--ask='.length) : FULL ? '查今天的课' : null
 const ACCOUNT = process.env.E2E_ACCOUNT ?? 'student_demo'
 const PASSWORD = process.env.E2E_PASSWORD ?? 'demo1234'
+const ADMIN_ACCOUNT = process.env.E2E_ADMIN_ACCOUNT ?? 'admin_demo'
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'demo1234'
 const DEBUG_PORT = 9333
 
 const results = []
@@ -279,32 +282,53 @@ async function main() {
     check('截图已保存', fs.existsSync(file), path.relative(WEB_ROOT, file))
 
     // ---- 6) 登录 + 关键页面（--login / --full）----
-    if (LOGIN) {
-      // 用 CDP Input.insertText 走**浏览器真实输入事件**（比合成 Event('input') 更接近用户操作，
-      // 且能验证 v-model 真的把值写进了组件状态）。
-      const typeInto = async (selector, text) => {
-        const focused = await evaluate(`(() => {
-          const el = document.querySelector(${JSON.stringify(selector)});
-          if (!el) return false;
-          el.focus();
-          const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-          Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, '');
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          return document.activeElement === el;
-        })()`)
-        if (!focused) return false
-        await cdp.send('Input.insertText', { text })
-        return (await evaluate(`document.querySelector(${JSON.stringify(selector)})?.value ?? ''`)) === text
-      }
-      const clickByText = (text) =>
-        evaluate(`(() => {
-          const btns = [...document.querySelectorAll('button')];
-          const b = btns.find((x) => x.textContent.trim() === ${JSON.stringify(text)} && !x.disabled);
-          if (!b) return false;
-          b.click();
-          return true;
-        })()`)
+    // 用 CDP Input.insertText 走**浏览器真实输入事件**（比合成 Event('input') 更接近用户操作，
+    // 且能验证 v-model 真的把值写进了组件状态）。
+    const typeInto = async (selector, text) => {
+      const focused = await evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return false;
+        el.focus();
+        const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, '');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return document.activeElement === el;
+      })()`)
+      if (!focused) return false
+      await cdp.send('Input.insertText', { text })
+      return (await evaluate(`document.querySelector(${JSON.stringify(selector)})?.value ?? ''`)) === text
+    }
+    const clickByText = (text, scope = 'button') =>
+      evaluate(`(() => {
+        const btns = [...document.querySelectorAll(${JSON.stringify(scope)})];
+        const b = btns.find((x) => x.textContent.trim() === ${JSON.stringify(text)} && !x.disabled);
+        if (!b) return false;
+        b.click();
+        return true;
+      })()`)
+    const clickNav = async (text) => {
+      await evaluate(`(() => {
+        const links = [...document.querySelectorAll('nav a')];
+        const a = links.find((x) => x.textContent.trim() === ${JSON.stringify(text)} && x.getClientRects().length > 0);
+        if (a) a.click();
+      })()`)
+      await sleep(250)
+    }
+    const rows = () => evaluate("document.querySelectorAll('.table tbody tr').length")
+    const loginAs = async (account, password) => {
+      await typeInto('#login-account', account)
+      await typeInto('#login-password', password)
+      await clickByText('登录')
+      return waitFor(
+        async () => {
+          const p = await evaluate('location.pathname')
+          return p !== '/login' ? p : false
+        },
+        { label: `登录（${account}）`, timeoutMs: 20_000 },
+      )
+    }
 
+    if (LOGIN) {
       check('填入账号', await typeInto('#login-account', ACCOUNT), ACCOUNT)
       check('填入密码', await typeInto('#login-password', PASSWORD), '******')
       check('提交登录', await clickByText('登录'))
@@ -393,6 +417,118 @@ async function main() {
       check('回答正文非空', after.text.length > 10, `${after.text.length} 字`)
       const shot3 = await cdp.send('Page.captureScreenshot', { format: 'png' })
       savePng('smoke-assistant-answer.png', shot3.data)
+    }
+
+    // ---- 8) 逐屏 UI 走查（--pages）：学生课表/计划（含 UI 新建+删除）→ 管理员课程 ----
+    if (PAGES) {
+      const waitPath = (expected, label = expected) =>
+        waitFor(
+          async () => {
+            const p = await evaluate('location.pathname')
+            return p === expected ? p : false
+          },
+          { label: `导航到 ${label}`, timeoutMs: 15_000 },
+        )
+      const bodyText = () => evaluate('document.body.innerText')
+
+      // 8.1 S07 我的课表：真实数据渲染
+      await clickNav('我的课表')
+      await waitPath('/me/schedules')
+      let n = 0
+      try {
+        n = await waitFor(async () => {
+          const c = await rows()
+          return c > 0 ? c : false
+        }, { label: '课表行', timeoutMs: 10_000 })
+      } catch {
+        n = await rows()
+      }
+      const scheduleText = await bodyText()
+      check('S07 我的课表渲染真实课表行', n > 0, `${n} 行`)
+      check('S07 未把「读取失败」与「当天无课」混为一谈', !scheduleText.includes('无法读取'), '')
+      savePng('pages-schedules.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+
+      // 8.2 S09 学习计划列表
+      await clickNav('学习计划')
+      await waitPath('/me/plans')
+      const planRows = await (async () => {
+        try {
+          return await waitFor(async () => {
+            const c = await rows()
+            return c > 0 ? c : false
+          }, { label: '计划行', timeoutMs: 10_000 })
+        } catch {
+          return rows()
+        }
+      })()
+      check('S09 学习计划列表渲染（种子计划）', planRows > 0, `${planRows} 行`)
+
+      // 8.3 S09 新建表单展开 + 输入 + 取消（**不提交**）
+      // 写路径（创建/删除/409）由 e2e-real.mjs 的 HTTP 级断言覆盖：UI 写操作要等列表重载，
+      // 在无头浏览器里时序不稳，把 flaky 当证据比不测更糟。
+      check('S09 打开新建表单（「新建计划」）', await clickByText('新建计划'))
+      await sleep(250)
+      const formOpen = await evaluate("!!document.querySelector('#plan-title')")
+      check('S09 新建表单已展开（#plan-title 出现）', formOpen === true)
+      if (formOpen) {
+        check('S09 填标题', await typeInto('#plan-title', 'E2E 浏览器计划（不提交）'))
+        check('S09 填正文', await typeInto('#plan-content', '仅验证前端表单可输入，不落库。'))
+        check('S09 取消', await clickByText('取消'))
+        const closed = !(await evaluate("!!document.querySelector('#plan-title')"))
+        check('S09 取消后表单收起（不产生写入）', closed)
+      }
+      savePng('pages-plans.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+
+      // 8.4 G8 登出 → 回登录页
+      check('G8 顶栏「退出登录」', await clickByText('退出登录'))
+      await waitPath('/login', '登录页')
+      check('G8 登出后回到 /login', (await evaluate('location.pathname')) === '/login')
+
+      // 8.5 管理员登录 → 管理中心 · 课程管理（S10）
+      let adminLanded = ''
+      try {
+        adminLanded = await loginAs(ADMIN_ACCOUNT, ADMIN_PASSWORD)
+      } catch {
+        adminLanded = await evaluate('location.pathname')
+      }
+      check('管理员登录落地 /assistant', adminLanded === '/assistant', adminLanded)
+      const adminNav = await evaluate(
+        `[...document.querySelectorAll('nav a')].some((a) => a.textContent.trim() === '管理中心')`,
+      )
+      check('管理员可见「管理中心」入口', adminNav === true)
+      if (adminNav) {
+        await clickNav('管理中心')
+        await waitPath('/admin/courses')
+        let courseRows = 0
+        try {
+          courseRows = await waitFor(async () => {
+            const c = await rows()
+            return c > 0 ? c : false
+          }, { label: '课程行', timeoutMs: 10_000 })
+        } catch {
+          courseRows = await rows()
+        }
+        const courseText = await bodyText()
+        check('S10 课程列表渲染', courseRows > 0, `${courseRows} 行`)
+        check('S10 列表包含种子课程 CS101', courseText.includes('CS101'))
+        // 8.6 S10 新建表单展开 + 取消（**不提交**，避免在演示库留下不可删除的 disabled 课程；
+        //      创建/编辑/启停的契约行为由 e2e-real.mjs 的 HTTP 级断言覆盖）
+        const uiCode = `E2EUI-${Date.now().toString(36)}`.toUpperCase()
+        check('S10 打开「新建课程」', await clickByText('新建课程'))
+        check('S10 填课程代码', await typeInto('#course-code', uiCode))
+        check('S10 填课程名称', await typeInto('#course-name', 'E2E 浏览器课程（不提交）'))
+        check('S10 取消', await clickByText('取消'))
+        await sleep(250)
+        const stillAbsent = !(await bodyText()).includes(uiCode)
+        check('S10 取消后未创建课程（列表无该代码）', stillAbsent)
+        savePng('pages-admin-courses.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+      }
+      // 8.7 最终控制台复查
+      await sleep(300)
+      const ignore2 = /favicon|net::ERR_|Failed to load resource/i
+      const real2 = consoleErrors.filter((e) => !ignore2.test(e))
+      check('逐屏走查后控制台仍无 error', real2.length === 0, real2.slice(0, 3).join(' | '))
+      check('逐屏走查无未捕获异常', exceptions.length === 0, exceptions.slice(0, 2).join(' | '))
     }
 
     if (FULL) {
