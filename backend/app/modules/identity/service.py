@@ -153,7 +153,7 @@ async def login(command: LoginInput, request_id: str) -> dict[str, Any]:
 
 async def logout(actor: Any, request_id: str) -> dict[str, bool]:
     async with uow() as tx:
-        await tx.lock_user(actor.user_id)
+        await tx.lock_and_validate_actor(actor)
         session = await tx.lock_session(actor.session_id)
         if session is None or session.user_id != actor.user_id:
             raise ApiError("AUTH_REQUIRED")
@@ -245,7 +245,7 @@ async def create_student(
     )
     try:
         async with uow() as tx:
-            await tx.lock_user(actor.user_id)
+            await tx.lock_and_validate_actor(actor)
             tx.session.add(user)
             await tx.session.flush()
             append_audit(
@@ -269,7 +269,7 @@ async def patch_student(
 ) -> dict[str, Any]:
     now = to_db(now_utc())
     async with uow() as tx:
-        locked_users = await tx.lock_users([actor.user_id, student_id])
+        locked_users = await tx.lock_users_and_validate_actor(actor, [student_id])
         target = locked_users.get(student_id)
         if target is None or target.role != "student":
             raise ApiError("RESOURCE_NOT_FOUND")
