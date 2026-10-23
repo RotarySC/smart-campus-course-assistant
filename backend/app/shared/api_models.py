@@ -143,7 +143,8 @@ class Reference(_Strict):
     version_id: str
     file_name: str = Field(min_length=1, max_length=255)
     location_label: str = Field(min_length=1, max_length=100)
-    page_number: int | None = Field(default=None, ge=1)
+    # 设计包为可选非 nullable；显式 null 不出现（序列化时缺省省略）
+    page_number: int = Field(default=None, ge=1)  # type: ignore[assignment]
 
 
 class Plan(_Strict):

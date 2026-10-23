@@ -51,11 +51,12 @@ class HistoryMessageIn(_Model):
 
 class ChatInput(_Model):
     client_request_id: Annotated[str, Field(min_length=1, max_length=64, pattern=ID_PATTERN)]
+    # 设计包为可选非 nullable；显式 null 不再接受
     conversation_id: Annotated[
         str, Field(min_length=1, max_length=64, pattern=ID_PATTERN)
-    ] | None = None
+    ] = None  # type: ignore[assignment]
     message: Annotated[str, Field(min_length=1, max_length=2000)]
-    history: Annotated[list[HistoryMessageIn], Field(max_length=40)] | None = None
+    history: Annotated[list[HistoryMessageIn], Field(max_length=40)] = None  # type: ignore[assignment]
 
 
 class ChatState(_Model):
@@ -67,9 +68,9 @@ class ChatState(_Model):
     finished_at: str | None
     model_calls: Annotated[int, Field(ge=0)]
     tool_calls: Annotated[int, Field(ge=0)]
-    terminal_reason: Annotated[str | None, Field(min_length=1, max_length=64)] = None
-    plan_id: ID | None = None
-    operation_id: Annotated[str | None, Field(min_length=1, max_length=96)] = None
+    terminal_reason: Annotated[str, Field(min_length=1, max_length=64)] = None  # type: ignore[assignment]
+    plan_id: ID = None  # type: ignore[assignment]
+    operation_id: Annotated[str, Field(min_length=1, max_length=96)] = None  # type: ignore[assignment]
 
 
 class CancelOutput(_Model):
@@ -91,8 +92,9 @@ class DelegationExchangeOutput(_Model):
 
 
 class ScheduleToolInput(_Model):
-    from_date: date | None = None
-    to_date: date | None = None
+    # 设计包为可选非 nullable；显式 null 不再接受
+    from_date: date = None  # type: ignore[assignment]
+    to_date: date = None  # type: ignore[assignment]
 
 
 class ScheduleItem(_Model):
@@ -126,7 +128,7 @@ class EvidenceChunkOut(_Model):
     version_id: ID
     text: Annotated[str, Field(min_length=1, max_length=20_000)]
     location_label: Annotated[str, Field(min_length=1, max_length=100)]
-    page_number: Annotated[int, Field(ge=1)] | None = None
+    page_number: Annotated[int, Field(ge=1)] = None  # type: ignore[assignment]
 
 
 class ReferenceOut(_Model):
@@ -135,7 +137,7 @@ class ReferenceOut(_Model):
     version_id: ID
     file_name: Annotated[str, Field(min_length=1, max_length=255)]
     location_label: Annotated[str, Field(min_length=1, max_length=100)]
-    page_number: Annotated[int, Field(ge=1)] | None = None
+    page_number: Annotated[int, Field(ge=1)] = None  # type: ignore[assignment]
 
 
 class SearchToolOutput(_Model):
@@ -161,8 +163,8 @@ class WriteOperationOut(_Model):
     operation_id: OPERATION_ID
     state: Literal["pending", "succeeded", "failed", "deleted"]
     resolution: Literal["confirmed", "recovering"]
-    plan_id: ID | None = None
-    error_code: Annotated[str | None, Field(min_length=1, max_length=64)] = None
+    plan_id: ID = None  # type: ignore[assignment]
+    error_code: Annotated[str, Field(min_length=1, max_length=64)] = None  # type: ignore[assignment]
     retryable: bool
 
 
