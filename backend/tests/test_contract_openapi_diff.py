@@ -86,77 +86,9 @@ ACCEPTED_DIFFS: dict[tuple[str, str, str, str], str] = {
     ): "SSE（text/event-stream）不适合 JSON Envelope 表达；运行态为流式响应，事件结构由 sse_events_v0.1.schema.json 单独约束（P3 测试覆盖）",
 }
 
-# 真实差异（未裁决）：key = (method, path, kind, locator) → (owner, 说明)
-# 门禁严格失败，直至对应 owner 修复；不得用通配符/空说明掩盖。
-# 真实差异（未裁决）：key → (owner, 修复建议)。门禁严格失败，直至对应 owner 修复。
-_P1 = "backend-core（Phase 1 响应模型）"
-_P2 = "backend-knowledge（Phase 2 响应模型）"
-_P3 = "backend-assistant（Phase 3 响应/请求模型）"
-
-_GAP_ROWS: list[tuple[str, str, str, str, str, str]] = [
-    # ---- P1：Plan/Draft 的 Reference.page_number 设计为可选非 nullable ----
-    ("GET", "/api/v1/me/plans", "response", "200.data.items[].references[].page_number.nullable", _P1,
-     "设计为可选非 nullable integer；运行态 int|None 表达成 nullable。修复：改为 page_number: int = Field(default=None)"),
-    ("GET", "/api/v1/me/plans/{id}", "response", "200.data.references[].page_number.nullable", _P1,
-     "同上（Plan.references[].page_number 可空性表达）"),
-    ("PATCH", "/api/v1/me/plans/{id}", "response", "200.data.references[].page_number.nullable", _P1,
-     "同上（Plan.references[].page_number 可空性表达）"),
-    ("GET", "/api/v1/me/drafts/{draft_id}", "response", "200.data.references[].page_number.nullable", _P1,
-     "同上（Draft.references[].page_number 可空性表达）"),
-    ("PATCH", "/api/v1/me/drafts/{draft_id}", "response", "200.data.references[].page_number.nullable", _P1,
-     "同上（Draft.references[].page_number 可空性表达）"),
-    # ---- P2：批次/文档/任务 error_code 与 citation reference.page_number ----
-    ("POST", "/api/v1/admin/document-batches", "response", "202.data.documents[].error_code.nullable", _P2,
-     "设计为可选非 nullable string；运行态 nullable。修复：error_code: str = Field(default=None)"),
-    ("POST", "/api/v1/admin/document-batches", "response", "202.data.error_code.nullable", _P2,
-     "同上（Batch.error_code 可空性）"),
-    ("POST", "/api/v1/admin/document-batches", "response", "202.data.tasks[].error_code.nullable", _P2,
-     "同上（Task.error_code 可空性）"),
-    ("GET", "/api/v1/admin/document-batches/{id}", "response", "200.data.documents[].error_code.nullable", _P2,
-     "同上（Document.error_code 可空性）"),
-    ("GET", "/api/v1/admin/document-batches/{id}", "response", "200.data.error_code.nullable", _P2,
-     "同上（Batch.error_code 可空性）"),
-    ("GET", "/api/v1/admin/document-batches/{id}", "response", "200.data.tasks[].error_code.nullable", _P2,
-     "同上（Task.error_code 可空性）"),
-    ("GET", "/api/v1/admin/documents", "response", "200.data.items[].error_code.nullable", _P2,
-     "同上（Document.error_code 可空性）"),
-    ("POST", "/api/v1/admin/documents/{id}/rebuild", "response", "202.data.task.error_code.nullable", _P2,
-     "同上（Task.error_code 可空性）"),
-    ("DELETE", "/api/v1/admin/documents/{id}", "response", "202.data.task.error_code.nullable", _P2,
-     "同上（Task.error_code 可空性）"),
-    ("POST", "/api/v1/admin/documents/{id}/cleanup-retry", "response", "202.data.task.error_code.nullable", _P2,
-     "同上（Task.error_code 可空性）"),
-    ("GET", "/api/v1/citations/{reference_id}", "response", "200.data.reference.page_number.nullable", _P2,
-     "设计为可选非 nullable integer；运行态 nullable。修复：page_number: int = Field(default=None)"),
-    # ---- P3：chat 请求可空性 + 响应模型缺失 + 内部工具端点 ----
-    ("POST", "/api/v1/chat/stream", "request", "request.conversation_id.nullable", _P3,
-     "设计为可选非 nullable string；运行态允许显式 null（宽松）。修复：去掉 | None，仅保留 default None"),
-    ("POST", "/api/v1/chat/stream", "request", "request.history.nullable", _P3,
-     "设计为可选非 nullable array；运行态允许显式 null。修复：去掉 | None，仅保留 default None"),
-    ("GET", "/api/v1/chat/requests/{request_id}", "response", "200", _P3,
-     "运行态 JSONResponse 未声明 response_model，OpenAPI 响应 schema 为空。修复：response_model=Envelope[ChatState]"),
-    ("POST", "/api/v1/chat/requests/{request_id}/cancel", "response", "200", _P3,
-     "同上。修复：response_model=Envelope[Cancel]"),
-    ("POST", "/internal/v1/delegations/exchange", "response", "200", _P3,
-     "内部应用响应未声明模型。修复：response_model=Envelope[DelegationExchangeOutput]"),
-    ("POST", "/internal/v1/tools/get-my-schedule", "request", "request.from_date.nullable", _P3,
-     "设计为可选非 nullable date；运行态允许显式 null。修复：去掉 | None，仅保留 default None"),
-    ("POST", "/internal/v1/tools/get-my-schedule", "request", "request.to_date.nullable", _P3,
-     "同上（to_date 可空性）"),
-    ("POST", "/internal/v1/tools/get-my-schedule", "response", "200", _P3,
-     "内部工具响应未声明模型。修复：response_model=Envelope[ScheduleToolOutput]"),
-    ("POST", "/internal/v1/tools/search-course-docs", "response", "200", _P3,
-     "内部工具响应未声明模型。修复：response_model=Envelope[SearchToolOutput]"),
-    ("POST", "/internal/v1/tools/save-study-plan", "success_codes", "success", _P3,
-     "设计声明 200/202（提交结果未知）；运行态仅 200。修复：补 202 文档响应（Envelope[WriteOperation]）"),
-    ("POST", "/internal/v1/tools/save-study-plan", "response", "200", _P3,
-     "内部工具响应未声明模型。修复：response_model=Envelope[SaveToolOutput]"),
-]
-
-KNOWN_DOC_GAPS = {
-    (method, path, kind, locator): (owner, reason)
-    for method, path, kind, locator, owner, reason in _GAP_ROWS
-}
+# 真实差异（未裁决）：全部 27 条已于 Phase 5 前置（三）收口修复（见 findings），
+# 保留空表以便未来新增差异时按同样格式登记 owner + 修复建议。
+KNOWN_DOC_GAPS: dict[tuple[str, str, str, str], tuple[str, str]] = {}
 
 
 # --------------------------------------------------------------------------- #

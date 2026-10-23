@@ -273,19 +273,24 @@ async def _lock_free_capacity_slot(tx: Any) -> AICapacitySlot | None:
 # 状态查询 / 取消
 # --------------------------------------------------------------------------- #
 def chat_state(request: ChatRequest) -> ChatState:
-    return ChatState(
-        request_id=request.id,
-        conversation_id=request.conversation_id,
-        state=request.state,  # type: ignore[arg-type]
-        cancel_requested=bool(request.cancel_requested),
-        accepted_at=isoformat(request.accepted_at) or "",
-        finished_at=isoformat(request.finished_at),
-        model_calls=int(request.model_calls),
-        tool_calls=int(request.tool_calls),
-        terminal_reason=(request.terminal_reason or None),
-        plan_id=request.plan_id,
-        operation_id=request.operation_id,
-    )
+    data: dict[str, Any] = {
+        "request_id": request.id,
+        "conversation_id": request.conversation_id,
+        "state": request.state,
+        "cancel_requested": bool(request.cancel_requested),
+        "accepted_at": isoformat(request.accepted_at) or "",
+        "finished_at": isoformat(request.finished_at),
+        "model_calls": int(request.model_calls),
+        "tool_calls": int(request.tool_calls),
+    }
+    # 设计包中以下字段为“可选非 nullable”：缺省时省略键，不输出 null
+    if request.terminal_reason:
+        data["terminal_reason"] = request.terminal_reason
+    if request.plan_id:
+        data["plan_id"] = request.plan_id
+    if request.operation_id:
+        data["operation_id"] = request.operation_id
+    return ChatState(**data)
 
 
 async def get_request_state(actor: ActorContext, request_id: str) -> ChatState:

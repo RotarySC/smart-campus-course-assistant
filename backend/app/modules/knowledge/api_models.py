@@ -22,7 +22,8 @@ class _Strict(BaseModel):
 class Task(_Strict):
     task_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     state: Literal["pending", "running", "retry_wait", "succeeded", "failed"]
-    error_code: str | None = Field(default=None, min_length=1, max_length=64)
+    # 设计包为可选非 nullable string
+    error_code: str = Field(default=None, min_length=1, max_length=64)  # type: ignore[assignment]
     retryable: bool
 
 
@@ -44,7 +45,8 @@ class Document(_Strict):
     ]
     version: int = Field(ge=1)
     uploaded_at: datetime
-    error_code: str | None = Field(default=None, min_length=1, max_length=64)
+    # 设计包为可选非 nullable string
+    error_code: str = Field(default=None, min_length=1, max_length=64)  # type: ignore[assignment]
     cleanup_state: Literal["not_required", "pending", "running", "succeeded", "failed"]
 
 
@@ -54,7 +56,8 @@ class Batch(_Strict):
     published: bool
     documents: list[Document] = Field(max_length=10)
     tasks: list[Task]
-    error_code: str | None = Field(default=None, min_length=1, max_length=64)
+    # 设计包为可选非 nullable string
+    error_code: str = Field(default=None, min_length=1, max_length=64)  # type: ignore[assignment]
 
 
 class DocumentPage(_Strict):

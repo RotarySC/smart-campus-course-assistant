@@ -147,17 +147,30 @@ pytest tests/test_security_isolation.py tests/test_release_migration.py -q
   - 内部端点不出现在公共 OpenAPI（由测试结构断言固定，不是白名单掩盖）。
 - **真实差异（未裁决，门禁严格失败）**：共 **27 条**，按 owner 分组：
 
-| Owner | 条数 | 差异 | 修复建议 |
+| Owner | 条数 | 差异 | 修复 |
 | --- | --- | --- | --- |
-| backend-core（Phase 1 响应模型） | 5 | `Reference.page_number` 设计为可选非 nullable，运行态 `int\|None` 为 nullable（Plan/Draft 的 5 个响应） | 改为 `page_number: int = Field(default=None)` |
-| backend-knowledge（Phase 2 响应模型） | 11 | `Batch/Document/Task.error_code` 设计为可选非 nullable string，运行态 nullable（10 处）；`Citation.reference.page_number` 同上（1 处） | 改为 `error_code: str = Field(default=None)`、`page_number: int = Field(default=None)` |
-| backend-assistant（Phase 3 请求/响应模型） | 11 | chat `conversation_id/history` 与内部课表 `from_date/to_date` 运行态允许显式 null（4 处）；chat state/cancel、内部 exchange/3 个工具共 7 个响应 schema 为空（未声明 response_model）；内部 save 缺 202 文档响应（1 处） | 可选字段去掉 `\| None`；补 `response_model=Envelope[设计包同名 Schema]`；save 补 202 |
+| backend-core（Phase 1 响应模型） | 5 | `Reference.page_number` 设计为可选非 nullable，运行态 `int\|None` 为 nullable（Plan/Draft 的 5 个响应） | ✅ `page_number: int = Field(default=None)` |
+| backend-knowledge（Phase 2 响应模型） | 11 | `Batch/Document/Task.error_code` 设计为可选非 nullable string，运行态 nullable（10 处）；`Citation.reference.page_number` 同上（1 处） | ✅ `error_code: str = Field(default=None)`（`page_number` 由共享 Reference 修复） |
+| backend-assistant（Phase 3 请求/响应模型） | 11 | chat `conversation_id/history` 与内部课表 `from_date/to_date` 运行态允许显式 null（4 处）；chat state/cancel、内部 exchange/3 个工具共 7 个响应 schema 为空（未声明 response_model）；内部 save 缺 202 文档响应（1 处） | ✅ 可选字段去 `\| None`；补 `response_model=Envelope[<设计包同名 Schema>]`；save 补 202 |
 
-- **门禁现状**：`test_full_openapi_structure_matches_design` 对上述 27 条**严格失败**并逐条打印 [owner]；
-  白名单/已知差异条目若未被命中也会失败（防陈旧条目掩盖）。`test_design_package_shape_is_38_operations`
-  与 `test_all_operations_document_errors_and_success` 通过。
-- **结果**：`pytest tests/test_contract_openapi_diff.py -q` → **1 failed（27 条已知缺口）/ 2 passed**；
-  `pytest tests/test_contract_core.py -q` → **11 passed**（回归无影响）。
-- **后续**：owner 修复后删除 `KNOWN_DOC_GAPS` 对应条目并复跑；全绿即 Phase 5 M3 机器判据成立。
+- **收口结果（Lead 特批跨写作用域，仅注解/response_model/202 声明，无业务逻辑改动）**：
+  - P1：`app/shared/api_models.py`（Reference.page_number）；
+  - P2：`app/modules/knowledge/api_models.py`（Task/Document/Batch.error_code）；
+  - P3：`contracts.py`（ChatInput conversation_id/history、ChatState terminal_reason/plan_id/operation_id、
+    ScheduleToolInput、EvidenceChunkOut/ReferenceOut.page_number、WriteOperationOut）、
+    `accept.py`（ChatState 缺省字段省略键，不输出 null）、
+    `router.py`（chat state/cancel 加 `Envelope[ChatState]`/`Envelope[CancelOutput]`）、
+    `internal_router.py`（exchange/3 工具加 response_model，save 补 202 文档响应；
+    页标识/可选字段按条件传参以保持“非 null 才输出”的行为）。
+  - 门禁测试删除 27 条 `KNOWN_DOC_GAPS`，仅保留已裁决白名单（health、5 个 PATCH anyOf、chat SSE）。
+- **复跑结果**：`pytest tests/test_contract_openapi_diff.py tests/test_contract_core.py -q` → **14 passed
+  （0 failed / 0 未命中白名单）**；`test_full_openapi_structure_matches_design` 对 38 操作 **0 差异**。
+- **定向回归**（Phase 5 前最后一次功能相关改动）：
+  `test_planning.py + test_knowledge_contract.py + test_knowledge_citations.py + test_assistant_api.py +
+  test_assistant_save.py + test_mcp_server.py` → **50 passed / 2 failed**；2 个失败均为
+  `test_knowledge_citations.py` 的 **Windows MAX_PATH 环境限制**（tmp 路径 283 > 260，Worker 落盘
+  FileNotFoundError），已在基线 commit（未含本次改动）复现，非本次回归。Phase 5 全量建议加
+  `--basetemp=C:\cca-pt`（或设置短 TMPDIR）规避。
+- **后续**：Phase 5 M3 机器判据成立；agent 不需要再维护 `KNOWN_DOC_GAPS`。
 
 

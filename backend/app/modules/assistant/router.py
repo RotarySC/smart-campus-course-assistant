@@ -18,11 +18,11 @@ from app.modules.assistant.accept import (
     cancel_request,
     get_request_state,
 )
-from app.modules.assistant.contracts import CancelOutput, ChatInput
+from app.modules.assistant.contracts import CancelOutput, ChatInput, ChatState
 from app.modules.assistant.runtime import get_runtime
 from app.modules.assistant.sse import iter_sse
 from app.modules.identity.interface import get_actor
-from app.shared.api_models import ERROR_RESPONSES
+from app.shared.api_models import ERROR_RESPONSES, Envelope
 from app.shared.context import ActorContext
 from app.shared.http import envelope, request_id_of
 
@@ -59,7 +59,10 @@ async def stream_chat(
 
 
 @router.get(
-    "/chat/requests/{request_id}", operation_id="getChatState", responses=ERROR_RESPONSES
+    "/chat/requests/{request_id}",
+    operation_id="getChatState",
+    responses=ERROR_RESPONSES,
+    response_model=Envelope[ChatState],
 )
 async def get_chat_state(
     request: Request,
@@ -71,7 +74,10 @@ async def get_chat_state(
 
 
 @router.post(
-    "/chat/requests/{request_id}/cancel", operation_id="cancelChat", responses=ERROR_RESPONSES
+    "/chat/requests/{request_id}/cancel",
+    operation_id="cancelChat",
+    responses=ERROR_RESPONSES,
+    response_model=Envelope[CancelOutput],
 )
 async def cancel_chat(
     request: Request,
