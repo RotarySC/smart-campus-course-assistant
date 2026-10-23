@@ -86,7 +86,7 @@ async def _ensure_pending_intent(
     """建立 pending 意图（独立短事务，唯一键收敛并发）；已终结则返回原操作。"""
     now = _now_db()
     async with uow() as tx:
-        await tx.lock_user(actor.user_id)
+        await tx.lock_and_validate_actor(actor)
         operation = await tx.lock_operation(actor.user_id, operation_id)
         if operation is not None:
             if operation.content_digest != digest:
@@ -243,7 +243,7 @@ async def create_plan_manual(
 
     try:
         async with uow() as tx:
-            await tx.lock_user(actor.user_id)
+            await tx.lock_and_validate_actor(actor)
             operation = await tx.lock_operation(actor.user_id, idempotency_key)
             if operation is None:
                 raise ApiError("INTERNAL_ERROR")
@@ -306,7 +306,7 @@ async def patch_plan(
 ) -> dict[str, Any]:
     now = _now_db()
     async with uow() as tx:
-        await tx.lock_user(actor.user_id)
+        await tx.lock_and_validate_actor(actor)
         plan = await tx.lock_plan(plan_id, actor.user_id)
         if plan is None or plan.deleted_at is not None:
             raise ApiError("RESOURCE_NOT_FOUND")
@@ -367,7 +367,7 @@ async def delete_plan(
 ) -> dict[str, Any]:
     now = _now_db()
     async with uow() as tx:
-        await tx.lock_user(actor.user_id)
+        await tx.lock_and_validate_actor(actor)
         plan = await tx.lock_plan(plan_id, actor.user_id)
         if plan is None or plan.deleted_at is not None:
             raise ApiError("RESOURCE_NOT_FOUND")
@@ -431,7 +431,7 @@ async def revise_draft(
 ) -> dict[str, Any]:
     now = _now_db()
     async with uow() as tx:
-        await tx.lock_user(actor.user_id)
+        await tx.lock_and_validate_actor(actor)
         draft = await tx.lock_draft(draft_id)
         if (
             draft is None
@@ -557,7 +557,7 @@ async def save_draft(
 
     try:
         async with uow() as tx:
-            await tx.lock_user(actor.user_id)
+            await tx.lock_and_validate_actor(actor)
             await tx.lock_chat_requests([origin_request_id])
             draft = await tx.lock_draft(draft_id)
             version_row = await tx.lock_draft_version(draft_id, draft_version)

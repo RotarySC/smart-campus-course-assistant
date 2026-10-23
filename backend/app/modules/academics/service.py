@@ -119,7 +119,7 @@ async def create_course(
     )
     try:
         async with uow() as tx:
-            await tx.lock_user(actor.user_id)
+            await tx.lock_and_validate_actor(actor)
             tx.session.add(course)
             await tx.session.flush()
             append_audit(
@@ -143,7 +143,7 @@ async def patch_course(
 ) -> dict[str, Any]:
     now = to_db(now_utc())
     async with uow() as tx:
-        await tx.lock_user(actor.user_id)
+        await tx.lock_and_validate_actor(actor)
         course = await tx.lock_course(course_id)
         if course is None:
             raise ApiError("RESOURCE_NOT_FOUND")
@@ -385,7 +385,7 @@ async def create_schedule(
     end_time = parse_time(command.end_time)
     now = to_db(now_utc())
     async with uow() as tx:
-        users = await tx.lock_users([actor.user_id, command.student_id])
+        users = await tx.lock_users_and_validate_actor(actor, [command.student_id])
         student = users.get(command.student_id)
         if student is None or student.role != "student" or not student.enabled:
             raise ApiError("RESOURCE_NOT_FOUND")
@@ -447,7 +447,7 @@ async def patch_schedule(
         current = await tx.session.get(Schedule, schedule_id)
         if current is None:
             raise ApiError("RESOURCE_NOT_FOUND")
-        await tx.lock_users([actor.user_id, current.user_id])
+        await tx.lock_users_and_validate_actor(actor, [current.user_id])
         schedule = await tx.lock_schedule(schedule_id)
         if schedule is None:
             raise ApiError("RESOURCE_NOT_FOUND")
@@ -535,7 +535,7 @@ async def delete_schedule(
         current = await tx.session.get(Schedule, schedule_id)
         if current is None:
             raise ApiError("RESOURCE_NOT_FOUND")
-        await tx.lock_users([actor.user_id, current.user_id])
+        await tx.lock_users_and_validate_actor(actor, [current.user_id])
         schedule = await tx.lock_schedule(schedule_id)
         if schedule is None:
             raise ApiError("RESOURCE_NOT_FOUND")

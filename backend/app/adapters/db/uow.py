@@ -29,6 +29,8 @@ from app.adapters.db.models import (
     WriteOperation,
 )
 from app.shared.clock import now_utc, to_db
+from app.shared.context import ActorContext
+from app.shared.errors import ApiError
 from app.shared.ids import PREFIX_SESSION
 
 
@@ -65,6 +67,35 @@ class UoW:
         )
         rows = list(result.scalars().all())
         return {row.id: row for row in rows}
+
+    # ---- 提交前二次校验（§5.1：敏感写入锁内复核启用状态）----
+    @staticmethod
+    def _validate_actor_row(actor: ActorContext, user: User | None) -> User:
+        """锁内复核：enabled / auth_version / role 必须与认证上下文一致。
+
+        认证依赖只在请求进入时检查一次；禁用、口令重置或角色变化可能发生在其后，
+        因此所有敏感写入在提交前必须复核，避免“认证后、提交前被禁用”的写入穿透。
+        """
+        if (
+            user is None
+            or not user.enabled
+            or int(user.auth_version) != int(actor.auth_version)
+            or user.role != actor.role
+        ):
+            raise ApiError("SESSION_EXPIRED")
+        return user
+
+    async def lock_and_validate_actor(self, actor: ActorContext) -> User:
+        """锁定当前操作者 User 并复核当前状态（全局锁顺序第 1 位）。"""
+        return self._validate_actor_row(actor, await self.lock_user(actor.user_id))
+
+    async def lock_users_and_validate_actor(
+        self, actor: ActorContext, extra_ids: Sequence[str] = ()
+    ) -> dict[str, User]:
+        """按 ID 升序锁定操作者与目标用户，并复核操作者状态（顺序不变）。"""
+        users = await self.lock_users([actor.user_id, *extra_ids])
+        self._validate_actor_row(actor, users.get(actor.user_id))
+        return users
 
     # ---- 锁：auth_sessions ----
     async def lock_session(self, session_id: str) -> AuthSession | None:
