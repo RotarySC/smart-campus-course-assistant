@@ -4,19 +4,25 @@
  *
  * 依据：PHASE-04 F2 / 前端详细设计 §2.1（`types.gen.ts` 由 openapi 生成，勿手改）/ §14。
  *
- * 真源（二者同一份契约）：
- *   1. 后端运行时 OpenAPI：`http://127.0.0.1:8100/api/v1/openapi.json`（后端可达时）
- *   2. 设计包离线契约：`docs/backend/openapi_v0.1.json`（后端不可达时）
+ * 真源（**当前以设计包为准**）：
+ *   1. 设计包离线契约：`docs/backend/openapi_v0.1.json`（默认；确定性、可离线、含完整响应模型与错误响应）
+ *   2. 后端运行时 OpenAPI：`http://127.0.0.1:8100/api/v1/openapi.json`（`--source=http` 时才用）
+ *
+ * 为什么默认不是运行态（2026-10-23 F4 实测）：后端 FastAPI 尚未声明 `response_model` /
+ * `responses=`，运行态 OpenAPI 的 `components.schemas` 只有 13 个请求体、响应模型与
+ * 401/403/404/409 等错误响应**未声明**；若以它为类型真源，前端会丢掉全部响应类型。
+ * 两者**结构契约目前一致**（26 公开路径 / 34 operationId 全对齐），故以设计包生成，
+ * 并用 `scripts/contract-diff.mjs` 对运行态做独立契约门禁；后端补齐 response_model 后可切换。
  *
  * 用法：
- *   node scripts/gen-types.mjs                     # 生成（source=auto：优先后端，回落设计包）
- *   node scripts/gen-types.mjs --source=file       # 强制离线设计包
- *   node scripts/gen-types.mjs --source=http       # 强制后端（不可达即失败，不静默回落）
+ *   node scripts/gen-types.mjs                     # 生成（source=file：设计包，默认）
+ *   node scripts/gen-types.mjs --source=http       # 用后端运行态 OpenAPI 生成（对比/切换用）
+ *   node scripts/gen-types.mjs --source=auto       # 优先后端、不可达回落设计包
  *   node scripts/gen-types.mjs --check             # 漂移门禁：重新生成到内存并与磁盘逐字节比较
  *   node scripts/gen-types.mjs --check --source=file
  *
  * 选项：
- *   --source=auto|http|file  默认 auto
+ *   --source=file|http|auto  默认 file（见上）
  *   --url=<url>              覆盖后端 OpenAPI 地址
  *   --out=<path>             覆盖输出路径（默认 web/src/api/types.gen.ts；--check 时比较目标）
  *
@@ -52,7 +58,7 @@ const opt = (name, fallback) => {
   return eq < 0 ? true : hit.slice(eq + 1)
 }
 const CHECK = argv.includes('--check')
-const SOURCE = String(opt('source', 'auto'))
+const SOURCE = String(opt('source', 'file'))
 const URL_ = String(opt('url', DEFAULT_URL))
 const OUT = resolve(String(opt('out', DEFAULT_OUT)))
 
