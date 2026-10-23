@@ -53,6 +53,7 @@ DOC_WORDS = (
     "实验",
     "作业要求",
     "考试范围",
+    "成绩",
     "大纲",
 )
 PLAN_WORDS = ("计划", "制定", "规划", "复习安排", "学习安排", "安排学习", "复习")
@@ -89,7 +90,8 @@ def schedule_range(context: ModelContext) -> tuple[str, str]:
     message = context.message
     today = context.today
     if _has_any(message, TOMORROW_WORDS):
-        return today.isoformat(), (today + timedelta(days=1)).isoformat()
+        target = today + timedelta(days=1)
+        return target.isoformat(), target.isoformat()
     if _has_any(message, NEXT_WEEK_WORDS):
         # 下周一为起点（周一起算）
         start = today + timedelta(days=(7 - today.weekday()))

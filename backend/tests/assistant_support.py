@@ -554,3 +554,51 @@ def contract_tools() -> dict[str, dict[str, Any]]:
     payload = json.loads(MCP_TOOLS_PATH.read_text(encoding="utf-8"))
     return {tool["name"]: tool for tool in payload["tools"]}
 
+
+
+class GatedProvider:
+    """包装确定性 Provider：首次决策前等待 gate，便于验证取消/并发窗口。"""
+
+    def __init__(self, inner=None) -> None:
+        from app.adapters.model.deterministic import DeterministicProvider
+
+        self._inner = inner or DeterministicProvider()
+        self.gate = asyncio.Event()
+        self.calls = 0
+
+    async def next_action(self, context: Any, budget: Any) -> Any:
+        self.calls += 1
+        await self.gate.wait()
+        return await self._inner.next_action(context, budget)
+
+    async def stream_answer(self, answer: Any, emit: Any) -> None:
+        await self._inner.stream_answer(answer, emit)
+
+
+async def wait_for_request_state(
+    user_id: str, states: tuple[str, ...], *, timeout: float = 10.0
+) -> dict[str, Any]:
+    """轮询 chat_requests，直到出现指定状态（返回该行摘要）。"""
+    from app.adapters.db.engine import get_session_factory
+    from app.adapters.db.models import ChatRequest
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        async with get_session_factory()() as session:
+            result = await session.execute(
+                select(ChatRequest)
+                .where(ChatRequest.user_id == user_id, ChatRequest.state.in_(states))
+                .order_by(ChatRequest.accepted_at.desc())
+                .limit(1)
+            )
+            row = result.scalar_one_or_none()
+        if row is not None:
+            return {
+                "request_id": row.id,
+                "conversation_id": row.conversation_id,
+                "state": row.state,
+                "fence": int(row.fence),
+            }
+        await asyncio.sleep(0.02)
+    raise AssertionError(f"等待 chat_request 状态 {states} 超时")

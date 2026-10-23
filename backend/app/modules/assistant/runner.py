@@ -346,7 +346,7 @@ class Runner:
                     ChatRequest.id == self.request_id,
                     ChatRequest.fence == self.fence,
                 )
-                .values(model_calls=int(ChatRequest.model_calls) + 1)
+                .values(model_calls=ChatRequest.model_calls + 1)
             )
             await tx.commit()
 
@@ -359,7 +359,7 @@ class Runner:
                     ChatRequest.id == self.request_id,
                     ChatRequest.fence == self.fence,
                 )
-                .values(tool_calls=int(ChatRequest.tool_calls) + 1)
+                .values(tool_calls=ChatRequest.tool_calls + 1)
             )
             await tx.commit()
 
