@@ -134,6 +134,49 @@ async def test_stream_schedule_turn_emits_schema_valid_events(client, seeded, ru
     assert active in (None, "")
 
 
+async def test_natural_schedule_phrase_emits_tool_start_with_date_anchor(
+    client, seeded, runtime_fixture
+):
+    """冒烟回归：'明天有什么课？' 必须触发 get_my_schedule，日期锚点为明天。"""
+    runtime, executor = runtime_fixture
+    runtime.provider.gate.set()
+
+    status, events, _ = await read_stream(
+        client,
+        seeded["student_token"],
+        {"client_request_id": "creq_schedule_natural", "message": "明天有什么课？"},
+    )
+    assert status == 200
+    validate_sse_events(events)
+    assert_sse_invariants(events)
+    starts = [
+        event
+        for event in events
+        if event["event"] == "tool_start"
+        and event["data"]["tool_name"] == "get_my_schedule"
+    ]
+    assert len(starts) == 1, [event["event"] for event in events]
+    ends = [
+        event
+        for event in events
+        if event["event"] == "tool_end"
+        and event["data"]["tool_call_id"] == starts[0]["data"]["tool_call_id"]
+    ]
+    assert len(ends) == 1 and ends[0]["data"]["success"] is True
+
+    schedule_calls = [
+        call for call in executor.calls if call.tool_name == "get_my_schedule"
+    ]
+    assert len(schedule_calls) == 1
+    from app.shared.clock import school_date
+
+    tomorrow = (school_date() + timedelta(days=1)).isoformat()
+    assert schedule_calls[0].arguments == {
+        "from_date": tomorrow,
+        "to_date": tomorrow,
+    }
+
+
 async def test_stream_docs_turn_returns_citations(client, seeded, runtime_fixture):
     runtime, _ = runtime_fixture
     runtime.provider.gate.set()

@@ -34,24 +34,44 @@
 ```powershell
 $env:DATABASE_URL="mysql+aiomysql://root:cca_dev_root@127.0.0.1:33061/cca_test_assistant?charset=utf8mb4"
 $env:CCA_ENV="test"
-.venv\Scripts\python.exe -m pytest backend/tests/test_assistant_provider.py `
-  backend/tests/test_assistant_api.py backend/tests/test_assistant_runner.py `
-  backend/tests/test_assistant_save.py backend/tests/test_mcp_server.py -q
+.venv\Scripts\python.exe -m pytest tests/test_assistant_provider.py `
+  tests/test_assistant_api.py tests/test_assistant_runner.py `
+  tests/test_assistant_save.py tests/test_mcp_server.py `
+  tests/test_assistant_e2e_knowledge.py -q
 ```
 
 ```
-58 passed in 185.96s (0:03:05)
+65 passed in 123.78s (0:02:03)
 ```
 
 | 测试文件 | 用例 | 覆盖 |
 | --- | --- | --- |
-| `test_assistant_provider.py` | 18 | Provider 确定性、日期锚点（今天/明天/本周/下周）、资料/规定/计划意图、空证据拒答、流式分块、工具白名单 |
-| `test_assistant_api.py` | 10 | SSE 六类事件 + `jsonschema` 逐事件校验、seq 连续、工具配对、终态唯一、去重 409、单活动轮 409、容量 429/释放、状态归属、取消幂等/运行中取消、422/401 |
+| `test_assistant_provider.py` | 20 | Provider 确定性、日期锚点（今天/明天/本周/下周）、资料/规定/计划意图、**口语化课表问法（明天有什么课/上什么课）**、课件类问题不误触发课表、空证据拒答、流式分块、工具白名单 |
+| `test_assistant_api.py` | 11 | SSE 六类事件 + `jsonschema` 逐事件校验、seq 连续、工具配对、终态唯一、**“明天有什么课”触发 get_my_schedule 且日期锚点为明天**、去重 409、单活动轮 409、容量 429/释放、状态归属、取消幂等/运行中取消、422/401 |
 | `test_assistant_runner.py` | 5 | 决策预算、工具预算、60s 截止（`FixedClock`）、租约过期回收、fence 被接管后旧 runner 不发终态 |
 | `test_assistant_save.py` | 17 | 直接指令判定矩阵、明确保存恰一份计划、疑问/否定只留草稿、取消后保存失败零新增、同轮第二份草稿 `SAVE_LIMIT_REACHED`、同键 `existing`、跨用户草稿 404、scope 不足 403 |
-| `test_mcp_server.py` | 8 | 真实回环 uvicorn（内部 API + MCP）+ SDK 客户端：initialize / list_tools 契约 / 三工具真实双跳调用 / 无凭据 / 错 audience / 过期 / jti 重放 / 未知参数 -32602 / 浏览器 Origin 拒绝 |
+| `test_mcp_server.py` | 10 | 真实回环 uvicorn（内部 API + MCP）+ SDK 客户端：initialize / list_tools 契约 / 三工具真实双跳调用 / 真实检索空库语义 / 无凭据 / 错 audience / 过期 / jti 重放 / 未知参数 -32602 / 浏览器 Origin 拒绝 / 内部 API 服务凭据与兑换 audience |
+| `test_assistant_e2e_knowledge.py` | 2 | **真实端到端**：admin 上传 txt → worker 发布 → SSE `tool_end(ok)` + `done.citations`（真实 `cit_*`）→ `GET /api/v1/citations/{id}` 展开（真实文本/文件名/位置）；未知引用 410、匿名 401 |
 
-### 2.2 可启动性
+### 2.2 检索实现切换（Phase 2 合并后）
+
+`app/modules/assistant/retrieval.py` 优先调用真实 `knowledge.search`：
+
+```python
+from app.modules.knowledge import SearchQuery, knowledge
+evidence = await knowledge.search(actor, SearchQuery(query=query))
+```
+
+冻结签名/返回结构不变（`EvidenceSet{status, corpus_empty, revision, chunks, references}`），
+**未改** `modules/knowledge/**`。仅在 knowledge 不可导入的开发/评审环境回退到确定性 stub
+（该 fallback 保留防回归，正常路径不再返回 `cit_stub_*`）。
+
+真实链路证据（`test_assistant_e2e_knowledge.py`）：
+`admin 上传 实验课预习与评分说明.txt` → `worker` 解析/入库/发布 → 学生问“实验课预习要求是什么？” →
+`search_course_docs tool_end ok` → `done.citations[0].reference_id` 为真实 `cit_*`（非 `cit_stub_syllabus_0001`）→
+`GET /api/v1/citations/{id}` 返回 `{reference:{…file_name=实验课预习与评分说明.txt…}, text}` 且正文含“预习报告”。
+
+### 2.3 可启动性
 
 ```powershell
 uvicorn app.entrypoints.internal_api:app --host 127.0.0.1 --port 8101
@@ -60,7 +80,7 @@ python -m app.entrypoints.mcp_server          # 127.0.0.1:8102/mcp
 
 实测：两条命令启动后端口 8101 / 8102 均可建立 TCP 连接，停止进程后端口释放。测试内亦用同一路径起真实回环服务（`tests/assistant_support.serve_app`）。公共 API 8100 由 Lead 托管的联调服务占用，本车道未触碰。
 
-### 2.3 SSE 冒烟脚本（交给 Phase 4）
+### 2.4 SSE 冒烟脚本（交给 Phase 4）
 
 ```python
 import asyncio, httpx, json
@@ -92,7 +112,7 @@ asyncio.run(main())
 
 - 类型：`app.adapters.model.deterministic.DeterministicProvider`；同一 `message + 上下文状态` 必然产出同一动作序列。
 - 触发关键词（集中在该模块，便于行为评测）：
-  - 课表：`课表 / 有课 / 上课 / 课程安排 / 几点上课 / 在哪上课`（日期词：`今天/今日/今晚`、`明天/明日`、`本周/这周/一周`、`下周`）；
+  - 课表：`课表 / 有课 / 上课 / 课程安排 / 几点上课 / 在哪上课 / 有什么课 / 什么课 / 上什么课 / 几节课 / 哪几门课 / 有课吗 / 有没有课 / 几门课`（日期词：`今天/今日/今晚`、`明天/明日`、`本周/这周/一周`、`下周`）；含“课件”且无明确课表词的资料问题**不**触发课表（防“有什么课件”误判）；
   - 资料：`资料 / 课件 / 依据 / 要求 / 预习 / 评分 / 规定 / 实验 / 作业要求 / 考试范围 / 成绩 / 大纲`；
   - 计划：`计划 / 制定 / 规划 / 复习安排 / 学习安排 / 安排学习 / 复习`；
   - 保存候选：`保存 / 存下来 / 存到 / 记录下来 / 记到我的计划 / 帮我存 / 加入计划`（**仅候选**）。
@@ -125,6 +145,18 @@ asyncio.run(main())
 
 ---
 
+## 5.1 SSE token 分块策略（实测说明）
+
+- Provider 以 **24 字符**为一块调用 `emit`；runner 侧 `_run_answer_action` 将增量累积到
+  **≥64 字符**再发一个 `token` 事件（上限 `CCA_ASSISTANT_TOKEN_CHUNK_LIMIT=4096`），
+  避免碎片化与逐事件权限复查成本。
+- **不是** 设计建议里的“~100ms 时间合并”：本实现按字符阈值合并，语义等价（`text_delta`
+  按序拼接等于完整正文、无内容丢失），短答案（<64 字符）只产生 **1 个 token 事件**属预期行为。
+- 慢连接背压：事件积压 ≥64 块时最多等待 2s，超时标记 slow 并关闭 HTTP 连接，runner 继续收尾
+  （确定性轮次事件量 <128，实测未触发）。
+
+---
+
 ## 6. 生命周期与竞态语义（实测）
 
 | 场景 | 行为 |
@@ -148,7 +180,7 @@ asyncio.run(main())
 1. **真实大模型与 Embedding**（TBD-04 未冻结）：仅确定性 Provider；未做真实 AI 质量评测。真实 Adapter 为显式失败的占位。
 2. **跨进程崩溃物理验证**：用 DB fence + 租约 + 回收语义验证，未做真实多进程 kill -9 演练；`SERVICE_RESTARTED` 为模拟回收。
 3. **jti 重放注册表为进程内**：单进程/单实例验证；多进程部署需共享存储（Redis/DB），未实现，Phase 5 发布说明需列。
-4. **检索为固定 EvidenceSet stub**：Phase 2 未合并；`knowledge.service.search` 出现后自动切换（`assistant/retrieval.py`）。切换后需补“真实 EvidenceSet → SSE 引用 → citations 展开”端到端用例。
+4. **检索**：Phase 2 合并后已切真实 `knowledge.search`，并有真实上传→发布→SSE 引用→引用展开 e2e（`test_assistant_e2e_knowledge.py`）。未验证：Phase 2 的 Embedding/VectorStore 为本地确定性 Adapter（TBD-04/TBD-07 未冻结，非生产语义质量）。
 5. **背压慢连接**：实现了 64 块/2s/连接关闭语义，但未做真实慢消费者压测（确定性轮次事件量 < 128）。
 6. **前端消费**：Phase 4 负责；本报告给出 SSE 冒烟脚本与事件 schema 校验方法。
 7. **`student_id` 语义**：`get_my_schedule` 输出 items 含 `student_id`（契约要求），但输入不接受目标用户；已用协议层 -32602 验证伪造参数被拒。

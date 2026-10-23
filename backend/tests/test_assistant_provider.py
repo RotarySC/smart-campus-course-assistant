@@ -48,6 +48,33 @@ def budget() -> ModelBudget:
     )
 
 
+async def test_natural_schedule_phrases_trigger_tool():
+    """冒烟回归：口语化“明天有什么课/今天有什么课”必须触发 get_my_schedule。"""
+    provider = DeterministicProvider()
+    tomorrow = await provider.next_action(make_context("明天有什么课？"), budget())
+    assert isinstance(tomorrow, ToolCall)
+    assert tomorrow.tool_name == "get_my_schedule"
+    assert tomorrow.arguments == {"from_date": "2026-10-24", "to_date": "2026-10-24"}
+
+    today = await provider.next_action(make_context("今天有什么课"), budget())
+    assert isinstance(today, ToolCall)
+    assert today.arguments == {"from_date": "2026-10-23", "to_date": "2026-10-23"}
+
+    for phrase in ("明天有课吗", "帮我看看课表", "这周课程安排", "下周一上什么课"):
+        action = await provider.next_action(make_context(phrase), budget())
+        assert isinstance(action, ToolCall) and action.tool_name == "get_my_schedule", phrase
+
+
+async def test_docs_question_with_kejian_is_not_schedule():
+    """“课件”类资料问题不得被口语课表关键词误触发。"""
+    provider = DeterministicProvider()
+    action = await provider.next_action(
+        make_context("课件对实验课预习要求是什么？"), budget()
+    )
+    assert isinstance(action, ToolCall)
+    assert action.tool_name == "search_course_docs"
+
+
 async def test_schedule_intent_anchors_to_school_date():
     provider = DeterministicProvider()
     context = make_context("明天有课吗")
