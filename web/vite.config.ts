@@ -27,11 +27,17 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // §14.3：开发期同源代理。本骨架走 mock 传输层（VITE_USE_MOCK 默认 true），
-    // 代理配置保留以便切到真实后端时无需改配置。
+    // 编辑器/脚本的原子写会短暂产生 .tmp / .tmpdir（Windows 上 chokidar 可能 EBUSY 让 dev server 崩），
+    // 这些不是源码，忽略即可。
+    watch: {
+      ignored: ['**/*.tmp', '**/*.tmpdir/**', '**/.cdp-*/**', '**/reports/artifacts/**'],
+    },
+    // §14.3：开发期同源代理 → 真实后端。
+    // 端口按 docs/phases/PHASE-PLAN.md §8.2 的分配：公共 API = 8100（设计文档 §14.3 的 8080 是通用示例，
+    // 本项目以阶段计划的端口分配为准）。mock 仅在显式 `VITE_USE_MOCK=true` 时启用，不走本代理。
     proxy: {
       '/api': {
-        target: process.env.VITE_DEV_PROXY ?? 'http://127.0.0.1:8080',
+        target: process.env.VITE_DEV_PROXY ?? 'http://127.0.0.1:8100',
         changeOrigin: true,
       },
     },

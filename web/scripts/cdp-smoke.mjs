@@ -1,0 +1,432 @@
+#!/usr/bin/env node
+/**
+ * cdp-smoke.mjs —— 浏览器级冒烟（Edge headless + CDP，**零新增依赖**）
+ *
+ * 依据：PHASE-04 F8「浏览器冒烟（可选但推荐）：Node 24 内置 WebSocket + Edge CDP，
+ * 检查控制台无 error、关键选择器存在、SSE 文本流入；截图存 web/reports/」。
+ *
+ * 为什么自己写 CDP 客户端而不是引 Playwright：本车道约束「不新增依赖」，而需要的能力
+ * （导航、求值、截图、控制台采集）只用到 CDP 的 4 个域，内置 WebSocket 足够。
+ *
+ * 用法：
+ *   node scripts/cdp-smoke.mjs                 # 默认：守卫 + 登录页渲染检查（不需要后端）
+ *   node scripts/cdp-smoke.mjs --full          # 真实链路（需要后端 8100 + 种子账号，F8 后续扩展）
+ *   环境变量：WEB_BASE（默认 http://localhost:5173）、EDGE_PATH（默认自动探测）、
+ *             BACKEND_BASE（默认 http://127.0.0.1:8100/api/v1）、E2E_ACCOUNT / E2E_PASSWORD
+ *
+ * 退出码：0 = 全绿；1 = 有 FAIL 或环境不可用。
+ */
+
+import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const WEB_ROOT = path.resolve(HERE, '..')
+const REPORTS = path.join(WEB_ROOT, 'reports')
+const ARTIFACTS = path.join(REPORTS, 'artifacts')
+
+const WEB_BASE = (process.env.WEB_BASE ?? 'http://localhost:5173').replace(/\/$/, '')
+const BACKEND_BASE = (process.env.BACKEND_BASE ?? 'http://127.0.0.1:8100/api/v1').replace(/\/$/, '')
+const FULL = process.argv.includes('--full')
+const LOGIN = process.argv.includes('--login') || FULL
+const askArg = process.argv.find((a) => a.startsWith('--ask='))
+const ASK = askArg ? askArg.slice('--ask='.length) : FULL ? '查今天的课' : null
+const ACCOUNT = process.env.E2E_ACCOUNT ?? 'student_demo'
+const PASSWORD = process.env.E2E_PASSWORD ?? 'demo1234'
+const DEBUG_PORT = 9333
+
+const results = []
+function check(name, ok, detail = '') {
+  results.push({ name, ok, detail })
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
+}
+
+/* ------------------------------- CDP 客户端 ------------------------------- */
+
+class Cdp {
+  constructor(wsUrl) {
+    this.ws = new WebSocket(wsUrl)
+    this.nextId = 1
+    this.pending = new Map()
+    this.handlers = new Map()
+    this.closed = false
+  }
+
+  async open() {
+    await new Promise((resolve, reject) => {
+      this.ws.addEventListener('open', resolve, { once: true })
+      this.ws.addEventListener('error', () => reject(new Error('CDP WebSocket 连接失败')), { once: true })
+    })
+    this.ws.addEventListener('message', (ev) => this.onMessage(ev.data))
+    this.ws.addEventListener('close', () => {
+      this.closed = true
+      for (const { reject } of this.pending.values()) reject(new Error('CDP 连接已关闭'))
+      this.pending.clear()
+    })
+  }
+
+  onMessage(raw) {
+    let msg
+    try {
+      msg = JSON.parse(typeof raw === 'string' ? raw : raw.toString())
+    } catch {
+      return
+    }
+    if (msg.id !== undefined) {
+      const p = this.pending.get(msg.id)
+      if (!p) return
+      this.pending.delete(msg.id)
+      if (msg.error) p.reject(new Error(`${p.method}: ${msg.error.message}`))
+      else p.resolve(msg.result)
+      return
+    }
+    for (const fn of this.handlers.get(msg.method) ?? []) fn(msg.params)
+  }
+
+  send(method, params = {}) {
+    if (this.closed) return Promise.reject(new Error('CDP 已关闭'))
+    const id = this.nextId++
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject, method })
+      this.ws.send(JSON.stringify({ id, method, params }))
+    })
+  }
+
+  on(event, fn) {
+    const arr = this.handlers.get(event) ?? []
+    arr.push(fn)
+    this.handlers.set(event, arr)
+  }
+
+  close() {
+    try {
+      this.ws.close()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/* -------------------------------- 工具函数 -------------------------------- */
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+async function waitFor(fn, { timeoutMs = 10_000, intervalMs = 100, label = '条件' } = {}) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    try {
+      const v = await fn()
+      if (v) return v
+    } catch {
+      /* 继续等 */
+    }
+    if (Date.now() > deadline) throw new Error(`${label} 等待超时（${timeoutMs}ms）`)
+    await sleep(intervalMs)
+  }
+}
+
+function findEdge() {
+  if (process.env.EDGE_PATH) return process.env.EDGE_PATH
+  const candidates = [
+    path.join(process.env['ProgramFiles'] ?? '', 'Microsoft/Edge/Application/msedge.exe'),
+    path.join(process.env['ProgramFiles(x86)'] ?? '', 'Microsoft/Edge/Application/msedge.exe'),
+    path.join(process.env.LOCALAPPDATA ?? '', 'Microsoft/Edge/Application/msedge.exe'),
+  ]
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c
+  }
+  return null
+}
+
+async function launchEdge() {
+  const edge = findEdge()
+  if (!edge) throw new Error('找不到 msedge.exe（可用 EDGE_PATH 指定）')
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cca-cdp-'))
+  const proc = spawn(
+    edge,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-extensions',
+      '--hide-scrollbars',
+      '--window-size=1366,850',
+      `--remote-debugging-port=${DEBUG_PORT}`,
+      `--user-data-dir=${profile}`,
+      'about:blank',
+    ],
+    { stdio: 'ignore', windowsHide: true },
+  )
+  // 等调试端口就绪（唯一可信判据：/json/version 可读）
+  await waitFor(
+    async () => {
+      const r = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/version`, { signal: AbortSignal.timeout(1000) })
+      return r.ok
+    },
+    { timeoutMs: 20_000, label: 'Edge CDP 端口' },
+  )
+  const list = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)).json()
+  const page = list.find((t) => t.type === 'page')
+  if (!page?.webSocketDebuggerUrl) throw new Error('没有可用的 page target')
+  return { proc, profile, wsUrl: page.webSocketDebuggerUrl }
+}
+
+function savePng(name, base64) {
+  fs.mkdirSync(ARTIFACTS, { recursive: true })
+  const file = path.join(ARTIFACTS, name)
+  fs.writeFileSync(file, Buffer.from(base64, 'base64'))
+  return file
+}
+
+/* --------------------------------- 主流程 --------------------------------- */
+
+async function main() {
+  console.log(`== 浏览器冒烟（Edge headless + CDP）==`)
+  console.log(`WEB_BASE=${WEB_BASE}  FULL=${FULL}`)
+
+  // 前置：前端可达
+  try {
+    const r = await fetch(`${WEB_BASE}/`, { signal: AbortSignal.timeout(3000) })
+    check('前端 dev server 可达', r.ok, `HTTP ${r.status}`)
+    if (!r.ok) throw new Error('前端不可达')
+  } catch (e) {
+    check('前端 dev server 可达', false, e.message)
+    return finish()
+  }
+
+  const { proc, profile, wsUrl } = await launchEdge()
+  const cdp = new Cdp(wsUrl)
+  const consoleErrors = []
+  const exceptions = []
+  try {
+    await cdp.open()
+    await cdp.send('Page.enable')
+    await cdp.send('Runtime.enable')
+    await cdp.send('Log.enable')
+    await cdp.send('Network.enable')
+
+    const netLog = []
+    cdp.on('Network.responseReceived', (p) => {
+      const r = p.response
+      if (r?.url?.includes('/api/')) netLog.push(`${r.status} ${r.url.replace(/^https?:\/\/[^/]+/, '')}`)
+    })
+
+    cdp.on('Runtime.consoleAPICalled', (p) => {
+      if (p.type === 'error') consoleErrors.push(p.args.map((a) => a.value ?? a.description ?? '').join(' '))
+    })
+    cdp.on('Runtime.exceptionThrown', (p) => {
+      exceptions.push(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? 'exception')
+    })
+    cdp.on('Log.entryAdded', (p) => {
+      if (p.entry?.level === 'error') consoleErrors.push(`${p.entry.source}: ${p.entry.text}`)
+    })
+
+    const evaluate = async (expression) => {
+      const r = await cdp.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
+      if (r.exceptionDetails) throw new Error(r.exceptionDetails.text ?? 'evaluate 异常')
+      return r.result?.value
+    }
+
+    const navigate = async (url) => {
+      await cdp.send('Page.navigate', { url })
+      await waitFor(() => evaluate("document.readyState === 'complete'"), { label: 'readyState=complete' })
+    }
+
+    // ---- 1) 未登录访问受保护路由 → 跳 /login（G2）----
+    await navigate(`${WEB_BASE}/me/schedules`)
+    const pathname = await waitFor(
+      async () => {
+        const p = await evaluate('location.pathname')
+        return p === '/login' ? p : false
+      },
+      { label: '未登录守卫跳转 /login', timeoutMs: 10_000 },
+    )
+    check('G2 未登录访问 /me/schedules → /login', pathname === '/login', `实际 ${pathname}`)
+
+    // ---- 2) 登录页关键选择器与标题 ----
+    const dom = await evaluate(`(() => ({
+      main: !!document.querySelector('main#main'),
+      account: !!document.querySelector('#login-account'),
+      password: !!document.querySelector('#login-password'),
+      submit: !!document.querySelector('button[type="submit"]'),
+      title: document.title,
+    }))()`)
+    check('main#main 存在（skip-link 目标）', dom.main === true)
+    check('登录表单字段存在（#login-account/#login-password/submit）', dom.account && dom.password && dom.submit)
+    check('document.title 带固定后缀', /· 校园课程智能助手$/.test(dom.title ?? ''), dom.title)
+
+    // ---- 3) 刷新后仍在登录页（令牌仅内存，G6）----
+    await cdp.send('Page.reload', { ignoreCache: false })
+    await waitFor(() => evaluate("document.readyState === 'complete'"), { label: 'reload complete' })
+    const afterReload = await evaluate('location.pathname')
+    check('G6 刷新后仍在 /login（令牌不持久化）', afterReload === '/login', `实际 ${afterReload}`)
+
+    // ---- 4) 控制台无 error ----
+    await sleep(300)
+    const ignore = /favicon|net::ERR_|Failed to load resource/i
+    const realErrors = consoleErrors.filter((e) => !ignore.test(e))
+    check('控制台无 error', realErrors.length === 0, realErrors.slice(0, 3).join(' | '))
+    check('无未捕获异常', exceptions.length === 0, exceptions.slice(0, 2).join(' | '))
+
+    // ---- 5) 截图取证 ----
+    fs.mkdirSync(REPORTS, { recursive: true })
+    const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
+    const file = savePng('smoke-login.png', shot.data)
+    check('截图已保存', fs.existsSync(file), path.relative(WEB_ROOT, file))
+
+    // ---- 6) 登录 + 关键页面（--login / --full）----
+    if (LOGIN) {
+      // 用 CDP Input.insertText 走**浏览器真实输入事件**（比合成 Event('input') 更接近用户操作，
+      // 且能验证 v-model 真的把值写进了组件状态）。
+      const typeInto = async (selector, text) => {
+        const focused = await evaluate(`(() => {
+          const el = document.querySelector(${JSON.stringify(selector)});
+          if (!el) return false;
+          el.focus();
+          const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, '');
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          return document.activeElement === el;
+        })()`)
+        if (!focused) return false
+        await cdp.send('Input.insertText', { text })
+        return (await evaluate(`document.querySelector(${JSON.stringify(selector)})?.value ?? ''`)) === text
+      }
+      const clickByText = (text) =>
+        evaluate(`(() => {
+          const btns = [...document.querySelectorAll('button')];
+          const b = btns.find((x) => x.textContent.trim() === ${JSON.stringify(text)} && !x.disabled);
+          if (!b) return false;
+          b.click();
+          return true;
+        })()`)
+
+      check('填入账号', await typeInto('#login-account', ACCOUNT), ACCOUNT)
+      check('填入密码', await typeInto('#login-password', PASSWORD), '******')
+      check('提交登录', await clickByText('登录'))
+      // 等页面**离开** /login（登录是异步的：login → /me → replace）。
+      let landed = '/login'
+      try {
+        landed = await waitFor(
+          async () => {
+            const p = await evaluate('location.pathname')
+            return p !== '/login' ? p : false
+          },
+          { label: '登录后落地', timeoutMs: 20_000 },
+        )
+      } catch {
+        landed = await evaluate('location.pathname')
+      }
+      check('登录后落到 /assistant（G7）', landed === '/assistant', `实际 ${landed}`)
+      if (landed !== '/assistant') {
+        // 失败诊断：只读，不代替用户操作（不得用脚本补一次 submit 把失败掩盖掉）。
+        await sleep(300)
+        const err = await evaluate("document.querySelector('[role=alert]')?.textContent?.trim() ?? ''")
+        check('登录失败有可见原因', err.length > 0, err.slice(0, 120))
+        console.log(`DEBUG 页面正文：${(await evaluate('document.body.innerText')).slice(0, 400).replace(/\n/g, ' / ')}`)
+        console.log(`DEBUG /api 请求：${netLog.join(' | ') || '(无)'}`)
+        console.log(`DEBUG 控制台 error：${consoleErrors.slice(-5).join(' | ') || '(无)'}`)
+        console.log(`DEBUG 异常：${exceptions.slice(-3).join(' | ') || '(无)'}`)
+      }
+      const page = await evaluate(`(() => ({
+        composer: !!document.querySelector('.composer textarea'),
+        boundary: document.body.innerText.includes('对话只保存在当前浏览器标签页'),
+        nav: !!document.querySelector('nav'),
+        title: document.title,
+      }))()`)
+      check('助手页输入框存在（.composer textarea）', page.composer === true)
+      check('S02 边界提示条逐字存在', page.boundary === true)
+      check('导航外壳存在（nav）', page.nav === true)
+      check('助手页 document.title', /· 校园课程智能助手$/.test(page.title ?? ''), page.title)
+      const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
+      savePng('smoke-assistant.png', shot2.data)
+    }
+
+    // ---- 7) 发一条提问，验证流式文本真的进了 DOM（--ask / --full）----
+    if (ASK) {
+      const focused = await evaluate(`(() => {
+        const el = document.querySelector('.composer textarea');
+        if (!el) return false;
+        el.focus();
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, '');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return document.activeElement === el;
+      })()`)
+      if (focused) await cdp.send('Input.insertText', { text: ASK })
+      const typed = focused && (await evaluate("document.querySelector('.composer textarea')?.value ?? ''")) === ASK
+      check('填入提问', typed)
+      const sent = await evaluate(`(() => {
+        const btns = [...document.querySelectorAll('button')];
+        const b = btns.find((x) => x.textContent.trim() === '发送' && !x.disabled);
+        if (!b) return false;
+        b.click();
+        return true;
+      })()`)
+      check('点击发送', sent)
+      const streamed = await waitFor(
+        async () => {
+          const r = await evaluate(`(() => {
+            const chat = document.querySelector('.chat');
+            return { chat: !!chat, len: chat ? chat.innerText.trim().length : 0 };
+          })()`)
+          return r.chat && r.len > 20 ? r : false
+        },
+        { label: 'SSE 文本流入 DOM', timeoutMs: 30_000 },
+      )
+      check('SSE 文本流入 DOM（.chat 有正文）', streamed.len > 20, `正文 ${streamed.len} 字`)
+      // 等流式结束（"正在处理" 消失或终态出现）
+      await waitFor(
+        async () => {
+          const t = await evaluate('document.body.innerText')
+          return !t.includes('正在处理') ? true : false
+        },
+        { label: '流式终态', timeoutMs: 60_000 },
+      ).catch(() => undefined)
+      const after = await evaluate(`(() => ({
+        text: document.querySelector('.chat')?.innerText?.trim() ?? '',
+        citations: document.querySelectorAll('[class*=cite]').length,
+      }))()`)
+      check('回答正文非空', after.text.length > 10, `${after.text.length} 字`)
+      const shot3 = await cdp.send('Page.captureScreenshot', { format: 'png' })
+      savePng('smoke-assistant-answer.png', shot3.data)
+    }
+
+    if (FULL) {
+      console.log('INFO  --full 其余链路（引用展开 / 草稿保存 / 课表 / 计划 / 管理中心）由 e2e-real.mjs 覆盖')
+    }
+  } finally {
+    cdp.close()
+    try {
+      proc.kill()
+    } catch {
+      /* ignore */
+    }
+    await sleep(200)
+    try {
+      fs.rmSync(profile, { recursive: true, force: true })
+    } catch {
+      /* Windows 上偶发占用；临时目录可留 */
+    }
+  }
+  return finish()
+}
+
+function finish() {
+  const failed = results.filter((r) => !r.ok)
+  console.log(`\n== 结果：${results.length - failed.length}/${results.length} PASS ==`)
+  if (failed.length > 0) {
+    console.log('失败项：')
+    for (const f of failed) console.log(`  - ${f.name}: ${f.detail}`)
+    process.exitCode = 1
+  }
+  return failed.length
+}
+
+main().catch((e) => {
+  console.error(`FAIL  冒烟脚本异常：${e.stack ?? e.message}`)
+  process.exitCode = 1
+})

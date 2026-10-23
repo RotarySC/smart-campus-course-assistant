@@ -54,6 +54,17 @@ export const useSessionStore = defineStore('session', () => {
   /** §6.14 第 1–3 步（停流 / 冻结轮次 / 停轮询）：在清业务态**之前**执行。 */
   const preClearHooks: Array<() => void> = []
 
+  /**
+   * §4.6.3 第 6 步（`router.replace('/login')`）的注入点。
+   * store **不 import router**（router 的守卫要 import session，会成环），
+   * 由 `main.ts` 在装配阶段注入；未注入时只完成状态清理。
+   */
+  let expiredNavigator: (() => void) | null = null
+
+  function registerExpiredNavigator(fn: (() => void) | null): void {
+    expiredNavigator = fn
+  }
+
   function registerCleanup(fn: () => void): void {
     cleanups.push(fn)
   }
@@ -126,6 +137,12 @@ export const useSessionStore = defineStore('session', () => {
     }
     clear()
     useUiStore().clear()
+    // §4.6.3 第 6 步：清理完成后唯一导航点；用 replace，避免回退键回到已清空的私有页面。
+    try {
+      expiredNavigator?.()
+    } catch {
+      /* 导航失败不阻断清理（测试环境可能未装 router） */
+    }
   }
 
   /** 唯一失效出口（§4.6）。导航由守卫负责，本函数只负责状态。 */
@@ -178,6 +195,7 @@ export const useSessionStore = defineStore('session', () => {
     onAuthFailure,
     registerCleanup,
     registerPreClear,
+    registerExpiredNavigator,
     clear,
     setPending,
     consumePending,

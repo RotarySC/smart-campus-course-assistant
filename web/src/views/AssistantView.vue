@@ -183,11 +183,12 @@ onMounted(() => {
       v-model="message"
       :label="S02.composerLabel"
       :hint="S02.composerHint"
-      :disabled="!canSubmit"
       :pending="chat.isStreaming"
       @submit="submit"
     >
       <template #actions>
+        <!-- 空白不可提交：**按钮**禁用（content-spec S02）；输入框不得因空白而禁用，
+             否则用户永远无法输入第一个字符（阶段 B 未渲染验证时漏掉的真实缺陷）。 -->
         <Btn variant="primary" :disabled="!canSubmit || chat.isStreaming" @click="submit">{{ S02.send }}</Btn>
       </template>
     </Composer>
