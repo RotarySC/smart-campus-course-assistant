@@ -930,9 +930,20 @@ async def switch_version(lease: TaskLease, document_id: str, new_version_id: str
         old_version = next(
             (v for v in versions if v.id == document.active_version_id), None
         )
+        # uq_document_one_active 是即时唯一索引：必须先把旧版 retired 落库，再激活新版，
+        # 否则同一次 UPDATE 批次内会出现两行 active 而违反唯一键（MySQL 逐行检查）。
         if old_version is not None:
-            old_version.state = "retired"
-        new_version.state = "active"
+            await tx.session.execute(
+                update(DocumentVersion)
+                .where(DocumentVersion.id == old_version.id)
+                .values(state="retired")
+            )
+            await tx.session.flush()
+        await tx.session.execute(
+            update(DocumentVersion)
+            .where(DocumentVersion.id == new_version.id)
+            .values(state="active")
+        )
         document.active_version_id = new_version.id
         document.processing_state = "available"
         document.mutation_task_id = None
