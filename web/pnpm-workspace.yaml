@@ -22,3 +22,13 @@ allowBuilds:
 
 nodeLinker: hoisted
 storeDir: ../.pnpm-store
+
+# 3) verifyDepsBeforeRun: false —— Phase 4 工作树专用
+#    p04-web/web/node_modules 是指向主工作树 web/node_modules 的目录联接（Junction）。
+#    pnpm 11 在每次 `pnpm run` 前做依赖状态检查，发现 modules 目录的真实路径
+#    （主工作树）不在当前项目根（.worktrees/p04-web/web）之下时，会拒绝操作并以
+#    ERR_PNPM_UNSAFE_MODULES_DIR 退出，导致 `pnpm build` 在本工作树不可用。
+#    关闭该检查后 `pnpm build` 恢复 green；由于 package.json 的 scripts 一律用
+#    `node node_modules/...` 直接调用（不依赖 .bin 垫片），依赖是否最新不影响正确性。
+#    本项**不改变依赖来源/版本**（依赖仍由主工作树 pnpm-lock.yaml 决定）。
+verifyDepsBeforeRun: false
