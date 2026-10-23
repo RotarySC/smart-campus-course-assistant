@@ -77,7 +77,8 @@ async def mcp_env(seeded, monkeypatch):
 async def test_list_tools_matches_contract(mcp_env):
     tool_session_headers = _headers("placeholder")
     async with open_mcp_session(mcp_env["mcp_url"], tool_session_headers) as session:
-        tools = await session.list_tools()
+        listing = await session.list_tools()
+    tools = listing.tools
     by_name = {tool.name: tool for tool in tools}
     contract = contract_tools()
     assert set(by_name) == set(contract) == {
@@ -259,17 +260,28 @@ async def test_replayed_delegation_is_rejected(seeded, mcp_env):
     assert second.structured_content["code"] == "AUTH_REQUIRED"
 
 
+def _error_text(exc: BaseException) -> str:
+    """展开 ExceptionGroup，收集全部子异常文本与 JSON-RPC code。"""
+    parts = [str(exc), f"code={getattr(exc, 'code', '')}"]
+    for inner in getattr(exc, "exceptions", ()) or ():
+        parts.append(_error_text(inner))
+    if exc.__cause__ is not None:
+        parts.append(_error_text(exc.__cause__))
+    return "\n".join(parts)
+
+
 async def test_unknown_argument_is_protocol_error(seeded, mcp_env):
     student = seeded["student"]
     session_id = await session_id_for_token(seeded["student_token"])
     chat = await make_chat_request(user_id=student["id"], session_id=session_id)
     headers = _headers(_delegation(chat, SCOPE_SCHEDULE_READ))
-    # 额外字段（例如伪造 student_id）必须在协议层被拒绝，而不是被静默忽略
+    # 额外字段（例如伪造 student_id）必须在协议层被拒绝（-32602 invalid params），
+    # 而不是被静默忽略
     with pytest.raises(Exception) as excinfo:
         await call_mcp_tool(
             mcp_env["mcp_url"], headers, "get_my_schedule", {"student_id": "usr_other"}
         )
-    assert "student_id" in str(excinfo.value).lower() or "invalid" in str(excinfo.value).lower()
+    assert "-32602" in _error_text(excinfo.value)
 
 
 async def test_browser_origin_is_rejected(seeded, mcp_env):

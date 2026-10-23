@@ -130,6 +130,7 @@ async def make_chat_request(
                     updated_at=to_db(now),
                 )
             )
+            await tx.session.flush()
         tx.session.add(
             ChatRequest(
                 id=request_id,
@@ -205,6 +206,7 @@ async def make_draft_row(
                 updated_at=to_db(now),
             )
         )
+        await tx.session.flush()
         tx.session.add(
             PlanDraftVersion(
                 draft_id=draft_id,
@@ -232,12 +234,14 @@ async def seed_course_and_schedule(
     course_name: str = "数据结构",
     class_date=None,
 ) -> dict[str, Any]:
-    from datetime import date, time
+    from datetime import time
+
+    from app.shared.clock import school_date
 
     now = now_utc()
     course_id = new_id("crs")
     schedule_id = new_id(PREFIX_SCHEDULE)
-    day = class_date or (now.date() + timedelta(days=1))
+    day = class_date or school_date()
     async with uow() as tx:
         tx.session.add(
             Course(
@@ -252,6 +256,7 @@ async def seed_course_and_schedule(
                 updated_at=to_db(now),
             )
         )
+        await tx.session.flush()
         tx.session.add(
             Schedule(
                 id=schedule_id,
