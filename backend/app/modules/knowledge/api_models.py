@@ -68,7 +68,7 @@ class DocumentText(_Strict):
     document_id: str
     version_id: str
     offset: int = Field(ge=0)
-    next_offset: int | None = Field(default=None, ge=0)
+    next_offset: int | None = Field(ge=0)
     text: str = Field(max_length=20000)
 
 

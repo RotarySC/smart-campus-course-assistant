@@ -44,8 +44,32 @@ IDEMPOTENCY_KEY = Header(
 PREVIEW_LIMIT = Query(default=20000, ge=1, le=20000)
 PREVIEW_OFFSET = Query(default=0, ge=0)
 
+UPLOAD_OPENAPI_EXTRA = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "files": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "items": {"type": "string", "format": "binary"},
+                        },
+                        "allow_duplicate_names": {"type": "boolean"},
+                    },
+                    "required": ["files"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+    }
+}
 
-class RebuildInput(RequestModel):
+
+class Rebuild(RequestModel):
     expected_version: ExpectedVersion
 
 
@@ -55,6 +79,7 @@ class RebuildInput(RequestModel):
     status_code=202,
     response_model=Envelope[Batch],
     responses=ERROR_RESPONSES,
+    openapi_extra=UPLOAD_OPENAPI_EXTRA,
 )
 async def upload_batch(request: Request, actor: ActorContext = Depends(get_admin)):
     content_type = request.headers.get("content-type", "")
@@ -145,7 +170,7 @@ async def preview_document(
 )
 async def rebuild_document(
     request: Request,
-    body: RebuildInput,
+    body: Rebuild,
     id: str = ID_PATH,
     idempotency_key: str = IDEMPOTENCY_KEY,
     actor: ActorContext = Depends(get_admin),
@@ -225,4 +250,5 @@ async def get_citation(
 ):
     data = await knowledge.get_citation(actor, reference_id)
     return envelope(request, data)
+
 
