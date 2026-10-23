@@ -21,3 +21,4 @@ allowBuilds:
   vue-demi: false
 
 nodeLinker: hoisted
+storeDir: ../.pnpm-store
