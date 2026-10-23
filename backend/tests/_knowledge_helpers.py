@@ -171,6 +171,27 @@ def batch_id_of(response) -> str:
     return response.json()["data"]["batch_id"]
 
 
+def actor_context(seeded: dict[str, Any], role: str = "student"):
+    from app.shared.context import ActorContext
+
+    user = seeded["admin"] if role == "admin" else seeded["student"]
+    return ActorContext(
+        user_id=user["id"],
+        session_id="ses_test",
+        auth_version=1,
+        role=role,
+        trace_request_id="req_test",
+    )
+
+
+async def search_evidence(
+    seeded: dict[str, Any], query: str, *, top_k: int = 5, role: str = "student"
+):
+    from app.modules.knowledge import SearchQuery, knowledge
+
+    return await knowledge.search(actor_context(seeded, role), SearchQuery(query=query, top_k=top_k))
+
+
 async def get_document_row(document_id: str):
     from app.adapters.db.engine import session_scope
     from app.adapters.db.models import Document
@@ -196,6 +217,7 @@ async def count_rows(model) -> int:
 __all__ = [
     "API",
     "MIME",
+    "actor_context",
     "batch_id_of",
     "count_rows",
     "docx_bytes",
@@ -206,6 +228,7 @@ __all__ = [
     "publish_batch",
     "run_worker_once",
     "sample",
+    "search_evidence",
     "txt_bytes",
     "unfreeze_corpus",
     "upload",
