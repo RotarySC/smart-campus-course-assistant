@@ -1,0 +1,1029 @@
+#!/usr/bin/env node
+/**
+ * e2e-real.mjs —— **HTTP 级**真实联调 E2E（Phase 4 · F8）
+ *
+ * 与 `cdp-smoke.mjs` 的分工：
+ *   - 本脚本直连**真实后端**（或经 Vite proxy），按 OpenAPI 契约逐端点断言；
+ *   - `cdp-smoke.mjs` 负责浏览器渲染与控制台（UI 层）。
+ *
+ * 覆盖主链路（不可用/未实现的后端阶段自动 SKIP，不算 FAIL）：
+ *   前置（后端 + OpenAPI 可达）→ 登录 → /me → 课表 31 天区间 → 计划创建/幂等重放/详情/更新+版本冲突/
+ *   写操作核实/删除 → chat SSE（事件序列/seq/终态/状态核实）→ 引用展开 →
+ *   管理端文档批次上传/发布轮询/文本预览/删除失效 → 登录负路径与登出。
+ *
+ * 用法：
+ *   node scripts/e2e-real.mjs                        # 直连 http://127.0.0.1:8100/api/v1
+ *   node scripts/e2e-real.mjs --via=proxy            # 经 http://localhost:5173/api/v1（验证 Vite proxy）
+ *   node scripts/e2e-real.mjs --base=http://127.0.0.1:8100/api/v1
+ *
+ * 环境变量：E2E_BASE / E2E_WEB / E2E_ACCOUNT / E2E_PASSWORD / E2E_ADMIN_ACCOUNT / E2E_ADMIN_PASSWORD /
+ *           E2E_CHAT_MESSAGE / E2E_TIMEOUT_MS
+ *
+ * 退出码：0 = 无 FAIL（允许 SKIP）；1 = 有 FAIL 或前置不可达。
+ *
+ * 说明：本脚本**不写产品代码路径**；种子账号只在脚本默认值里出现（PHASE-PLAN §8.3 的开发种子），
+ * 可通过环境变量覆盖。上传的文档使用唯一文件名 `e2e-<时间戳>.txt`，结束时删除，避免污染演示数据。
+ */
+
+const ARG = (name, fallback) => {
+  const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`))
+  if (!hit) return fallback
+  const i = hit.indexOf('=')
+  return i < 0 ? true : hit.slice(i + 1)
+}
+
+const VIA_PROXY = ARG('via', '') === 'proxy'
+const SKIP = new Set(String(ARG('skip', '') || '').split(',').filter(Boolean))
+const WEB = String(process.env.E2E_WEB ?? 'http://localhost:5173').replace(/\/$/, '')
+const BASE = String(
+  ARG('base', '') || process.env.E2E_BASE || (VIA_PROXY ? `${WEB}/api/v1` : 'http://127.0.0.1:8100/api/v1'),
+).replace(/\/$/, '')
+const ORIGIN = BASE.replace(/\/api\/v1$/, '')
+const TIMEOUT_MS = Number(process.env.E2E_TIMEOUT_MS ?? 15_000)
+const ACCOUNT = process.env.E2E_ACCOUNT ?? 'student_demo'
+const PASSWORD = process.env.E2E_PASSWORD ?? 'demo1234'
+const ADMIN_ACCOUNT = process.env.E2E_ADMIN_ACCOUNT ?? 'admin_demo'
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'demo1234'
+const CHAT_MESSAGE = process.env.E2E_CHAT_MESSAGE ?? '明天有什么课？'
+const DOC_CHAT_MESSAGE = process.env.E2E_CHAT_DOC_MESSAGE ?? '实验课预习要求是什么？'
+const PLAN_CHAT_MESSAGE = process.env.E2E_CHAT_PLAN_MESSAGE ?? '帮我制定一份学习计划'
+const DAY = 86_400_000
+
+/* ------------------------------- 结果与断言 ------------------------------- */
+
+const rows = []
+class Fail extends Error {}
+class Skip extends Error {}
+
+const assert = (cond, msg) => {
+  if (!cond) throw new Fail(msg)
+}
+const require_ = (cond, reason) => {
+  if (!cond) throw new Skip(reason)
+}
+
+async function step(name, endpoint, fn) {
+  try {
+    const detail = await fn()
+    rows.push({ name, endpoint, kind: 'PASS', detail: detail ?? '' })
+    console.log(`PASS  ${name}${detail ? ` — ${detail}` : ''}`)
+  } catch (e) {
+    if (e instanceof Skip) {
+      rows.push({ name, endpoint, kind: 'SKIP', detail: e.message })
+      console.log(`SKIP  ${name} — ${e.message}`)
+    } else if (e instanceof Fail) {
+      rows.push({ name, endpoint, kind: 'FAIL', detail: e.message })
+      console.log(`FAIL  ${name} — ${e.message}`)
+    } else {
+      rows.push({ name, endpoint, kind: 'FAIL', detail: `异常：${e?.stack ?? e}` })
+      console.log(`FAIL  ${name} — 异常：${e?.message ?? e}`)
+    }
+  }
+}
+
+/* -------------------------------- HTTP 基座 -------------------------------- */
+
+function buildUrl(path, query) {
+  const url = new URL(`${BASE}${path}`)
+  for (const [k, v] of Object.entries(query ?? {})) {
+    if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
+  }
+  return url
+}
+
+async function request(path, o = {}) {
+  const { method = 'GET', token, body, query, idempotencyKey, headers = {}, timeoutMs = TIMEOUT_MS } = o
+  const h = { Accept: 'application/json', ...headers }
+  if (token) h.Authorization = `Bearer ${token}`
+  let payloadBody
+  if (body !== undefined) {
+    if (body instanceof FormData) payloadBody = body
+    else {
+      h['Content-Type'] = 'application/json'
+      payloadBody = JSON.stringify(body)
+    }
+  }
+  if (idempotencyKey) h['Idempotency-Key'] = idempotencyKey
+
+  let res
+  try {
+    res = await fetch(buildUrl(path, query), {
+      method,
+      headers: h,
+      body: payloadBody,
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (e) {
+    throw new Fail(`网络错误 ${method} ${path}：${e?.message ?? e}`)
+  }
+  let json = null
+  const ct = res.headers.get('content-type') ?? ''
+  if (ct.includes('application/json')) {
+    json = await res.json().catch(() => null)
+  } else {
+    await res.text().catch(() => undefined)
+  }
+  return {
+    status: res.status,
+    requestId: json?.request_id ?? null,
+    data: json?.data ?? null,
+    error: json?.error ?? null,
+    json,
+  }
+}
+
+const isNotImplemented = (r) => r.status === 501
+const ecode = (r) => r.error?.code ?? '<无错误码>'
+const rid = (r) => (r.requestId ? `request_id=${r.requestId}` : 'request_id=<缺失>')
+
+/** 401/403/404/409/422 等负路径断言（要求错误信封严格符合契约）。 */
+function assertErrorEnvelope(r, expectedStatus, expectedCode) {
+  assert(r.status === expectedStatus, `期望 HTTP ${expectedStatus}，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+  assert(typeof r.requestId === 'string' && r.requestId.length > 0, `错误响应缺 request_id（${expectedStatus}）`)
+  assert(typeof r.error?.code === 'string', `错误响应缺 error.code（${expectedStatus}，${rid(r)}）`)
+  if (expectedCode) {
+    const codes = Array.isArray(expectedCode) ? expectedCode : [expectedCode]
+    assert(codes.includes(r.error.code), `期望 code ∈ {${codes.join('|')}}，实际 ${r.error.code}（${rid(r)}）`)
+  }
+}
+
+/* --------------------------------- 日期工具 --------------------------------- */
+
+function shanghaiToday() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
+}
+function addDays(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d) + n * DAY).toISOString().slice(0, 10)
+}
+
+/* ---------------------------------- SSE ---------------------------------- */
+
+function parseSseFrame(frame) {
+  let event = 'message'
+  const dataLines = []
+  for (const line of frame.split('\n')) {
+    if (line === '' || line.startsWith(':')) continue
+    const i = line.indexOf(':')
+    const field = i < 0 ? line : line.slice(0, i)
+    let value = i < 0 ? '' : line.slice(i + 1)
+    if (value.startsWith(' ')) value = value.slice(1)
+    if (field === 'event') event = value
+    else if (field === 'data') dataLines.push(value)
+  }
+  if (dataLines.length === 0) return null
+  return { event, data: JSON.parse(dataLines.join('\n')) }
+}
+
+async function chatStream(body, token) {
+  const h = { Accept: 'text/event-stream', 'Content-Type': 'application/json' }
+  if (token) h.Authorization = `Bearer ${token}`
+  let res
+  try {
+    res = await fetch(buildUrl('/chat/stream'), {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    })
+  } catch (e) {
+    throw new Fail(`POST /chat/stream 网络错误：${e?.message ?? e}`)
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    return { notOk: true, status: res.status, requestId: payload?.request_id ?? null, error: payload?.error ?? null }
+  }
+  const ct = (res.headers.get('content-type') ?? '').toLowerCase()
+  assert(ct.includes('text/event-stream'), `chat/stream 200 但 Content-Type=${ct || '<空>'}`)
+  const reader = res.body?.getReader()
+  assert(reader, 'chat/stream 响应没有 body')
+  const dec = new TextDecoder()
+  let buf = ''
+  const events = []
+  let sawTerminal = false
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += dec.decode(value, { stream: true })
+      // 帧分隔符兼容 LF 与 CRLF（不同后端/SDK 会不同；真实后端常见 CRLF）。
+      for (;;) {
+        const lf = buf.indexOf('\n\n')
+        const crlf = buf.indexOf('\r\n\r\n')
+        let idx
+        let sepLen
+        if (crlf >= 0 && (lf < 0 || crlf < lf)) {
+          idx = crlf
+          sepLen = 4
+        } else if (lf >= 0) {
+          idx = lf
+          sepLen = 2
+        } else {
+          break
+        }
+        const frame = buf.slice(0, idx).replace(/\r/g, '')
+        buf = buf.slice(idx + sepLen)
+        const ev = parseSseFrame(frame)
+        if (!ev) continue
+        events.push(ev)
+        if (ev.event === 'done' || ev.event === 'error') sawTerminal = true
+      }
+      if (sawTerminal) break
+    }
+  } finally {
+    try {
+      await reader.cancel()
+    } catch {
+      /* 已结束 */
+    }
+  }
+  return { notOk: false, status: res.status, events }
+}
+
+/** SSE 契约公共断言：首事件 ACCEPTED+conversation_id、seq 严格递增、request_id 一致、工具配对、终态唯一。 */
+function assertChatEnvelope(events, label) {
+  assert(events.length > 0, `${label}：SSE 未收到任何事件`)
+  const first = events[0]
+  assert(first.event === 'status', `${label}：首个事件应为 status，实际 ${first.event}`)
+  assert(first.data?.code === 'ACCEPTED', `${label}：status.code 期望 ACCEPTED，实际 ${first.data?.code}`)
+  assert(typeof first.data.conversation_id === 'string' && first.data.conversation_id.length > 0, `${label}：ACCEPTED 缺 conversation_id（schema 强制）`)
+  const requestId = first.data.request_id
+  assert(typeof requestId === 'string' && requestId.length > 0, `${label}：缺 request_id`)
+
+  let lastSeq = 0
+  const starts = new Map()
+  for (const ev of events) {
+    assert(typeof ev.data?.seq === 'number' && ev.data.seq > lastSeq, `${label}：seq 非严格递增 ${ev.data?.seq} ≤ ${lastSeq}（${ev.event}）`)
+    lastSeq = ev.data.seq
+    assert(ev.data.request_id === requestId, `${label}：事件 request_id 不一致`)
+    if (ev.event === 'tool_start') {
+      assert(
+        ['get_my_schedule', 'search_course_docs', 'save_study_plan'].includes(ev.data.tool_name),
+        `${label}：tool_name 不在三工具白名单：${ev.data.tool_name}`,
+      )
+      starts.set(ev.data.tool_call_id, ev.data.tool_name)
+    }
+    if (ev.event === 'tool_end') {
+      assert(starts.has(ev.data.tool_call_id), `${label}：孤立 tool_end（无对应 tool_start）${ev.data.tool_call_id}`)
+      assert(typeof ev.data.success === 'boolean', `${label}：tool_end 缺 success`)
+      if (ev.data.success === false) assert(typeof ev.data.code === 'string', `${label}：失败 tool_end 缺 code`)
+    }
+  }
+  const terminals = events.filter((e) => e.event === 'done' || e.event === 'error')
+  assert(terminals.length === 1, `${label}：终态事件数应为 1，实际 ${terminals.length}`)
+  const term = terminals[0]
+  if (term.event === 'done') {
+    assert(['succeeded', 'cancelled'].includes(term.data.state), `${label}：done.state 非法 ${term.data.state}`)
+    assert(Array.isArray(term.data.citations), `${label}：done.citations 必须是数组`)
+  } else {
+    assert(typeof term.data.code === 'string', `${label}：error 缺 code`)
+    assert(
+      !(term.data.code === 'AUTH_REQUIRED' || term.data.code === 'SESSION_EXPIRED') ||
+        (term.data.plan_id === undefined && term.data.operation_id === undefined),
+      `${label}：认证类 error 不得携带 plan_id/operation_id`,
+    )
+  }
+  return { requestId, term, events, starts: [...starts.values()] }
+}
+
+async function runChat(label, message) {
+  const clientRequestId = `e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  const res = await chatStream({ client_request_id: clientRequestId, message }, ctx.token)
+  if (res.notOk) {
+    if (res.status === 501) throw new Skip(`${label}：端点返回 501（Phase 3 未实现）`)
+    assert(false, `${label}：期望 200 text/event-stream，实际 ${res.status}（${res.error?.code ?? '<无错误码>'}）`)
+  }
+  return assertChatEnvelope(res.events, label)
+}
+
+/* ---------------------------------- 主流程 ---------------------------------- */
+
+const ctx = {
+  token: null,
+  user: null,
+  adminToken: null,
+  schedule: null,
+  planId: null,
+  planVersion: 0,
+  operationId: null,
+  chatRequestId: null,
+  chatDocRequestId: null,
+  chatCitations: [],
+  chatOperationId: null,
+  chatPlanId: null,
+  draftId: null,
+  draftVersion: 0,
+  draftOperationId: null,
+  cleanedDraftPlanId: null,
+  docsNeedsWorker: false,
+}
+
+async function main() {
+  console.log(`== 真实联调 E2E（HTTP 级）==`)
+  console.log(`BASE=${BASE}${VIA_PROXY ? '（经 Vite proxy）' : ''}`)
+  console.log('')
+
+  // ---- 前置：后端 / OpenAPI 可达 ----
+  let reachable = false
+  let openapi = null
+  try {
+    const r = await fetch(`${ORIGIN}/health`, { signal: AbortSignal.timeout(3000) })
+    reachable = r.status < 500
+  } catch {
+    reachable = false
+  }
+  try {
+    const r = await fetch(`${BASE}/openapi.json`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    })
+    if (r.ok) {
+      const text = await r.text()
+      // Vite dev server 的 SPA 回退会让任意路径 200 并返回 HTML —— 必须按内容判断。
+      if (text.trimStart().startsWith('{')) openapi = JSON.parse(text)
+    }
+  } catch {
+    openapi = null
+  }
+  if (!openapi) {
+    console.error(`FATAL 后端不可达或 OpenAPI 不可读：${BASE}/openapi.json 未返回 JSON。`)
+    console.error(`      health 探测（${ORIGIN}/health）：${reachable ? 'HTTP<500' : '失败'}；`)
+    console.error('      先启动后端：uvicorn app.entrypoints.public_api:app --port 8100（见 PHASE-PLAN §8）')
+    process.exitCode = 1
+    return
+  }
+
+  await step('前置：后端与 OpenAPI 可达', 'GET /health + /openapi.json', async () => {
+    require_(openapi, `后端进程可达但 /openapi.json 不可读（health=${reachable}）`)
+    assert(typeof openapi.openapi === 'string', 'OpenAPI 缺 openapi 版本字段')
+    const publicPaths = Object.keys(openapi.paths ?? {}).filter((p) => !p.startsWith('/internal'))
+    return `openapi=${openapi.openapi}，公开路径 ${publicPaths.length} 条`
+  })
+
+  /* ------------------------------ 身份 ---------------- */
+
+  await step('登录（种子学生账号）', 'POST /auth/login', async () => {
+    const r = await request('/auth/login', { method: 'POST', body: { account: ACCOUNT, password: PASSWORD } })
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(typeof r.requestId === 'string' && /^[A-Za-z0-9_-]+$/.test(r.requestId), `request_id 缺失或非法：${r.requestId}`)
+    assert(typeof r.data?.access_token === 'string' && r.data.access_token.length > 0, '登录响应缺 access_token')
+    assert(r.data.token_type === 'Bearer', `token_type 期望 Bearer，实际 ${r.data.token_type}`)
+    assert(r.data.user?.role === 'student' || r.data.user?.role === 'admin', `user.role 非法：${r.data.user?.role}`)
+    ctx.token = r.data.access_token
+    ctx.user = r.data.user
+    return `user=${r.data.user.account} role=${r.data.user.role}，${rid(r)}`
+  })
+
+  await step('当前身份 /me', 'GET /me', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await request('/me', { token: ctx.token })
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.user?.id === ctx.user?.id, `user.id 不一致：/me=${r.data?.user?.id} login=${ctx.user?.id}`)
+    assert(typeof r.data.school_timezone === 'string' && r.data.school_timezone.length > 0, '缺 school_timezone')
+    assert(Array.isArray(r.data.capabilities), 'capabilities 不是数组')
+    ctx.school = r.data.school_timezone
+    return `school_timezone=${r.data.school_timezone}，capabilities=${r.data.capabilities.length}，${rid(r)}`
+  })
+
+  await step('会话失效契约（无效令牌 401）', 'GET /me（伪造令牌）', async () => {
+    const r = await request('/me', { token: 'e2e_invalid_token' })
+    assertErrorEnvelope(r, 401, ['AUTH_REQUIRED', 'SESSION_EXPIRED'])
+    return `code=${r.error.code}，${rid(r)}`
+  })
+
+  /* ------------------------------ 课表 ---------------- */
+
+  await step('我的课表：31 天区间', 'GET /me/schedules', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const from = shanghaiToday()
+    const to = addDays(from, 30)
+    const r = await request('/me/schedules', { token: ctx.token, query: { from_date: from, to_date: to, page: 1, page_size: 100 } })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501（Phase 1 未实现该端点）')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.from_date === from && r.data.to_date === to, `区间回显不一致：${r.data?.from_date}..${r.data?.to_date}`)
+    assert(Array.isArray(r.data.items), 'items 不是数组（空结果也必须是数组）')
+    for (const s of r.data.items) {
+      assert(typeof s.id === 'string' && typeof s.course_name === 'string', '课表项缺 id/course_name')
+      assert(s.class_date >= from && s.class_date <= to, `课表日期 ${s.class_date} 越界 ${from}..${to}`)
+      assert(typeof s.version === 'number', '课表项缺 version')
+    }
+    assert(typeof r.data.school_timezone === 'string' && r.data.school_timezone.length > 0, '课表响应缺 school_timezone')
+    ctx.schedule = r.data
+    return `${r.data.items.length} 条，${from}..${to}，tz=${r.data.school_timezone}，${rid(r)}`
+  })
+
+  await step('课表默认区间（不传参）', 'GET /me/schedules', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await request('/me/schedules', { token: ctx.token })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(typeof r.data?.from_date === 'string' && typeof r.data.to_date === 'string', '缺默认区间回显')
+    return `默认 ${r.data.from_date}..${r.data.to_date}，${rid(r)}`
+  })
+
+  /* ------------------------------ 计划 ---------------- */
+
+  const planTitle = `E2E 联调计划 ${Date.now()}`
+  await step('创建计划（Idempotency-Key）', 'POST /me/plans', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    ctx.idemKey = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const body = { title: planTitle, content: 'E2E：先齐作业，再复习数据结构。', goal: '通过期末', start_date: shanghaiToday(), end_date: addDays(shanghaiToday(), 7) }
+    const r = await request('/me/plans', { method: 'POST', token: ctx.token, body, idempotencyKey: ctx.idemKey })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 201 || r.status === 200 || r.status === 202, `期望 201/200/202，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(typeof r.data?.operation_id === 'string', '缺 operation_id')
+    ctx.operationId = r.data.operation_id
+    if (r.status === 202) {
+      // 待核实：轮询写操作，再按标题在列表里定位
+      const resolved = await pollWriteOp(ctx.operationId)
+      assert(resolved.state === 'succeeded' || resolved.state === 'deleted', `写操作未成功：state=${resolved.state} code=${resolved.error_code ?? '-'}`)
+      ctx.planId = resolved.plan_id
+    } else {
+      assert(r.status === 201, `首次创建未新建（status=${r.status}，data.status=${r.data.status}）`)
+      assert(r.data.status === 'created', `首次创建 status 期望 created，实际 ${r.data.status}`)
+      ctx.planId = r.data.plan_id
+    }
+    return `plan_id=${ctx.planId ?? '<待列表定位>'} op=${ctx.operationId}，${rid(r)}`
+  })
+
+  await step('幂等重放（同 key 不新建）', 'POST /me/plans', async () => {
+    require_(ctx.token && ctx.idemKey, '无令牌或未创建（上游失败）')
+    const body = { title: planTitle, content: 'E2E：先齐作业，再复习数据结构。', goal: '通过期末', start_date: shanghaiToday(), end_date: addDays(shanghaiToday(), 7) }
+    const r = await request('/me/plans', { method: 'POST', token: ctx.token, body, idempotencyKey: ctx.idemKey })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `重放期望 200（不新建），实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.operation_id === ctx.operationId, `重放 operation_id 不一致：${r.data?.operation_id} vs ${ctx.operationId}`)
+    if (ctx.planId) assert(r.data.plan_id === ctx.planId, `重放 plan_id 不一致：${r.data.plan_id} vs ${ctx.planId}`)
+    else ctx.planId = r.data.plan_id
+    return `status=${r.data.status} op 一致，${rid(r)}`
+  })
+
+  await step('计划详情', 'GET /me/plans/{id}', async () => {
+    require_(ctx.token && ctx.planId, '无 plan_id（上游失败）')
+    const r = await request(`/me/plans/${encodeURIComponent(ctx.planId)}`, { token: ctx.token })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.id === ctx.planId, `id 不一致：${r.data?.id}`)
+    assert(r.data.title === planTitle, `title 不一致：${r.data.title}`)
+    assert(typeof r.data.version === 'number' && r.data.version >= 1, `version 非法：${r.data.version}`)
+    ctx.planVersion = r.data.version
+    return `version=${r.data.version}，${rid(r)}`
+  })
+
+  await step('更新计划 + 版本冲突（409）', 'PATCH /me/plans/{id}', async () => {
+    require_(ctx.token && ctx.planId, '无 plan_id（上游失败）')
+    const patch = { title: `${planTitle}（已更新）`, expected_version: ctx.planVersion }
+    const r = await request(`/me/plans/${encodeURIComponent(ctx.planId)}`, { method: 'PATCH', token: ctx.token, body: patch })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.version === ctx.planVersion + 1, `version 期望 ${ctx.planVersion + 1}，实际 ${r.data?.version}`)
+    const staleVersion = ctx.planVersion
+    ctx.planVersion = r.data.version
+    // 用旧版本再改一次 → 必须 409 VERSION_CONFLICT
+    const stale = await request(`/me/plans/${encodeURIComponent(ctx.planId)}`, {
+      method: 'PATCH',
+      token: ctx.token,
+      body: { title: '冲突写入', expected_version: staleVersion },
+    })
+    assertErrorEnvelope(stale, 409, 'VERSION_CONFLICT')
+    return `version ${staleVersion}→${ctx.planVersion}，陈旧版本 409 ${stale.error.code}，${rid(r)}`
+  })
+
+  await step('写操作状态核实', 'GET /me/write-operations/{operation_id}', async () => {
+    require_(ctx.token && ctx.operationId, '无 operation_id（上游失败）')
+    const op = await request(`/me/write-operations/${encodeURIComponent(ctx.operationId)}`, { token: ctx.token })
+    if (isNotImplemented(op)) throw new Skip('端点返回 501')
+    assert(op.status === 200, `期望 200，实际 ${op.status}（${ecode(op)}，${rid(op)}）`)
+    assert(op.data?.operation_id === ctx.operationId, 'operation_id 不一致')
+    assert(['pending', 'succeeded', 'failed', 'deleted'].includes(op.data.state), `state 非法：${op.data.state}`)
+    assert(['confirmed', 'recovering'].includes(op.data.resolution), `resolution 非法：${op.data.resolution}`)
+    const resolved = op.data.state === 'pending' ? await pollWriteOp(ctx.operationId) : op.data
+    assert(resolved.state === 'succeeded' || resolved.state === 'deleted', `最终 state 非成功：${resolved.state}`)
+    return `state=${resolved.state} resolution=${resolved.resolution}，${rid(op)}`
+  })
+
+  await step('删除计划（expected_version 在 query）', 'DELETE /me/plans/{id}', async () => {
+    require_(ctx.token && ctx.planId, '无 plan_id（上游失败）')
+    const r = await request(`/me/plans/${encodeURIComponent(ctx.planId)}`, {
+      method: 'DELETE',
+      token: ctx.token,
+      query: { expected_version: ctx.planVersion },
+    })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.deleted === true, `期望 deleted=true，实际 ${r.data?.deleted}`)
+    const after = await request(`/me/plans/${encodeURIComponent(ctx.planId)}`, { token: ctx.token })
+    assertErrorEnvelope(after, 404, 'RESOURCE_NOT_FOUND')
+    return `deleted=${ctx.planId}，删除后 GET 404，${rid(r)}`
+  })
+
+  /* ------------------------------ 助手 SSE ---------------- */
+
+  await step('对话流 · 课表工具（get_my_schedule）', 'POST /chat/stream', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await runChat('课表问句', CHAT_MESSAGE)
+    ctx.chatRequestId = r.requestId
+    assert(r.starts.includes('get_my_schedule'), `期望触发 get_my_schedule，实际工具=[${r.starts.join(',')}]`)
+    assert(r.term.event === 'done' && r.term.data.state === 'succeeded', `终态异常：${r.term.event}:${r.term.data.state ?? r.term.data.code}`)
+    const answerChars = r.events.filter((e) => e.event === 'token').reduce((n, e) => n + (e.data.text_delta ?? '').length, 0)
+    assert(answerChars > 0, '未收到 token（回答正文为空）')
+    return `${r.events.length} 事件，工具=[${r.starts.join(',')}]，正文 ${answerChars} 字，${r.requestId}`
+  })
+
+  await step('对话流 · 资料检索 + 真实引用（search_course_docs）', 'POST /chat/stream', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await runChat('资料问句', DOC_CHAT_MESSAGE)
+    assert(r.starts.includes('search_course_docs'), `期望触发 search_course_docs，实际工具=[${r.starts.join(',')}]`)
+    assert(r.term.event === 'done', `终态应为 done，实际 ${r.term.event}（${r.term.data.code ?? '-'}）`)
+    const citations = r.term.data.citations ?? []
+    assert(citations.length > 0, 'done.citations 为空：检索链路未返回引用')
+    for (const c of citations) {
+      assert(typeof c.reference_id === 'string' && c.reference_id.startsWith('cit_'), `reference_id 形态异常：${c.reference_id}（疑似桩值）`)
+      assert(typeof c.document_id === 'string' && typeof c.file_name === 'string', '引用缺 document_id/file_name')
+    }
+    ctx.chatCitations = citations
+    ctx.chatDocRequestId = r.requestId
+    return `${citations.length} 条真实引用：${citations.map((c) => c.reference_id).join(',')}，${r.requestId}`
+  })
+
+  await step('对话流 · 学习计划草稿（DRAFT_READY）', 'POST /chat/stream', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await runChat('计划问句', PLAN_CHAT_MESSAGE)
+    const draftEv = r.events.find((e) => e.event === 'status' && typeof e.data?.draft_id === 'string')
+    assert(draftEv, `未收到带 draft_id 的 status 事件（DRAFT_READY）；事件=${r.events.map((e) => e.event).join('/')}`)
+    ctx.draftId = draftEv.data.draft_id
+    ctx.draftVersion = typeof draftEv.data.draft_version === 'number' ? draftEv.data.draft_version : 1
+    return `draft=${ctx.draftId}@${ctx.draftVersion}，工具=[${r.starts.join(',') || '无'}]，${r.requestId}`
+  })
+
+  await step('对话状态可核实', 'GET /chat/requests/{request_id}', async () => {
+    require_(ctx.token && ctx.chatRequestId, '无 request_id（上游失败）')
+    const r = await request(`/chat/requests/${encodeURIComponent(ctx.chatRequestId)}`, { token: ctx.token })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.request_id === ctx.chatRequestId, 'request_id 不一致')
+    assert(['accepted', 'running', 'succeeded', 'failed', 'cancelled'].includes(r.data.state), `state 非法：${r.data.state}`)
+    return `state=${r.data.state}，${rid(r)}`
+  })
+
+  await step('引用展开', 'GET /citations/{reference_id}', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    if (!ctx.chatCitations || ctx.chatCitations.length === 0) throw new Skip('本轮回答无引用（确定性 Provider 未检索到资料）')
+    const ref = ctx.chatCitations[0]
+    const r = await request(`/citations/${encodeURIComponent(ref.reference_id)}`, { token: ctx.token })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.reference?.reference_id === ref.reference_id, 'reference_id 不一致')
+    assert(typeof r.data.text === 'string' && r.data.text.length > 0, '引用片段为空')
+    return `reference_id=${ref.reference_id}，片段 ${r.data.text.length} 字，${rid(r)}`
+  })
+
+  /* ------------------------- 草稿链路（F6 骨架，501 时 SKIP） ------------------------- */
+
+  await step('草稿读取 + 编辑（expected_draft_version）', 'GET/PATCH /me/drafts/{draft_id}', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    if (!ctx.draftId) throw new Skip('本轮未产生草稿（P3 SSE 未就绪或未命中写意图）')
+    const id = encodeURIComponent(ctx.draftId)
+    const get = await request(`/me/drafts/${id}`, { token: ctx.token })
+    if (isNotImplemented(get)) throw new Skip('端点返回 501')
+    assert(get.status === 200, `读取草稿期望 200，实际 ${get.status}（${ecode(get)}，${rid(get)}）`)
+    assert(get.data?.draft_id === ctx.draftId, 'draft_id 不一致')
+    assert(typeof get.data.draft_version === 'number', '草稿缺 draft_version')
+    assert(typeof get.data.content === 'string', '草稿缺 content')
+    assert(typeof get.data.operation_id === 'string' && get.data.operation_id.length > 0, '草稿缺 operation_id（保存幂等键来源）')
+    const patch = await request(`/me/drafts/${id}`, {
+      method: 'PATCH',
+      token: ctx.token,
+      body: { content: `${get.data.content}\nE2E 草稿编辑`, expected_draft_version: get.data.draft_version },
+    })
+    assert(patch.status === 200, `编辑草稿期望 200，实际 ${patch.status}（${ecode(patch)}，${rid(patch)}）`)
+    assert(patch.data?.draft_version === get.data.draft_version + 1, `draft_version 期望 +1，实际 ${patch.data?.draft_version}`)
+    ctx.draftVersion = patch.data.draft_version
+    // 保存的 Idempotency-Key 必须是**服务端为该版本预分配的 operation_id**（后端强校验）。
+    const current = await request(`/me/drafts/${id}`, { token: ctx.token })
+    assert(current.status === 200, `编辑后重读草稿失败：HTTP ${current.status}`)
+    assert(typeof current.data?.operation_id === 'string' && current.data.operation_id.length > 0, '编辑后草稿缺 operation_id')
+    ctx.draftOperationId = current.data.operation_id
+    return `draft=${ctx.draftId} version ${get.data.draft_version}→${ctx.draftVersion}，operation_id=${ctx.draftOperationId}，${rid(patch)}`
+  })
+
+  await step('草稿保存（Idempotency-Key 幂等 + 写入状态）', 'POST /me/drafts/{draft_id}/save', async () => {
+    require_(ctx.token && ctx.draftId && ctx.draftVersion, '无草稿（上游失败）')
+    require_(ctx.draftOperationId, '无 draft.operation_id（无法构造合法幂等键）')
+    const id = encodeURIComponent(ctx.draftId)
+    // 契约（真实后端强校验）：Idempotency-Key === draft_version 的 operation_id
+    const key = ctx.draftOperationId
+    const body = { draft_version: ctx.draftVersion }
+    const save = await request(`/me/drafts/${id}/save`, { method: 'POST', token: ctx.token, body, idempotencyKey: key })
+    if (isNotImplemented(save)) throw new Skip('端点返回 501')
+    assert([200, 201, 202].includes(save.status), `保存草稿期望 200/201/202，实际 ${save.status}（${ecode(save)}，${rid(save)}）`)
+    let operationId
+    let planId
+    if (save.status === 202) {
+      assert(typeof save.data?.operation_id === 'string', '202 缺 operation_id')
+      operationId = save.data.operation_id
+      const op = await pollWriteOp(operationId)
+      assert(op.state === 'succeeded' || op.state === 'deleted', `写操作未成功：state=${op.state} code=${op.error_code ?? '-'}`)
+      planId = op.plan_id
+    } else {
+      assert(save.data?.status === 'created' || save.data?.status === 'existing', `保存回执 status 非法：${save.data?.status}`)
+      operationId = save.data.operation_id
+      planId = save.data.plan_id
+    }
+    // 幂等重放：同 key 必须 200 existing 且 operation_id 一致
+    const replay = await request(`/me/drafts/${id}/save`, { method: 'POST', token: ctx.token, body, idempotencyKey: key })
+    assert(replay.status === 200, `幂等重放期望 200，实际 ${replay.status}（${ecode(replay)}，${rid(replay)}）`)
+    assert(replay.data?.operation_id === operationId, `重放 operation_id 不一致：${replay.data?.operation_id} vs ${operationId}`)
+    if (planId) assert(replay.data?.plan_id === planId, `重放 plan_id 不一致：${replay.data?.plan_id} vs ${planId}`)
+    // 写入状态可核实
+    const opCheck = await request(`/me/write-operations/${encodeURIComponent(operationId)}`, { token: ctx.token })
+    assert(opCheck.status === 200, `写操作核实期望 200，实际 ${opCheck.status}（${ecode(opCheck)}，${rid(opCheck)}）`)
+    assert(['succeeded', 'deleted'].includes(opCheck.data?.state), `写操作状态非成功：${opCheck.data?.state}`)
+    // 清理：草稿保存产生的计划（用学生令牌当场删除，避免残留）
+    if (planId) {
+      const plan = await request(`/me/plans/${encodeURIComponent(planId)}`, { token: ctx.token })
+      if (plan.status === 200) {
+        const del = await request(`/me/plans/${encodeURIComponent(planId)}`, {
+          method: 'DELETE',
+          token: ctx.token,
+          query: { expected_version: plan.data.version },
+        })
+        assert(del.status === 200, `清理草稿计划失败：HTTP ${del.status}（${rid(del)}）`)
+        ctx.cleanedDraftPlanId = planId
+      }
+    }
+    return `save=${save.status} op=${operationId} plan=${planId ?? '-'}${ctx.cleanedDraftPlanId ? '（计划已清理）' : ''}，${rid(save)}`
+  })
+
+  await step('对话取消接口（骨架）', 'POST /chat/requests/{request_id}/cancel', async () => {
+    require_(ctx.token && ctx.chatRequestId, '无 request_id（SSE 未就绪）')
+    const r = await request(`/chat/requests/${encodeURIComponent(ctx.chatRequestId)}/cancel`, {
+      method: 'POST',
+      token: ctx.token,
+    })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501（Phase 3 未实现）')
+    // 请求已结束：取消要么被幂等接受（200），要么明确拒绝（409/404）；不得 5xx。
+    assert([200, 409, 404].includes(r.status), `取消已结束请求返回意外状态 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    if (r.status === 200) {
+      assert(typeof r.data?.accepted === 'boolean', 'cancel.accepted 应为 boolean')
+      return `200 accepted=${r.data.accepted}，${rid(r)}`
+    }
+    assertErrorEnvelope(r, r.status, ['RESOURCE_NOT_FOUND', 'CHAT_IN_PROGRESS', 'VERSION_CONFLICT'])
+    return `HTTP ${r.status} ${r.error.code}（已结束请求拒绝取消），${rid(r)}`
+  })
+
+  /* ---------------------------- 管理端文档批次 ---------------- */
+
+  let adminOk = true
+  await step('管理员登录', 'POST /auth/login（admin）', async () => {
+    const r = await request('/auth/login', { method: 'POST', body: { account: ADMIN_ACCOUNT, password: ADMIN_PASSWORD } })
+    if (isNotImplemented(r) || r.status === 401) throw new Skip(`管理员种子账号不可用（HTTP ${r.status}）`)
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.user?.role === 'admin', `期望 role=admin，实际 ${r.data?.user?.role}`)
+    ctx.adminToken = r.data.access_token
+    adminOk = true
+    return `admin=${r.data.user.account}，${rid(r)}`
+  })
+
+  /* ------------------------------ 管理端：课程 / 学生 / 课表（F5） ---------------- */
+
+  const suffix = Date.now().toString(36)
+  await step('管理端课程：列表 + 创建 + 编辑（版本冲突）', 'GET/POST/PATCH /admin/courses', async () => {
+    require_(ctx.adminToken, '无管理员令牌（上游失败）')
+    const list = await request('/admin/courses', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+    if (isNotImplemented(list)) throw new Skip('端点返回 501')
+    assert(list.status === 200, `课程列表期望 200，实际 ${list.status}（${ecode(list)}，${rid(list)}）`)
+    assert(Array.isArray(list.data?.items), '课程列表 items 不是数组')
+    assert(list.data.total >= 2, `种子课程应 ≥2，实际 total=${list.data.total}`)
+
+    const code = `E2E-${suffix}`.toUpperCase()
+    const create = await request('/admin/courses', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { code, name: 'E2E 联调课程', enabled: true },
+    })
+    assert(create.status === 201, `创建课程期望 201，实际 ${create.status}（${ecode(create)}，${rid(create)}）`)
+    assert(create.data?.code === code, `课程 code 不一致：${create.data?.code}`)
+    ctx.courseId = create.data.id
+    ctx.courseVersion = create.data.version
+
+    const patch = await request(`/admin/courses/${encodeURIComponent(ctx.courseId)}`, {
+      method: 'PATCH',
+      token: ctx.adminToken,
+      body: { name: 'E2E 联调课程（已改名）', expected_version: ctx.courseVersion },
+    })
+    assert(patch.status === 200, `编辑课程期望 200，实际 ${patch.status}（${ecode(patch)}，${rid(patch)}）`)
+    assert(patch.data?.version === ctx.courseVersion + 1, `课程 version 期望 +1，实际 ${patch.data?.version}`)
+    const stale = await request(`/admin/courses/${encodeURIComponent(ctx.courseId)}`, {
+      method: 'PATCH',
+      token: ctx.adminToken,
+      body: { name: '陈旧写入', expected_version: ctx.courseVersion },
+    })
+    assertErrorEnvelope(stale, 409, 'VERSION_CONFLICT')
+    ctx.courseVersion = patch.data.version
+    // 备注：**不在本步停用**——后面要用它建课表（禁用课程不可选，content-spec:164；
+    // 后端对禁用目标建课表会 404）。「启停」验证放在末尾清理步。
+    return `course=${ctx.courseId}（${code}）创建→改名，陈旧版本 409，${rid(create)}`
+  })
+
+  await step('管理端学生：列表 + 创建 + 编辑', 'GET/POST/PATCH /admin/students', async () => {
+    require_(ctx.adminToken, '无管理员令牌（上游失败）')
+    const list = await request('/admin/students', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+    if (isNotImplemented(list)) throw new Skip('端点返回 501')
+    assert(list.status === 200, `学生列表期望 200，实际 ${list.status}（${ecode(list)}，${rid(list)}）`)
+    assert(list.data?.items?.some((u) => u.account === ACCOUNT), `学生列表未包含种子账号 ${ACCOUNT}`)
+    const account = `e2e_${suffix}`
+    const create = await request('/admin/students', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { account, display_name: 'E2E 联调学生', initial_password: 'E2ePass123!' },
+    })
+    assert(create.status === 201, `创建学生期望 201，实际 ${create.status}（${ecode(create)}，${rid(create)}）`)
+    assert(create.data?.account === account, `学生 account 不一致：${create.data?.account}`)
+    assert(create.data?.enabled === true, '新建学生应 enabled=true')
+    ctx.studentId = create.data.id
+    ctx.studentVersion = create.data.version
+    // 编辑（改名）验证 PATCH + expected_version；**不在本步禁用**（后面要用它建课表）。
+    const rename = await request(`/admin/students/${encodeURIComponent(ctx.studentId)}`, {
+      method: 'PATCH',
+      token: ctx.adminToken,
+      body: { display_name: 'E2E 联调学生（已改名）', expected_version: ctx.studentVersion },
+    })
+    if (isNotImplemented(rename)) throw new Skip('PATCH 学生返回 501')
+    assert(rename.status === 200, `编辑学生期望 200，实际 ${rename.status}（${ecode(rename)}，${rid(rename)}）`)
+    assert(rename.data?.display_name === 'E2E 联调学生（已改名）', `学生显示名未更新：${rename.data?.display_name}`)
+    ctx.studentVersion = rename.data.version
+    // 禁用（启停）验证放在末尾清理步。
+    return `student=${ctx.studentId}（${account}）创建→改名，${rid(create)}`
+  })
+
+  await step('管理端课表：创建 + 重叠 409 → 确认放行 + 精确重复拒绝', 'POST /admin/schedules', async () => {
+    require_(ctx.adminToken && ctx.studentId && ctx.courseId, '缺少 E2E 学生/课程（上游失败）')
+    const classDate = addDays(shanghaiToday(), 60)
+    const base = {
+      student_id: ctx.studentId,
+      course_id: ctx.courseId,
+      class_date: classDate,
+      location: 'E2E 教室',
+    }
+    const create = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '08:00', end_time: '09:40' },
+    })
+    if (isNotImplemented(create)) throw new Skip('端点返回 501')
+    assert(create.status === 201, `创建课表期望 201，实际 ${create.status}（${ecode(create)}，${rid(create)}）`)
+    ctx.scheduleA = { id: create.data.id, version: create.data.version }
+    assert(create.data?.class_date === classDate, `课表日期不一致：${create.data?.class_date}`)
+
+    // 重叠时段（09:00–10:40）未确认 → 409 SCHEDULE_OVERLAP
+    const overlap = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '09:00', end_time: '10:40' },
+    })
+    assertErrorEnvelope(overlap, 409, 'SCHEDULE_OVERLAP')
+    if (overlap.error?.details?.overlaps !== undefined) {
+      assert(Array.isArray(overlap.error.details.overlaps), 'details.overlaps 应为数组')
+    }
+    // 确认重叠 + 原因 → 201
+    const acked = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '09:00', end_time: '10:40', overlap_acknowledged: true, reason: 'E2E 联调：确认时段重叠' },
+    })
+    assert(acked.status === 201, `确认重叠后期望 201，实际 ${acked.status}（${ecode(acked)}，${rid(acked)}）`)
+    ctx.scheduleB = { id: acked.data.id, version: acked.data.version }
+
+    // 精确重复（同日同起止）→ 409 DUPLICATE_SCHEDULE，**不可确认放行**
+    const dup = await request('/admin/schedules', {
+      method: 'POST',
+      token: ctx.adminToken,
+      body: { ...base, start_time: '08:00', end_time: '09:40', overlap_acknowledged: true, reason: 'E2E 重复尝试' },
+    })
+    assertErrorEnvelope(dup, 409, 'DUPLICATE_SCHEDULE')
+    const list = await request('/admin/schedules', {
+      token: ctx.adminToken,
+      query: { student_id: ctx.studentId, from_date: classDate, to_date: classDate, page: 1, page_size: 100 },
+    })
+    assert(list.status === 200, `管理端课表列表期望 200，实际 ${list.status}（${ecode(list)}）`)
+    assert(list.data?.items?.length === 2, `应有 2 条课表，实际 ${list.data?.items?.length}`)
+    return `课表 ${ctx.scheduleA.id}/${ctx.scheduleB.id}，重叠 409→确认 201，精确重复 409，${rid(create)}`
+  })
+
+  await step('管理端课表：删除（expected_version 在 query）', 'DELETE /admin/schedules/{id}', async () => {
+    require_(ctx.adminToken && ctx.scheduleA && ctx.scheduleB, '无 E2E 课表（上游失败）')
+    for (const key of ['scheduleA', 'scheduleB']) {
+      const s = ctx[key]
+      const r = await request(`/admin/schedules/${encodeURIComponent(s.id)}`, {
+        method: 'DELETE',
+        token: ctx.adminToken,
+        query: { expected_version: s.version },
+      })
+      assert(r.status === 200, `删除课表期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+      assert(r.data?.schedule_id === s.id, '删除回执 schedule_id 不一致')
+      assert(typeof r.data?.audit_id === 'string' && r.data.audit_id.length > 0, '删除回执缺 audit_id')
+    }
+    ctx.scheduleA = null
+    ctx.scheduleB = null
+    return '两条 E2E 课表已删除（含 audit_id）'
+  })
+
+  const marker = `E2E-MARKER-${Date.now()}`
+  let docId = null
+  await step('文档批次上传（multipart → 202）', 'POST /admin/document-batches', async () => {
+    if (SKIP.has('docs')) throw new Skip('--skip=docs（Phase 2 未就绪）')
+    require_(ctx.adminToken, '无管理员令牌（上游失败）')
+    const fd = new FormData()
+    const name = `e2e-${Date.now()}.txt`
+    fd.append('files', new Blob([`${marker}\nE2E 文档批次内容。\n`], { type: 'text/plain' }), name)
+    const r = await request('/admin/document-batches', { method: 'POST', token: ctx.adminToken, body: fd })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501（Phase 2 未实现）')
+    assert(r.status === 202, `期望 202，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(typeof r.data?.batch_id === 'string', '缺 batch_id')
+    assert(Array.isArray(r.data.documents), 'documents 不是数组')
+    ctx.batchId = r.data.batch_id
+    ctx.uploadName = name
+    console.log(`BATCH_ID=${ctx.batchId}`)
+    console.log(`MARKER=${marker}`)
+    return `batch_id=${ctx.batchId}，${r.data.documents.length} 个文档，${rid(r)}`
+  })
+
+  await step('批次轮询至发布', 'GET /admin/document-batches/{id}', async () => {
+    if (SKIP.has('docs')) throw new Skip('--skip=docs')
+    require_(ctx.adminToken && ctx.batchId, '无 batch_id（上游失败）')
+    const batchTimeoutMs = Number(process.env.E2E_BATCH_TIMEOUT_MS ?? 90_000)
+    const deadline = Date.now() + batchTimeoutMs
+    let last = null
+    for (;;) {
+      const r = await request(`/admin/document-batches/${encodeURIComponent(ctx.batchId)}`, { token: ctx.adminToken })
+      if (isNotImplemented(r)) throw new Skip('端点返回 501')
+      assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+      last = r.data
+      if (['published', 'failed', 'compensating'].includes(last.state)) break
+      if (Date.now() > deadline) {
+        // 演示库 publish_frozen=FALSE：accepted/processing 是**正常中间态**，等 worker 不是失败。
+        if (['accepted', 'processing'].includes(last.state)) {
+          ctx.docsNeedsWorker = true
+          throw new Skip(
+            `批次仍为 ${last.state}（等 ${Math.round(batchTimeoutMs / 1000)}s）：需 Lead 跑 worker --once 发布。` +
+              `用 node scripts/e2e-docs.mjs --batch-id=${ctx.batchId} --marker=${marker} 续跑`,
+          )
+        }
+        throw new Fail(`批次 ${Math.round(batchTimeoutMs / 1000)}s 未达终态（最后 state=${last?.state}）`)
+      }
+      await sleep(3000)
+    }
+    assert(last.state === 'published' && last.published === true, `批次未发布：state=${last.state} published=${last.published} err=${last.error_code ?? '-'}`)
+    const doc = last.documents.find((d) => d.original_name === ctx.uploadName) ?? last.documents[0]
+    assert(doc, '批次内没有文档')
+    if (doc.processing_state === 'available') docId = doc.id
+    return `published，doc=${doc?.original_name} state=${doc?.processing_state}`
+  })
+
+  await step('文档列表与文本预览', 'GET /admin/documents + /{id}/text', async () => {
+    if (SKIP.has('docs')) throw new Skip('--skip=docs')
+    if (ctx.docsNeedsWorker) throw new Skip('等待 worker 发布（上游 NEED_WORKER）')
+    require_(ctx.adminToken && ctx.batchId, '无批次（上游失败）')
+    if (!docId) throw new Skip('文档尚未 available（可能仍在处理）')
+    const list = await request('/admin/documents', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+    if (isNotImplemented(list)) throw new Skip('端点返回 501')
+    assert(list.status === 200, `文档列表期望 200，实际 ${list.status}（${ecode(list)}）`)
+    assert(list.data?.items?.some((d) => d.id === docId), `列表未包含上传文档 ${docId}`)
+    const txt = await request(`/admin/documents/${encodeURIComponent(docId)}/text`, { token: ctx.adminToken, query: { offset: 0, limit: 2000 } })
+    assert(txt.status === 200, `文本预览期望 200，实际 ${txt.status}（${ecode(txt)}，${rid(txt)}）`)
+    assert(typeof txt.data?.text === 'string' && txt.data.text.includes(marker), `预览文本未包含 marker（前 80 字：${txt.data?.text?.slice(0, 80)}）`)
+    return `${docId} 预览 ${txt.data.text.length} 字，${rid(txt)}`
+  })
+
+  await step('文档删除 → 清理', 'DELETE /admin/documents/{id}', async () => {
+    if (SKIP.has('docs')) throw new Skip('--skip=docs')
+    if (ctx.docsNeedsWorker) throw new Skip('等待 worker 发布（上游 NEED_WORKER）')
+    require_(ctx.adminToken && docId, '无文档（上游失败）')
+    const doc = (await request('/admin/documents', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })).data?.items?.find((d) => d.id === docId)
+    const version = doc?.version ?? 1
+    const r = await request(`/admin/documents/${encodeURIComponent(docId)}`, {
+      method: 'DELETE',
+      token: ctx.adminToken,
+      query: { expected_version: version },
+    })
+    if (isNotImplemented(r)) throw new Skip('端点返回 501')
+    assert(r.status === 202, `期望 202，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.document_id === docId, 'document_id 不一致')
+    // 轮询至删除终态（deleted）或清理完成
+    const deadline = Date.now() + 60_000
+    let last = null
+    for (;;) {
+      const list = await request('/admin/documents', { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+      last = list.data?.items?.find((d) => d.id === docId)
+      if (!last || last.processing_state === 'deleted') break
+      if (Date.now() > deadline) throw new Fail(`文档 60s 未删除（state=${last?.processing_state}）`)
+      await sleep(3000)
+    }
+    const state = last?.processing_state ?? 'deleted'
+    assert(state === 'deleted' || !last, `删除未完成：state=${state}`)
+    return `删除完成（state=${state}），${rid(r)}`
+  })
+
+  /* ------------------------------ 负路径 / 登出 ---------------- */
+
+  await step('登录负路径（错误口令 401）', 'POST /auth/login', async () => {
+    const r = await request('/auth/login', { method: 'POST', body: { account: ACCOUNT, password: `${PASSWORD}-wrong` } })
+    assertErrorEnvelope(r, 401, ['AUTH_REQUIRED'])
+    return `code=${r.error.code}，${rid(r)}`
+  })
+
+  await step('登出并确认会话撤销', 'POST /auth/logout', async () => {
+    require_(ctx.token, '无令牌（登录失败）')
+    const r = await request('/auth/logout', { method: 'POST', token: ctx.token })
+    assert(r.status === 200, `期望 200，实际 ${r.status}（${ecode(r)}，${rid(r)}）`)
+    assert(r.data?.revoked === true, `期望 revoked=true，实际 ${r.data?.revoked}`)
+    const after = await request('/me', { token: ctx.token })
+    assertErrorEnvelope(after, 401, ['AUTH_REQUIRED', 'SESSION_EXPIRED'])
+    return `revoked，旧令牌 /me 401 ${after.error.code}，${rid(r)}`
+  })
+
+  /* ------------------------------ 清理 E2E 测试数据 ---------------- */
+
+  await step('清理 E2E 测试数据（课表删除 + 课程/学生停用验证）', 'DELETE /admin/schedules + PATCH /admin/{courses,students}', async () => {
+    require_(ctx.adminToken, '无管理员令牌（无法清理；残留见报告）')
+    const residual = []
+    // 课表：正常路径已在专用步骤删除；若中途失败，这里再尝试一次
+    for (const key of ['scheduleA', 'scheduleB']) {
+      const s = ctx[key]
+      if (!s) continue
+      const r = await request(`/admin/schedules/${encodeURIComponent(s.id)}`, {
+        method: 'DELETE',
+        token: ctx.adminToken,
+        query: { expected_version: s.version },
+      })
+      if (r.status !== 200) residual.push(`schedule ${s.id} 删除失败 HTTP ${r.status}`)
+      else ctx[key] = null
+    }
+    // 课程 / 学生：契约无 DELETE 端点 → 以「停用」作为清理，残留登记为 disabled 记录
+    async function disable(kind, id, expectedVersion) {
+      if (!id) return
+      let r = await request(`/admin/${kind}/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        token: ctx.adminToken,
+        body: { enabled: false, expected_version: expectedVersion },
+      })
+      if (r.status === 409) {
+        // 版本已变：从列表取最新 version 后重试一次
+        const list = await request(`/admin/${kind}`, { token: ctx.adminToken, query: { page: 1, page_size: 100 } })
+        const cur = list.data?.items?.find((x) => x.id === id)
+        if (cur) {
+          r = await request(`/admin/${kind}/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            token: ctx.adminToken,
+            body: { enabled: false, expected_version: cur.version },
+          })
+        }
+      }
+      if (r.status !== 200 || r.data?.enabled !== false) residual.push(`${kind} ${id} 未能停用（HTTP ${r.status}）`)
+    }
+    await disable('courses', ctx.courseId, ctx.courseVersion)
+    await disable('students', ctx.studentId, ctx.studentVersion)
+    const note =
+      `E2E 计划/课表已删除；契约无 DELETE 的 E2E 课程（${ctx.courseId ?? '-'}）与 E2E 学生（${ctx.studentId ?? '-'}）已**停用**（enabled=false，启停路径已验证），` +
+      `记录仍存在于 cca 库（未改动种子数据）。`
+    if (residual.length > 0) throw new Fail(`${note} 清理残留：${residual.join('；')}`)
+    return note
+  })
+
+  printTable()
+}
+
+async function pollWriteOp(operationId, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const r = await request(`/me/write-operations/${encodeURIComponent(operationId)}`, { token: ctx.token })
+    if (r.status === 200 && r.data && r.data.state !== 'pending') return r.data
+    if (Date.now() > deadline) {
+      throw new Fail(`写操作 ${operationId} 30s 未决（最后 HTTP ${r.status}，state=${r.data?.state ?? '-'}）`)
+    }
+    await sleep(1000)
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+function printTable() {
+  const icon = { PASS: 'PASS', FAIL: 'FAIL', SKIP: 'SKIP' }
+  console.log('\n================ E2E 结果表 ================')
+  const cols = ['#', '结果', '步骤', '端点', '证据/原因']
+  console.log(cols.join(' | '))
+  rows.forEach((r, i) => {
+    console.log([String(i + 1), icon[r.kind], r.name, r.endpoint, r.detail].join(' | '))
+  })
+  const pass = rows.filter((r) => r.kind === 'PASS').length
+  const fail = rows.filter((r) => r.kind === 'FAIL').length
+  const skip = rows.filter((r) => r.kind === 'SKIP').length
+  console.log(`\n合计：${rows.length} 步 = PASS ${pass} / FAIL ${fail} / SKIP ${skip}`)
+  if (fail > 0) process.exitCode = 1
+}
+
+main().catch((e) => {
+  console.error(`FATAL E2E 脚本异常：${e?.stack ?? e?.message ?? e}`)
+  process.exitCode = 1
+})

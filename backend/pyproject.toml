@@ -1,0 +1,44 @@
+[project]
+name = "cca-backend"
+version = "0.1.0"
+description = "校园课程智能助手 · 后端（Phase 1 地基与业务闭环）"
+requires-python = ">=3.12"
+# 依赖版本与环境内已装版本锁定一致（PHASE-PLAN §8.1）；本阶段不新增第三方依赖。
+dependencies = [
+    "fastapi==0.161.1",
+    "starlette==1.9.0",
+    "pydantic==2.14.1",
+    "pydantic-settings>=2.6,<3",
+    "sqlalchemy[asyncio]==2.0.36",
+    "aiomysql==0.2.0",
+    "pymysql==1.1.1",
+    "alembic==1.14.0",
+    "uvicorn==0.54.0",
+    "mcp==2.3.0",
+    "pyjwt==2.15.1",
+    "argon2-cffi==23.1.0",
+    "httpx==0.28.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.0",
+    "pypdf==5.1.0",
+    "python-docx==1.1.2",
+    "numpy==2.2.1",
+    "python-multipart==0.0.32",
+    "sse-starlette==3.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+# 车道内定向测试：显式给出 tests 目录；开发期禁止无参数 pytest 全目录。
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning:passlib.*",
+]

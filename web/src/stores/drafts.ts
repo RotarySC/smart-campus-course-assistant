@@ -12,7 +12,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as meApi from '@/api/me'
 import type { AppError } from '@/api/errors'
-import type { BasisType, Reference, SaveResult } from '@/api/types.gen'
+import type { BasisType, Reference, SaveResult } from '@/api/types'
 import { useSessionStore } from './session'
 import { useUiStore } from './ui'
 import { useWriteOpsStore } from './writeOps'
@@ -116,13 +116,23 @@ export const useDraftsStore = defineStore('drafts', () => {
     }
   }
 
-  /** 保存：body 只有 `draft_version`；202 → 立即进入「待确认」，**不**显示保存成功。 */
-  async function save(idempotencyKey: string): Promise<SaveOutcome> {
+  /**
+   * 保存：body 只有 `draft_version`；202 → 立即进入「待确认」，**不**显示保存成功。
+   *
+   * **幂等键 = 服务端为该草稿版本预分配的 `operation_id`**（`Draft.operation_id`）。
+   * 依据：真实后端 `planning.service.save_draft` 要求 `Idempotency-Key == version.operation_id`
+   * （否则 422 `SAVE_NOT_AUTHORIZED`，request_id 见报告）；设计 §6.8 也写明该字段是
+   * 「服务端预分配」的。**不得**用前端自造字符串（如 `save_<draftId>_<version>`）。
+   * 同一逻辑保存复用同一个键（FR-PLAN-004）；编辑后 `operation_id` 随新版本变化，须先 `revise()`。
+   */
+  async function save(idempotencyKey?: string): Promise<SaveOutcome> {
     const id = draftId.value
     const version = draftVersion.value
     if (!id || version === null) throw new Error('draft not bound')
     if (dirty.value) throw new Error('draft dirty: revise() first')
-    const res: SaveResult = await meApi.saveDraft(session.auth, id, { draft_version: version }, idempotencyKey)
+    const key = idempotencyKey ?? operationId.value
+    if (!key) throw new Error('draft has no operation_id (save binding missing)')
+    const res: SaveResult = await meApi.saveDraft(session.auth, id, { draft_version: version }, key)
     operationId.value = res.operation_id
     if (res.status === 'deleted') {
       // 墓碑：计划已被删除，不可复活、不重新创建（§6.7）。

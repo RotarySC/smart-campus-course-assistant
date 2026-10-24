@@ -9,8 +9,8 @@
  *   - 只记 method/path/status/request_id/耗时；**不记请求体与响应体正文**（NFR-PRIV-001）。
  */
 
-import { IDEMPOTENT_ENDPOINTS } from '@/domain/constants'
-import type { Envelope } from './types.gen'
+import { AUTH_FAILURE_CODES, IDEMPOTENT_ENDPOINTS } from '@/domain/constants'
+import type { Envelope } from './types'
 import { abortedError, httpError, networkError, protocolError, timeoutError } from './errors'
 import type { AppError } from './errors'
 import { send } from './transport'
@@ -78,6 +78,32 @@ export type TraceSink = (t: RequestTrace) => void
 let traceSink: TraceSink | null = null
 export function setTraceSink(fn: TraceSink | null): void {
   traceSink = fn
+}
+
+/**
+ * 会话失效出口（§4.6.1 P1）。请求层**不 import store**（§2.2 R2）：
+ * 由 `main.ts` 注入 `session.onAuthFailure('HTTP_401')`，本文件只负责识别并通知一次。
+ */
+export type AuthFailureSink = (path: string) => void
+let authFailureSink: AuthFailureSink | null = null
+export function setAuthFailureSink(fn: AuthFailureSink | null): void {
+  authFailureSink = fn
+}
+
+const AUTH_FAILURE_CODE_SET = new Set<string>(AUTH_FAILURE_CODES)
+
+/**
+ * §4.6.1 P1：**任一**受保护端点返回 401 且 `code ∈ {AUTH_REQUIRED, SESSION_EXPIRED}`。
+ *
+ * 例外：`/auth/login` 是唯一无鉴权业务端点，它的 401 表示凭据错误 ——
+ * SRS FR-AUTH-001 要求「登录失败不建立会话」，若也触发失效清理，
+ * 会把「密码错误」误做成「会话过期」。此处显式排除。
+ */
+function noteAuthFailure(path: string, err: AppError): void {
+  if (path === '/auth/login') return
+  if (err.kind !== 'http' || err.httpStatus !== 401) return
+  if (err.code === undefined || !AUTH_FAILURE_CODE_SET.has(err.code)) return
+  authFailureSink?.(path)
 }
 
 export function apiBase(): string {
@@ -174,7 +200,10 @@ async function once<T>(o: RequestOptions): Promise<T> {
     const requestId = readRequestId(payload)
 
     if (!res.ok) {
-      throw httpError(res.status, payload, requestId ?? undefined)
+      const err = httpError(res.status, payload, requestId ?? undefined)
+      // §4.6.1 P1：识别到 401 认证类错误时通知统一出口（不在此处做清理/导航）。
+      noteAuthFailure(o.path, err)
+      throw err
     }
 
     // 步骤 5：2xx 必须符合 { request_id, data } 信封，否则是协议错误。

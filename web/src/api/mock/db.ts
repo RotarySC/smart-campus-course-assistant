@@ -19,7 +19,7 @@ import type {
   Task,
   User,
   WriteOperation,
-} from '../types.gen'
+} from '../types'
 
 /** mock 的「学校时区当日」。 */
 export const MOCK_TODAY = '2026-10-22'
@@ -143,7 +143,7 @@ export const plans: Plan[] = [
   },
 ]
 
-const task = (id: string, state: string, retryable = false): Task => ({ task_id: id, state, retryable })
+const task = (id: string, state: Task['state'], retryable = false): Task => ({ task_id: id, state, retryable })
 
 export const documents: Document[] = [
   {

@@ -7,7 +7,7 @@
 
 import type { AuthSnapshot } from './client'
 import { request } from './client'
-import type { Citation } from './types.gen'
+import type { Citation } from './types'
 
 /** `GET /api/v1/citations/{reference_id}`（operationId `getCitation`） */
 export function getCitation(auth: AuthSnapshot, referenceId: string): Promise<Citation> {

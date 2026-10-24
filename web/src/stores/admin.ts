@@ -26,7 +26,7 @@ import type {
   StudentCreate,
   StudentPatch,
   User,
-} from '@/api/types.gen'
+} from '@/api/types'
 import { BATCH_POLL_MS } from '@/domain/constants'
 import { useSessionStore } from './session'
 import { useUiStore } from './ui'

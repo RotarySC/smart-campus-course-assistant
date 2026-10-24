@@ -30,7 +30,7 @@ import type {
   StudentCreate,
   StudentPatch,
   User,
-} from './types.gen'
+} from './types'
 
 /* ===================== 课程 ===================== */
 

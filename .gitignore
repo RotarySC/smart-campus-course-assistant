@@ -62,3 +62,16 @@ Thumbs.db
 # ---- uv 本机缓存（国内镜像安装用） ----
 .uv-cache/
 
+
+# ---- pytest / 临时脚本产物 ----
+pytest-of-*/
+backend/pytest-of-*/
+/backend/tmp*
+
+
+# ---- 独立验证产物 ----
+verification/evidence/
+verification/runtime/
+verification/**/*.log
+verification/**/*.pid
+

@@ -22,7 +22,7 @@ import { ICONS } from '@/components/base/icons'
 import { ACTIONS, S01, S10 } from '@/domain/copy'
 import { validateCourseForm } from '@/domain/validate'
 import type { AppError } from '@/api/errors'
-import type { Course } from '@/api/types.gen'
+import type { Course } from '@/api/types'
 import { useAdminStore } from '@/stores/admin'
 
 const store = useAdminStore()
