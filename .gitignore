@@ -70,9 +70,9 @@ backend/pytest-of-*/
 /backend/tmp*
 
 
-# ---- 独立验证产物 ----
-verification/evidence/
-verification/runtime/
-verification/**/*.log
-verification/**/*.pid
+# ---- verification/ 不纳入版本控制 ----
+# 独立验证目录（判定报告、可复现脚本与证据），按项目决定不随代码库跟踪。
+# 文件仍完整保留在磁盘上（脚本照常可跑）；仅是不再由 git 管理。
+# 如需临时恢复跟踪某一文件：git add -f verification/<path>
+verification/
 

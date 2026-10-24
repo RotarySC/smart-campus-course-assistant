@@ -1,4 +1,0 @@
-# 运行/临时产物（不入库）
-# evidence/ 与 **/*.log、**/*.pid 的忽略在根 .gitignore 的「独立验证产物」段（Lead 维护）。
-runtime/
-tmp/
