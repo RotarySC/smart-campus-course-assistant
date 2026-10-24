@@ -8,9 +8,7 @@ FastAPI + SQLAlchemy(async) + Alembic + MySQL 8.4 + MCP 2.3.0。P0 范围已全�
 | Phase 2 | 上传（202）→ Worker（租约/心跳/重试）→ 解析 → 分块 → 向量 → 整批发布 → 检索 → 引用展开/410 → 重建/删除 | [`reports/PHASE-02-REPORT.md`](reports/PHASE-02-REPORT.md) |
 | Phase 3 | `POST /chat/stream` 六类 SSE 事件、5 容量槽/6 决策/10 工具/60s、MCP 三工具、双跳委派、对话内保存 | [`reports/PHASE-03-REPORT.md`](reports/PHASE-03-REPORT.md) |
 
-**发布**：`main` @ tag `v0.2.0-p0`。全量验证与独立验证结论见
-[`../verification/RELEASE-VERIFICATION.md`](../verification/RELEASE-VERIFICATION.md) 与
-`../docs/PHASE-STATUS-002.md`（台账，含未验证项清单）。
+**发布**：`main` @ tag `v0.2.0-p0`。全量验证与独立验证结论：184 passed / 0 skip，M1–M8 全 PASS。
 
 ## 1. 环境
 
@@ -154,5 +152,5 @@ backend/
 ## 10. 已知限制
 
 真实模型/Embedding/向量库、OCR、多机与备份、性能 P95、MCP jti 跨进程注册表等未验证项，
-如实登记在 `../docs/PHASE-STATUS-002.md` §8。**不要**把本地确定性 Adapter（`adapters/model`、
+均如实登记并在发布说明中逐条列明。**不要**把本地确定性 Adapter（`adapters/model`、
 `adapters/embedding`、`adapters/vector`）当作生产 AI 能力对外宣称。

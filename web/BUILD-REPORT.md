@@ -3,7 +3,7 @@
 | 项 | 值 |
 | --- | --- |
 | 任务 | task-3（阶段 B：Vue3 + TS + Pinia 可运行骨架，mock，L3-only） |
-| 依据 | `docs/校园课程智能助手_前端详细设计_v0.1.md`（§2.1/§5/§6/§7/§8/§9/§10）+ `docs/backend/*` + `design/system/*` + `design/directions/shared/content-spec.md` |
+| 依据 | `docs/backend/*`（契约真源）+ `design/system/*` + `design/directions/shared/content-spec.md` |
 | 上游 | 阶段 A（task-1）已冻结：`design/system/tokens.css` MD5 `26eee4f0348c6e4da9db1840d17f2163`、`tokens.ts` MD5 `03607588e7ec217959da681f51b363e7` |
 | 环境 | node v24.18.0 · pnpm 11.21.0 · Windows · **DSH 沙箱 `workspace-write`** |
 | 结论 | 源码全量落地。**生产构建与组件渲染在本沙箱内不可能验证**（环境限制，非代码问题）；其余门禁全绿 |

@@ -2,8 +2,7 @@
 
 Vue 3 + TypeScript + Pinia + vue-router 4，Vite 构建。**Phase 4 起默认走真实后端**（`/api/v1` 经 Vite proxy → `127.0.0.1:8100`），mock 降级为**显式开启**的开发夹具。
 
-> 本目录以 [`docs/校园课程智能助手_前端详细设计_v0.1.md`](../docs/校园课程智能助手_前端详细设计_v0.1.md)
-> §2.1 的目标目录为骨架；阶段 B 交付 mock 骨架，**阶段 4（并行车道 F）完成真实后端联调**：
+> 本目录按模块边界组织骨架；阶段 B 交付 mock 骨架，**阶段 4（并行车道 F）完成真实后端联调**：
 > `types.gen.ts` 由 OpenAPI 生成、401 统一会话失效、HTTP 级 E2E + 浏览器冒烟、契约漂移门禁。
 > 证据与未覆盖项：阶段 B 见 [`BUILD-REPORT.md`](BUILD-REPORT.md)，阶段 4 见 [`reports/PHASE-04-REPORT.md`](reports/PHASE-04-REPORT.md)。
 

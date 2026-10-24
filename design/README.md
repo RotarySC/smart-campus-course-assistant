@@ -1,6 +1,6 @@
 # 前端 UI/UX 设计工作区
 
-本目录是本项目**前端 UI/UX 设计的交付区**。上游输入是 `../docs/` 下的需求与契约文档。
+本目录是本项目**前端 UI/UX 设计的交付区**。
 
 ## 现在处于哪一步
 
@@ -139,8 +139,6 @@ python design\system\verify-system.py # 独立于生成器的确定性校验，2
 > 补充说明：DSH **官方侧栏浏览器不提供 agent 控制能力**（本会话中页面始终未挂载进侧栏面板，
 > `sidebar.state.webview.via: "absent"`，随后会话被空闲回收且 agent 无法自行重建）；
 > agent 可控的浏览操作由**本地插件**（web-access / CDP）补齐。
-> 确切报错、根因分层与复现步骤见
-> [`docs/tooling/DSH侧栏浏览器-agent控制问题记录_v1.md`](../docs/tooling/DSH侧栏浏览器-agent控制问题记录_v1.md)。
 
 **仍未验证**：hover/focus/active 的真实渲染样式；真实渲染像素的对比度（现有对比度均按**声明的 token 值**计算，
 未做 alpha 与 `color-mix` 合成后实测）；Firefox / Safari（SRS 只要求 Chrome/Edge）；
@@ -159,14 +157,10 @@ python design\system\verify-system.py # 独立于生成器的确定性校验，2
    > 18 个宽度顶栏恒 56.67px。
    > 既有产物哈希随之变化：`rb.css = 0749FA7A47BC155F52A12406123DF6CC`、
    > `b-responsive.html = 5B73454136F261AC13E9A0203C0C6D73`；token 合计 **519**。
-2. ~~**前端详细设计**~~ —— **已完成**：见
-   [`../docs/校园课程智能助手_前端详细设计_v0.1.md`](../docs/校园课程智能助手_前端详细设计_v0.1.md)（16 章）。
-   它把本目录的设计产物接到实现：目标目录与模块边界、SSE 流式客户端（分包/编码边界/去重/终态唯一/
-   「HTTP 关闭 ≠ 终态」）、8 个 store、10 条路由、S01–S13 逐屏、27 个组件族的 Vue 映射、
-   无障碍与响应式实现、以及 6 个必修项作为**实现前置批次**。
-   配套：写作契约 [`../docs/frontend-detail/CONTRACT.md`](../docs/frontend-detail/CONTRACT.md)、
-   字段参考 [`../docs/frontend-detail/API-REFERENCE.md`](../docs/frontend-detail/API-REFERENCE.md)（由 openapi 生成）、
-   独立验证 [`../docs/frontend-detail/verification.md`](../docs/frontend-detail/verification.md)。
+2. ~~**前端详细设计**~~ —— **已完成**（16 章）。它把本目录的设计产物接到实现：
+   目标目录与模块边界、SSE 流式客户端（分包/编码边界/去重/终态唯一/「HTTP 关闭 ≠ 终态」）、
+   8 个 store、10 条路由、S01–S13 逐屏、27 个组件族的 Vue 映射、无障碍与响应式实现、
+   以及 6 个必修项作为**实现前置批次**。
 3. ~~**Vue 3 可运行响应式骨架**~~ —— **已完成**（阶段 B）：见 [`../web/`](../web/)，
    Vue 3 + TS + Pinia + vue-router 4，8 个 store、10 条路由、SSE 字节级解析（P1–P12）+ 状态机、
    27 个组件族、S01–S12 视图、mock 层（同源 `/api/v1`，零外部请求）。

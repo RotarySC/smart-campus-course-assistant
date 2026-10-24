@@ -26,8 +26,6 @@
 | `backend/` | FastAPI + SQLAlchemy(async) + Alembic + MySQL；身份/课程/课表/计划/保存、资料知识链路、SSE 助手 + MCP |
 | `scripts/` | 一键启动/停止/巡检（PowerShell，另有 `.cmd` 双击入口） |
 | `design/` | 设计系统与原型（token、组件、评审记录） |
-| `docs/` | 需求/设计真源、Phase 计划与状态台账、启动手册（按项目约定**不纳入 git**，随磁盘保留） |
-| `verification/` | Phase 5 独立验证：环境、矩阵清单、发布结论与脚本 |
 
 ## 服务端口
 
@@ -41,9 +39,8 @@
 
 ## 验证与已知限制
 
-- 发布验证结论：`verification/RELEASE-VERIFICATION.md`（全量 184 passed / 0 skip，M1–M8 全 PASS）。
-- 未验证项（真实模型质量、生产向量库、OCR、多机/备份、性能 P95 等）如实登记在
-  `docs/PHASE-STATUS-002.md` §8。
+- 发布验证结论：全量 184 passed / 0 skip，M1–M8 全 PASS（独立验证者出具，不复用实现者结论）。
+- 未验证项：真实模型质量、生产向量库、OCR、多机/备份、性能 P95、Firefox/Safari、多机并发等。
 
 ## 开发约定
 
