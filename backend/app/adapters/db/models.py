@@ -1,4 +1,4 @@
-"""SQLAlchemy 2.0 异步模型：与 ``docs/backend/cca_schema_v0.1.sql`` 的 23 张表一一对应。
+"""SQLAlchemy 2.0 异步模型：与 ``contracts/cca_schema_v0.1.sql`` 的 23 张表一一对应。
 
 说明：
 - 迁移以原始 DDL 为权威（``migrations/versions/0001_initial_schema.py``），本文件只服务

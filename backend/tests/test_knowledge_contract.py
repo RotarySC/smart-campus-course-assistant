@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-DESIGN_OPENAPI = BACKEND_DIR.parent / "docs" / "backend" / "openapi_v0.1.json"
+DESIGN_OPENAPI = BACKEND_DIR.parent / "contracts" / "openapi_v0.1.json"
 
 ENDPOINTS = [
     ("post", "/api/v1/admin/document-batches", "202", "Batch"),

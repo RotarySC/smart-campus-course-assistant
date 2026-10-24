@@ -1,7 +1,7 @@
 """响应模型（OpenAPI 运行态契约）。
 
 说明：
-- 类名与 ``docs/backend/openapi_v0.1.json`` 的 components.schemas 名称逐字一致，
+- 类名与 ``contracts/openapi_v0.1.json`` 的 components.schemas 名称逐字一致，
   便于前端 ``openapi-typescript`` 生成与漂移门禁比对。
 - 路由实际返回 ``JSONResponse``（信封由 ``shared.http.envelope`` 组装），响应模型只用于
   OpenAPI 文档与契约测试；字段名/可空性/枚举仍以设计包为权威。

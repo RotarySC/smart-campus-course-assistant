@@ -86,6 +86,7 @@ $env:DATABASE_URL = "mysql+aiomysql://root:cca_dev_root@127.0.0.1:33061/cca?char
 
 DDL 的唯一入库表达是 `migrations/versions/0001_initial_schema.py`（23 张业务表）；后续阶段**不新增、
 不修改**迁移。注意 `tests/test_release_migration.py` 会清空 `DATABASE_URL` 指向的库，必须独占库串行执行。
+契约真源在仓库根 `contracts/`（OpenAPI / MCP 工具 / SSE 事件 schema / DDL），是类型生成与契约门禁的输入。
 
 ## 6. 种子（仅开发/演示）
 

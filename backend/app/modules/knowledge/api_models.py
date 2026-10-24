@@ -1,6 +1,6 @@
 """知识链路响应模型（仅用于运行态 OpenAPI 文档与契约比对）。
 
-类名/字段与 ``docs/backend/openapi_v0.1.json`` 的 components.schemas 一致；
+类名/字段与 ``contracts/openapi_v0.1.json`` 的 components.schemas 一致；
 路由实际返回 ``JSONResponse``（信封由 ``shared.http.envelope`` 组装），因此这些
 模型不会在运行时改写响应，只声明契约。
 """

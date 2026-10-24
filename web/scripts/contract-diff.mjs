@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB_ROOT = resolve(HERE, '..')
 const REPO_ROOT = resolve(WEB_ROOT, '..')
-const DESIGN_SPEC = resolve(REPO_ROOT, 'docs/backend/openapi_v0.1.json')
+const DESIGN_SPEC = resolve(REPO_ROOT, 'contracts/openapi_v0.1.json')
 const DEFAULT_URL = 'http://127.0.0.1:8100/api/v1/openapi.json'
 
 const argv = process.argv.slice(2)

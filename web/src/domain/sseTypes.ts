@@ -1,5 +1,5 @@
 /**
- * SSE 事件的类型契约。真源：`docs/backend/sse_events_v0.1.schema.json`。
+ * SSE 事件的类型契约。真源：`contracts/sse_events_v0.1.schema.json`。
  *
  * 放在 `domain/` 而不是 `api/`，是为了满足 §2.2 R1：
  * `domain/**` 不得 import `stores/**`、`api/**`。`api/sse/parse.ts` 反向 import 本文件的类型，

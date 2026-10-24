@@ -1,4 +1,4 @@
-"""助手模块契约模型（字段以 ``docs/backend/openapi_v0.1.json``、
+"""助手模块契约模型（字段以 ``contracts/openapi_v0.1.json``、
 ``sse_events_v0.1.schema.json``、``mcp_tools_v0.1.json`` 为权威）。
 
 集中三处共用：

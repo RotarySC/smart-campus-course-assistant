@@ -5,7 +5,7 @@
  * 依据：PHASE-04 F2 / 前端详细设计 §2.1（`types.gen.ts` 由 openapi 生成，勿手改）/ §14。
  *
  * 真源（二者为同一份契约；**默认 file = 设计包，确定性 + 可离线**）：
- *   1. 设计包离线契约：`docs/backend/openapi_v0.1.json`（默认）
+ *   1. 设计包离线契约：`contracts/openapi_v0.1.json`（默认）
  *   2. 后端运行时 OpenAPI：`http://127.0.0.1:8100/api/v1/openapi.json`（`--source=http|auto`）
  *
  * 为什么默认不是运行态（2026-10-23 联调后实测，后端 27 paths / 67 schemas）：
@@ -49,7 +49,7 @@ const WEB_ROOT = resolve(HERE, '..')
 const REPO_ROOT = resolve(WEB_ROOT, '..')
 
 const DEFAULT_OUT = resolve(WEB_ROOT, 'src/api/types.gen.ts')
-const LOCAL_SPEC = resolve(REPO_ROOT, 'docs/backend/openapi_v0.1.json')
+const LOCAL_SPEC = resolve(REPO_ROOT, 'contracts/openapi_v0.1.json')
 const DEFAULT_URL = 'http://127.0.0.1:8100/api/v1/openapi.json'
 const HTTP_TIMEOUT_MS = 2_000
 
@@ -132,7 +132,7 @@ const HEADER = `/**
  * 漂移门禁：node scripts/gen-types.mjs --check（不一致即 exit 1）
  * 生成器：openapi-typescript（devDependency，版本见 web/pnpm-lock.yaml）
  * 真源：优先后端运行时 \`GET /api/v1/openapi.json\`（--source=auto 默认），
- *       不可达时回落 \`docs/backend/openapi_v0.1.json\`（同一份契约）。
+ *       不可达时回落 \`contracts/openapi_v0.1.json\`（同一份契约）。
  *
  * 内网端点：OpenAPI 里的 4 个 \`/internal/v1/*\` 在生成前被**剔除**（§15.2 前端不得调用），
  * 因此前端类型面天然不含这些端点，不变量 8「不引用 /internal/v1」保持零豁免。

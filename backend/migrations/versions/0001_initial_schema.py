@@ -1,4 +1,4 @@
-"""initial schema: 23 tables (docs/backend/cca_schema_v0.1.sql)
+"""initial schema: 23 tables (contracts/cca_schema_v0.1.sql)
 
 Phase 1 P1-T03：一次性建全部 23 张表（P2/P3 不再新增迁移）。
 DDL 与设计包逐字对应（InnoDB / utf8mb4_0900_bin / DATETIME(6) / CHECK / 生成列）。

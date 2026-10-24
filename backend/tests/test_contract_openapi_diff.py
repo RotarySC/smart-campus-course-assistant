@@ -3,7 +3,7 @@
 覆盖 **34 个公共端点 + 4 个内部端点**（P1/P2/P3 全部已实现面）：
 - 公共应用：``GET /api/v1/openapi.json``（运行态）；
 - 内部应用：``create_internal_app().openapi()``（内部端点只在此暴露）；
-- 设计包：``<repo>/docs/backend/openapi_v0.1.json``（docs 不入 git，缺失时 skip）。
+- 设计包：``<repo>/contracts/openapi_v0.1.json``（缺失时 skip）。
 
 逐端点对比：路径/方法/operationId、请求体属性/必填/类型/枚举、成功状态码集合、
 错误状态码集合（统一 Error schema）、响应 data 字段/必填/类型/枚举（递归到数组元素）。
@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-DESIGN_OPENAPI = BACKEND_DIR.parent / "docs" / "backend" / "openapi_v0.1.json"
+DESIGN_OPENAPI = BACKEND_DIR.parent / "contracts" / "openapi_v0.1.json"
 
 SUCCESS_CODES = {"200", "201", "202"}
 ERROR_CODES = (
@@ -378,7 +378,7 @@ def _all_operations(spec: dict[str, Any]) -> list[tuple[str, str]]:
 def test_design_package_shape_is_38_operations():
     """设计包自身必须是 38 操作（34 公共 + 4 内部），防止对比基数漂移。"""
     if not DESIGN_OPENAPI.exists():
-        pytest.skip(f"设计包不存在（docs 不入 git）：{DESIGN_OPENAPI}")
+        pytest.skip(f"契约文件缺失：{DESIGN_OPENAPI}")
     design = json.loads(DESIGN_OPENAPI.read_text(encoding="utf-8"))
     operations = _all_operations(design)
     assert len(operations) == 38
@@ -389,7 +389,7 @@ def test_design_package_shape_is_38_operations():
 
 async def test_full_openapi_structure_matches_design(client):
     if not DESIGN_OPENAPI.exists():
-        pytest.skip(f"设计包不存在（docs 不入 git）：{DESIGN_OPENAPI}")
+        pytest.skip(f"契约文件缺失：{DESIGN_OPENAPI}")
 
     design, public, internal = await _load_specs(client)
     design_ops = _all_operations(design)
@@ -469,7 +469,7 @@ async def test_full_openapi_structure_matches_design(client):
 async def test_all_operations_document_errors_and_success(client):
     """所有 38 个操作：标准错误响应齐全且统一 Error schema；创建/异步类状态码正确。"""
     if not DESIGN_OPENAPI.exists():
-        pytest.skip(f"设计包不存在（docs 不入 git）：{DESIGN_OPENAPI}")
+        pytest.skip(f"契约文件缺失：{DESIGN_OPENAPI}")
     design, public, internal = await _load_specs(client)
     for spec in (public, internal):
         for path, operations in spec["paths"].items():

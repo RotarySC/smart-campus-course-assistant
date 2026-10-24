@@ -7,7 +7,7 @@
  * 多行 `data:` 拼接、`id`/`seq` 互校这些逻辑**在冒烟里就被真实跑到了**，
  * 而不是靠一个「直接给 JS 对象」的假流绕过。
  *
- * 事件名与字段严格照 `docs/backend/sse_events_v0.1.schema.json`。
+ * 事件名与字段严格照 `contracts/sse_events_v0.1.schema.json`。
  */
 
 import type { SseEventName } from '@/domain/constants'

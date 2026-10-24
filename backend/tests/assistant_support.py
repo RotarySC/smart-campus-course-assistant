@@ -50,9 +50,9 @@ from app.shared.ids import (
 from app.shared.payload import normalize_plan_payload, plan_payload_digest
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-DOCS_DIR = BACKEND_DIR.parent / "docs"
-SSE_SCHEMA_PATH = DOCS_DIR / "backend" / "sse_events_v0.1.schema.json"
-MCP_TOOLS_PATH = DOCS_DIR / "backend" / "mcp_tools_v0.1.json"
+CONTRACTS_DIR = BACKEND_DIR.parent / "contracts"
+SSE_SCHEMA_PATH = CONTRACTS_DIR / "sse_events_v0.1.schema.json"
+MCP_TOOLS_PATH = CONTRACTS_DIR / "mcp_tools_v0.1.json"
 
 
 def free_port() -> int:

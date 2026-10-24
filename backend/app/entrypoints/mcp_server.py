@@ -4,7 +4,7 @@
 （不是 1.x 的 ``FastMCP``）；HTTP 用 ``streamable_http_app()`` / ``run_streamable_http_async``。
 
 边界：
-- 只发布固定三工具，schema 与 ``docs/backend/mcp_tools_v0.1.json`` 对应；
+- 只发布固定三工具，schema 与 ``contracts/mcp_tools_v0.1.json`` 对应；
   不开放动态发现/管理工具/远程 URL 工具。
 - 工具实现只做参数校验 + 委派兑换 + 调用内部端点，**不直接读库**。
 - 身份来源是传输头里的 ``aud=cca-mcp`` 短委派；用户 Bearer 不进入 MCP。
