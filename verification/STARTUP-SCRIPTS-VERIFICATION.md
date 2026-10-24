@@ -3,12 +3,12 @@
 | 项 | 值 |
 | --- | --- |
 | 验证者 | `qa-verifier`（独立于交付者，不接受 Lead 自测结论） |
-| 被验证对象 | **`main` @ `1d4ce11` + 工作树 9 行未提交补丁**（见 R3：复验时脚本工作树比提交多 9 行 `instance-<port>.db` 标记逻辑；我的实测跑的就是这棵树）：`scripts/start.ps1` / `stop.ps1` / `status.ps1` + `start.cmd` / `stop.cmd` / `status.cmd` + `.gitattributes`；文档 `README.md`（根）、`backend/README.md`、`web/README.md`、`docs/STARTUP.md`、`docs/PHASE-STATUS-002.md` §6、`docs/phases/PHASE-PLAN.md` §8.2。首轮对象为 `eb613e1` 的未提交交付（`d0a`/`d1` 两轮，见 §1） |
+| 被验证对象 | **`main` @ `1a3ed19`**（= `1d4ce11` + 9 行 `instance-<port>.db` 标记补丁 + 本报告入库；`git diff 1d4ce11..1a3ed19` 已核对：scripts 仅 +9 行、无 D1/D3/D4/D2 修复逻辑改动）：`scripts/start.ps1` / `stop.ps1` / `status.ps1` + `start.cmd` / `stop.cmd` / `status.cmd` + `.gitattributes`；文档 `README.md`（根）、`backend/README.md`、`web/README.md`、`docs/STARTUP.md`、`docs/PHASE-STATUS-002.md` §6、`docs/phases/PHASE-PLAN.md` §8.2。首轮对象为 `eb613e1` 的未提交交付（`d0a`/`d1` 两轮，见 §1） |
 | 验证方式 | 逐行读脚本 → 真实环境端到端执行（停/启/幂等/多实例/负向/巡检/`.cmd` 入口），真实 HTTP + SSE + MySQL 数据核对 |
 | 环境 | Windows / PowerShell 7 / Node 24.18.0 / pnpm 11.21.0 / `.venv` Python 3.12.10 / Docker `cca-mysql`（MySQL 8.4）|
 | 数据边界 | 未 `-StopDocker`、未 `-ResetDb`、未删演示数据；`cca` 实测前后 **24 表 / 17 用户**不变；D7 用一次性库 `cca_alt` 复验后已 DROP |
-| 复验轮次 | 第 1 轮（`eb613e1` 未提交交付）：**FAIL**（阻断 D2）。第 2 轮（`1d4ce11` 提交）：**PASS** —— D2/D1/D3/D4/D5–D8 全部闭环，仅剩 2 条低危文档措辞建议（R1/R2），不阻断 |
-| **最终判定** | **PASS（`1d4ce11`）** |
+| 复验轮次 | 第 1 轮（`eb613e1` 未提交交付）：**FAIL**（阻断 D2）。第 2 轮（`1d4ce11`）：**PASS**（D2/D1/D3/D4/D5–D8 闭环）。第 3 轮（`1a3ed19`）：**PASS 确认** —— R3（9 行 marker 补丁）已提交、R1/R2 文档已改；无剩余功能差异 |
+| **最终判定** | **PASS（`1a3ed19`）** |
 
 ---
 
@@ -185,9 +185,9 @@ stop 8200: EXITCODE=0；[OK] 8200/8201/8202/0 已全部释放
 | D6（已修） | `docs/STARTUP.md` §5/§7 | 只给出无参 `status.ps1`；§7 的多实例示例只有 start/stop | `status.ps1` 支持 `-PublicPort/-InternalPort/-McpPort/-WebPort`（我实测用它巡检 8200 实例），文档未说明 | 缺文档 |
 | D7（已修） | `docs/STARTUP.md` §7 边界 2 | "两套实例同时跑时务必用不同端口 + **不同库**" | 脚本**没有数据库参数**；第二套实例复用 `backend/.env` 的 `DATABASE_URL`（我实测两套都连 `cca`）。要换库只能手改共享的 `.env`，且会影响后续启动，文档未说明操作方法 | 表述不完整 |
 | D8（已修） | `backend/README.md` §1 测试库 | 列出 `cca_test_core/knowledge/assistant/release` | 实际磁盘上还有 `cca_test_lead`（Lead 全量验证用）；`docs/PHASE-STATUS-002.md` §6 已列出 lead，两份文档不一致 | 清单不同步（`1d4ce11` 已补） |
-| R1 | `docs/STARTUP.md` §2.1 CI 注记 | 声称「直接 `pwsh -File start.ps1` 在管道里能正常返回（约 11 s）；经 `.cmd` 入口再被管道捕获会一直等」 | 实测：`pwsh -File start.ps1 -NoFrontend` **无下游缓冲**时 13s 返回 exit 0 ✓；但加 `| Out-String`（需 EOF 缓冲）**>50s 不返回**，`.cmd` 同样；重定向到文件时两者都 13s 返回。真实规则是「调用方是否按 EOF 缓冲」，不是 ps1/cmd 之别 | 措辞需精确（低危，不阻断） |
-| R2 | `docs/STARTUP.md` §8 日志与 PID | 只列 `*.pid` / `*.out.log` / `*.err.log` | 新增 `backend/var/run/instance-<公共端口>.db`（记录实例当前库名；start 第 326 行写、stop 第 118 行删；实测 `instance-8100.db=cca`、`instance-8200.db=cca_alt`） | 建议补一行说明（极低危） |
-| R3 | 交付状态（流程） | task-11 复验时 `git status` 本应只有报告文件 | 实际 `scripts/start.ps1|status.ps1|stop.ps1` 各有未提交新增（`+9` 行，`instance-<port>.db` 标记）；即**发布对象 ≠ 提交 `1d4ce11`**。逐行核对：不触及 D2/D1/D3/D4 修复逻辑，属加载项（我实测已通过）；但报告口径需注明，建议把该补丁一并提交并给出新 sha | 流程/口径（不阻断功能） |
+| R1（已修，docs 非 git） | `docs/STARTUP.md` §2.1 CI 注记 | 声称「直接 `pwsh -File start.ps1` 在管道里能正常返回（约 11 s）；经 `.cmd` 入口再被管道捕获会一直等」 | 实测：`pwsh -File start.ps1 -NoFrontend` **无下游缓冲**时 13s 返回 exit 0 ✓；但加 `| Out-String`（需 EOF 缓冲）**>50s 不返回**，`.cmd` 同样；重定向到文件时两者都 13s 返回。真实规则是「调用方是否按 EOF 缓冲」，不是 ps1/cmd 之别 | 措辞需精确（低危，不阻断） |
+| R2（已修，docs 非 git） | `docs/STARTUP.md` §8 日志与 PID | 只列 `*.pid` / `*.out.log` / `*.err.log` | 新增 `backend/var/run/instance-<公共端口>.db`（记录实例当前库名；start 第 326 行写、stop 第 118 行删；实测 `instance-8100.db=cca`、`instance-8200.db=cca_alt`） | 建议补一行说明（极低危） |
+| R3（已修，`1a3ed19`） | 交付状态（流程） | task-11 复验时 `git status` 本应只有报告文件 | 实际 `scripts/start.ps1|status.ps1|stop.ps1` 各有未提交新增（`+9` 行，`instance-<port>.db` 标记）；即**发布对象 ≠ 提交 `1d4ce11`**。逐行核对：不触及 D2/D1/D3/D4 修复逻辑，属加载项（我实测已通过）；但报告口径需注明，建议把该补丁一并提交并给出新 sha | 流程/口径（不阻断功能） |
 | D9 | 根 `README.md` / `docs/STARTUP.md` 头部 | "另有 `.cmd` 双击入口" | `.cmd` 存在，但 LF 换行导致双击时先报错（D2） | 与事实不符（缺陷导致） |
 | D10 | `docs/STARTUP.md` §2.2 | 启动成功表 6 行（含 Worker UP） | 默认实例一致 ✅；非默认实例只有 5 行且 Worker 行可能误报（D1） | 场景未覆盖 |
 | D11 | `docs/STARTUP.md` §2 表格 2/6 | ".env 缺失则由 .env.example 生成" | 与代码一致 ✅（`backend/.env` 已存在时沿用） | 无差异 |
@@ -223,7 +223,8 @@ stop 8200: EXITCODE=0；[OK] 8200/8201/8202/0 已全部释放
   - D4：`status.ps1 -PublicPort 8200 …` → `前端 - DOWN 该实例未起前端`、日志段 `无 ERROR/Traceback（仅有 INFO 级启动日志）`，不再串默认 5173。
   - D5/D6/D7/D8：文档与代码/实测一致（D7 用 `cca_alt` 实测通过）。
   - 第 9 项：`-SkipSeed` 汇总打印「演示账号：未写入（-SkipSeed）」。
-- **剩余非阻断差异**：R1（CI 注记把 ps1/cmd 阻塞差异绝对化，应改为「取决于调用方是否按 EOF 缓冲」）、R2（§8 未列 `instance-<port>.db` 标记文件）、R3（复验时工作树比提交多 9 行未提交脚本补丁；见 §1，建议一并提交并给新 sha；不影响 D2/D1/D3/D4 的 PASS 判定）。建议发布前一并补，不影响合并。
+- **剩余非阻断差异：无**。R1（CI 注记精确化）与 R2（§8 补 `instance-<port>.db` 标记）已按复验建议更新（`docs/` 不随 git）；R3 的 9 行 marker 补丁已提交进 `1a3ed19`，`git diff 1d4ce11..1a3ed19 -- scripts/` 逐行核对为纯新增、不触及任何修复逻辑。
+- **发布口径建议（tag）**：`v0.2.0-p0` 当前指向 `fa1e6bc`（不是 HEAD）。`1a3ed19` 相对 p0 增加了脚本运行行为（`backend/var/run/instance-<port>.db` 写/读/删）与文档，建议**新增补丁 tag（如 `v0.2.0-p1`）指向 `1a3ed19`，不移动已发布的 `v0.2.0-p0`**（tag 不可变、历史可审计）。若项目把 p0 视为「最终交付指针」且尚未对外分发，也可选择移动 tag，但会重写已发布引用，需 Lead 明确。
 - 本轮未发现新的功能缺陷。
 
 ---
@@ -307,3 +308,11 @@ Worker        - UP   PID 6456
 
 - 收尾：`8100/8101/8102/5173/8200/8201/8202` 全 free；`backend/var/run` PID/标记文件 0；`app.entrypoints` 进程 0；`cca-mysql` Up（未 `-StopDocker`）。
 - `cca`：24 表 / 17 用户（未变）；`cca_alt` 已 DROP；`backend/.env` 未改；未跑全量 pytest、未 `-ResetDb`。
+
+### 第 3 轮确认（`1a3ed19`）
+
+- `git log -1 --format='%p'` → 父提交 `1d4ce11`；`git diff --stat 1d4ce11..1a3ed19` = `scripts/{start,status,stop}.ps1` **+2/+6/+1 = 9 行**、`verification/README.md` 索引、本报告新增；`git diff -- scripts/` 逐行核对：仅 marker 写/读/删，**未触及 D1/D3/D4/D2 修复逻辑**；工作树 `git status` 干净。
+- 文档 R1/R2：`docs/STARTUP.md` §2.1 CI 注记已改为「是否立即返回取决于调用方是否按 EOF 缓冲……CI 请重定向到文件或后台运行」（第 81–83 行）；§8 已新增 `instance-<公共端口>.db` 行（第 282 行）。
+- 提交码实测（`1a3ed19` 工作树）：`start.ps1 -NoFrontend -SkipSeed -PublicPort 8200…` → exit 0，`backend/var/run/instance-8200.db` = `cca`；`status.ps1 -PublicPort 8200…` → `配置：backend/.env 存在    库：cca`、`Worker - UP PID 11296`、`前端 - DOWN 该实例未起前端`；`stop.ps1 -PublicPort 8200…` → `8200/8201/8202 已全部释放`，**marker 已删除**；8200–8202 释放。
+- 说明：确认时默认实例（8100/8101/8102/5173）正在运行（11:07 由 Lead 侧启动，`backend/var/run/{public,internal,mcp,web,worker}.pid` + `instance-8100.db` 在位），**我未停止它**，以免打断 Lead 的现场；我的 8200 实例与 marker 已清理干净。
+- 结论：**PASS 确认**。
