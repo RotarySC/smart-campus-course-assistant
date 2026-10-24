@@ -27,7 +27,7 @@
 | --- | --- |
 | `docs/` | 整体忽略；需求、设计、计划、台账都不在 git |
 | `verification/` | 整体忽略；报告、脚本、证据只在磁盘 |
-| `backend/reports/`、`web/reports/`、`web/BUILD-REPORT.md`、`design/reviews/` | 历史遗留已入库，**维持现状**：不新增同类文件，也不在其中追加新报告 |
+| `backend/reports/`、`web/reports/`、`web/BUILD-REPORT.md`、`design/reviews/`、`design/**/verification.md`、`design/**/shots/` | 已整体移出索引并加入忽略；历史报告只保留在磁盘 |
 | `backend/var/`、`backend/uploads/` | 运行期产物，已忽略 |
 
 ## 4. 容易踩的坑

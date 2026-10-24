@@ -76,3 +76,16 @@ backend/pytest-of-*/
 # 如需临时恢复跟踪某一文件：git add -f verification/<path>
 verification/
 
+
+# ---- 阶段报告 / 验证记录：不纳入版本控制 ----
+# 阶段与交付报告、独立验证记录、评审报告、截图等证据类产物不随代码库跟踪；
+# 文件仍完整保留在磁盘上。确需临时跟踪：git add -f <path>
+backend/reports/
+web/reports/
+web/BUILD-REPORT.md
+web/verify-transcript.txt
+design/reviews/
+design/**/verification.md
+design/**/verify-system-output.*
+design/**/shots/
+
