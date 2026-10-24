@@ -89,3 +89,10 @@ design/**/verification.md
 design/**/verify-system-output.*
 design/**/shots/
 
+
+# ---- design/ 不纳入版本控制 ----
+# 方案与原型目录（设计方向、响应式原型、设计系统源），按项目决定不随代码库跟踪。
+# 文件仍完整保留在磁盘上；web 的 token 同步校验依赖其中的设计源。
+# 确需临时跟踪：git add -f design/<path>
+design/
+
