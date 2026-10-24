@@ -11,6 +11,17 @@ Vue 3 + TypeScript + Pinia + vue-router 4，Vite 构建。**Phase 4 起默认走
 
 ## 0. 常用命令
 
+整套前后端（MySQL + 后端四服务 + 本目录 dev server）用仓库根的一键脚本：
+
+```powershell
+cd ..                        # 仓库根
+.\scripts\start.ps1          # 起全套并做完健康检查；-NoFrontend 只起后端，-Mock 走 mock 夹具
+.\scripts\status.ps1         # 巡检
+.\scripts\stop.ps1           # 停止
+```
+
+单独跑前端：
+
 ```powershell
 cd web
 pnpm install                 # 仅首次（本工作树的 node_modules 是联接，见 §1.4）
@@ -24,6 +35,9 @@ pnpm e2e                     # HTTP 级真实链路 E2E（需后端 8100）
 pnpm e2e:proxy               # 同上，但经 Vite proxy（验证 /api 代理）
 pnpm smoke:browser           # 浏览器冒烟（Edge headless + CDP；--login/--pages 见脚本头）
 ```
+
+> 端口/账号/停止方式见 `../docs/STARTUP.md`；dev server 默认只绑 `localhost`（本机解析到 `::1`），
+> 探活用 `http://localhost:5173/`，用 `127.0.0.1` 会被拒连。
 
 **mock 是显式 opt-in**：`VITE_USE_MOCK` 只有等于 `'true'` 才启用 mock 传输层；未设置/其他值一律走真实后端。
 这样生产构建不会因为漏配 `.env` 而把 mock 假数据当成产品发布（PHASE-PLAN D5：验收以真实后端为准）。

@@ -1,0 +1,9 @@
+# 换行符策略（跨机器/跨平台一致）
+#
+# Windows 批处理必须 CRLF：LF 会让 cmd.exe 解析错行（实测 'd' is not recognized…），
+# 所以在仓库里声明 eol=crlf，签出时统一转成 CRLF。
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# PowerShell 脚本两种换行都能跑（pwsh 7 接受 LF），统一 LF 便于 diff 与比较。
+*.ps1 text eol=lf

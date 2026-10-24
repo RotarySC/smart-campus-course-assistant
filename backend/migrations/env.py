@@ -1,4 +1,4 @@
-"""Alembic 环境：异步引擎，连接串来自环境变量 DATABASE_URL（禁止硬编码开发库）。
+r"""Alembic 环境：异步引擎，连接串来自环境变量 DATABASE_URL（禁止硬编码开发库）。
 
 用法（cwd = backend/）：
     $env:DATABASE_URL="mysql+aiomysql://root:cca_dev_root@127.0.0.1:33061/cca_test_core?charset=utf8mb4"
