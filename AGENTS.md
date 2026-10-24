@@ -17,6 +17,7 @@
 ## 2. 该进 git 的
 
 - 代码与测试：`backend/`、`web/`
+- 契约真源：`contracts/`（OpenAPI、MCP 工具、SSE 事件 schema、DDL）
 - 可复现的工程配置：`scripts/`、`.gitignore`、`.gitattributes`、`package.json`、`pyproject.toml`、`alembic` 迁移
 - 仓库入口与约定：`README.md`、`AGENTS.md`
 
@@ -24,7 +25,7 @@
 
 | 路径 | 状态 |
 | --- | --- |
-| `docs/` | 整体忽略；需求、设计、计划、台账都不在 git |
+| `docs/` | 整体忽略；需求、设计、计划、台账都不在 git（契约文件已移到 `contracts/`） |
 | `design/` | 整体忽略；方案与原型（设计方向、响应式原型、设计系统源）只在磁盘 |
 | `verification/` | 整体忽略；报告、脚本、证据只在磁盘 |
 | `backend/reports/`、`web/reports/`、`web/BUILD-REPORT.md`、`design/reviews/`、`design/**/verification.md`、`design/**/shots/` | 已整体移出索引并加入忽略；历史报告只保留在磁盘 |
@@ -32,14 +33,35 @@
 
 ## 4. 容易踩的坑
 
-1. **契约真源不在 git**：`docs/backend/{openapi_v0.1.json, mcp_tools_v0.1.json, sse_events_v0.1.schema.json, cca_schema_v0.1.sql}` 随 `docs/` 一起被忽略，但它们是门禁依赖——缺失会让
-   `web/scripts/gen-types.mjs --check`、`contract-diff.mjs`、`verification/scripts/preflight.ps1` 与后端契约用例失败或静默 skip。换机器/新克隆时先确认这 4 个文件在位。
+1. **契约真源在 `contracts/`（已入库）**：`contracts/{openapi_v0.1.json, mcp_tools_v0.1.json, sse_events_v0.1.schema.json, cca_schema_v0.1.sql}`。它是门禁的输入，改契约必须同步实现并跑 `pnpm types:check`、`pnpm types:diff` 与后端契约用例；不要把契约再放回 `docs/`。
 2. **设计源不在 git**：`design/system/tokens.{json,css,ts}` 随 `design/` 一起被忽略，但 `web` 的 `tokens:check` / `tokens:sync` 依赖它们；缺失时该门禁失败。改样式数值只走设计源 → 同步脚本，**不要手改** `web/src/styles/tokens.*`。
 3. **不要用改名绕过忽略规则**（把报告改成 `.txt`、塞进别的目录混进去之类）。
 4. 确需临时恢复跟踪某个被忽略的文件：`git add -f <path>`，并在提交说明里写明理由与后续移除时点。
 
-## 5. 提交前自检
+## 5. 入口文档（README）写法
 
-- [ ] 本次提交只含代码 / 配置 / 入口文档，没有过程性、开发或计划文档
+入口文档只描述**产物本身**，顺序固定：
+
+1. 一句话：这是什么、解决什么；
+2. 能力表（两列 `能力 | 说明`）；
+3. 安装 / 启动：可直接复制的命令块 + 前置条件；
+4. 用法：命令、端口、配置项；
+5. 自验：能证明它跑得通的一组命令；
+6. 已知限制 / 未验证项。
+
+硬性要求：
+
+- **只链接仓库内、且 §2 允许的东西**（代码、脚本、配置、README、AGENTS.md）。指向 §1 三类文档或不存在产物的链接，视为该文档没写好。
+- **事实写进正文**：验证结论、用例数、端口、限制，直接写数字与结论，不写「详见某报告」。
+- 命令块必须能原样复制运行；表格只留必要列，不堆状态标记。
+- 版本与变更写在文档内小节（长历史可折叠），不另立报告文件。
+- 自包含：读者只看这一份就能跑起来；跨文档只指向同级 README 或 AGENTS.md。
+
+反例（出现即改）：`详见 docs/xxx.md`、`见验证报告 §6`、`设计文档 §4.1`、`见 BUILD-REPORT §7.6`。
+
+## 6. 提交前自检
+
+- [ ] 本次提交只含代码 / 配置 / 契约 / 入口文档，没有过程性、开发或计划文档
 - [ ] 没有日志、证据、截图、覆盖率或性能数据被夹带进来
+- [ ] 入口文档里的链接目标都已入库（`git ls-files` 能查到）
 - [ ] 一个提交一个主题
