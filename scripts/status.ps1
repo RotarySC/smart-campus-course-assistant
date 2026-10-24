@@ -91,6 +91,12 @@ Write-Host "仓库根：$Root"
 # ---- 配置 ---------------------------------------------------------------- #
 $dbUrl  = Get-EnvValue $EnvFile 'DATABASE_URL'
 $dbName = if ($dbUrl) { ($dbUrl -split '/')[-1].Split('?')[0] } else { '<未配置>' }
+# 优先用本实例启动时记录的库（多实例可能用 DATABASE_URL 环境变量切库，此时 .env 不是真源）。
+$instanceDbFile = Join-Path $RunDir "instance-$PublicPort.db"
+if (Test-Path $instanceDbFile) {
+    $recorded = (Get-Content $instanceDbFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($recorded) { $dbName = $recorded.Trim() }
+}
 Write-Host ''
 Write-Host "配置：backend/.env $(if (Test-Path $EnvFile) { '存在' } else { '缺失（start.ps1 会生成）' })    库：$dbName"
 

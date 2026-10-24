@@ -322,6 +322,8 @@ $dbName = ($effectiveDbUrl -split '/')[-1].Split('?')[0]
 if ($dbName -match '^cca_test_') {
     Write-Warn2 "DATABASE_URL 指向测试库 $dbName（测试夹具会清表）；演示数据请用 .../cca"
 }
+# 记录本实例实际使用的库，供 status.ps1 准确显示（多实例切库时 backend/.env 不再是唯一真源）。
+Set-Content -Path (Join-Path $RunDir "instance-$PublicPort.db") -Value $dbName -Encoding ascii
 
 Write-Step '3/6 数据库迁移'
 Push-Location $Backend

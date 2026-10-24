@@ -115,6 +115,7 @@ Stop-One $workerStem '文档 Worker'     0
 Stop-One 'mcp'      'MCP server'      $McpPort      8102
 Stop-One 'internal' '内部 API'        $InternalPort 8101
 Stop-One 'public'   '公共 API'        $PublicPort   8100
+Remove-Item (Join-Path $RunDir "instance-$PublicPort.db") -ErrorAction SilentlyContinue
 
 Start-Sleep -Milliseconds 600
 
