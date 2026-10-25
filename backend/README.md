@@ -94,6 +94,17 @@ DDL 的唯一入库表达是 `migrations/versions/0001_initial_schema.py`（23 �
 课程 `CS101` / `MA201`、按 `Asia/Shanghai` 的今天/明天/下周一三条课表、一份示例计划，并把
 `corpus_control.publish_frozen` 置 0（允许上传发布）。生产部署路径**不经过**该命令。
 
+`python -m app.cli.sample --yes` 再补一批「打开就能演示 / 能测」的样例数据（同样只用于开发库，
+可重复执行，按账号 / 课程码 / 操作键 / 固定 id 判重）：
+
+| 内容 | 数量 |
+| --- | --- |
+| 学生账号 `student_s01`…`student_s08`（口令 `demo1234`） | 8 |
+| 课程（CS101/MA201/CS201/CS301/CS302/MA202/PHY101/SE201） | 8 |
+| 每名学生未来两周的课表 | 6 节/人 |
+| 每名学生的学习计划（含 `write_operations` 记录） | 2 份/人 |
+| 已发布课程资料（含 chunk、citation 与本地向量，可直接检索出引用） | 5 份 |
+
 ## 7. 健康与常用端点
 
 | 端点 | 用途 |

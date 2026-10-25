@@ -28,6 +28,13 @@ Vue 3 + TypeScript 前端，FastAPI + SQLAlchemy(async) + MySQL 8.4 后端。助
 
 前置条件：Docker Desktop（MySQL 容器）、仓库根 `.venv`（Python 3.12，依赖已装）、Node 24 + pnpm 11。
 
+想要更完整的演示数据（8 名学生、8 门课程、两周课表、学习计划、5 份可检索的资料）：
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m app.cli.sample --yes
+```
+
 常用参数：`-NoFrontend` 只起后端；`-ResetDb` 重建演示库；`-Mock` 前端走 mock 夹具；
 `-PublicPort/-InternalPort/-McpPort/-WebPort` 换端口（多实例并存）。
 
