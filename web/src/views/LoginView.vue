@@ -109,6 +109,71 @@ async function onSubmitRegister(payload: { account: string; display_name: string
       <h1>{{ S01.registerTitle }}</h1>
       <p class="login__lead">{{ S01.lead }}</p>
 
+      <!-- 视觉带（§15.7 A 路线：手写线条 SVG）：课表 → 资料 → 计划。
+           纯内联（零请求）、单色走 currentColor（--login-art-fg）、无文字；
+           纯装饰 → aria-hidden，语义由下面三条能力承担；<1200 与能力清单一起隐藏。 -->
+      <figure class="login__art" aria-hidden="true">
+        <svg
+          class="login__scene"
+          viewBox="8 20 468 126"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          focusable="false"
+        >
+          <g stroke-dasharray="4 6" opacity=".75">
+            <path d="M140 86h40" />
+            <path d="M304 86h40" />
+          </g>
+          <g fill="currentColor" stroke="none">
+            <circle cx="160" cy="86" r="2.4" />
+            <circle cx="324" cy="86" r="2.4" />
+          </g>
+
+          <g>
+            <rect x="16" y="32" width="124" height="108" rx="10" fill="currentColor" fill-opacity=".035" />
+            <path d="M16 56h124" />
+            <g opacity=".55">
+              <path d="M44 26v6" />
+              <path d="M112 26v6" />
+            </g>
+            <g fill="none" stroke-opacity=".42">
+              <rect x="32" y="70" width="9" height="9" rx="2" /><rect x="58" y="70" width="9" height="9" rx="2" />
+              <rect x="84" y="70" width="9" height="9" rx="2" /><rect x="110" y="70" width="9" height="9" rx="2" />
+              <rect x="32" y="92" width="9" height="9" rx="2" /><rect x="84" y="92" width="9" height="9" rx="2" />
+              <rect x="110" y="92" width="9" height="9" rx="2" /><rect x="32" y="114" width="9" height="9" rx="2" />
+              <rect x="58" y="114" width="9" height="9" rx="2" />
+            </g>
+            <rect x="58" y="92" width="9" height="9" rx="2" fill="currentColor" fill-opacity=".8" stroke="none" />
+          </g>
+
+          <g>
+            <rect x="180" y="32" width="124" height="108" rx="10" fill="currentColor" fill-opacity=".035" />
+            <path d="M276 32h18a10 10 0 0 1 10 10v18" />
+            <path d="M276 32v18h28" />
+            <g transform="translate(192 42) scale(1.15)" stroke-width="1.4">
+              <path d="M10 11H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v7a3 3 0 0 1-3 3" />
+              <path d="M19 11h-4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v7a3 3 0 0 1-3 3" />
+            </g>
+            <g opacity=".5">
+              <path d="M196 88h84" />
+              <path d="M196 100h84" />
+              <path d="M196 112h60" />
+              <path d="M196 124h40" />
+            </g>
+          </g>
+
+          <g>
+            <rect x="344" y="32" width="124" height="108" rx="10" fill="currentColor" fill-opacity=".035" />
+            <rect x="360" y="52" width="10" height="10" rx="3" /><path d="M362.5 57l2 2.2 4-5" /><path d="M380 57h52" opacity=".5" />
+            <rect x="360" y="80" width="10" height="10" rx="3" /><path d="M362.5 85l2 2.2 4-5" /><path d="M380 85h44" opacity=".5" />
+            <rect x="360" y="108" width="10" height="10" rx="3" /><path d="M380 113h32" opacity=".32" />
+          </g>
+        </svg>
+      </figure>
+
       <ul class="login__points">
         <li v-for="(p, i) in S01.points" :key="p.title" class="login__point">
           <span class="login__point-ico" aria-hidden="true">

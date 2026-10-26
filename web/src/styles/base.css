@@ -541,6 +541,20 @@
   font-size: var(--login-lead-fs);
 }
 
+/* 视觉带（§15.7 A 路线：手写线条 SVG）。纯内联、零请求、单色 currentColor；
+   <1200 折叠单列时与能力清单一起隐藏（见文件末尾的 max-width:1199 段）。 */
+.login__art {
+  margin: 0;
+  max-width: var(--login-art-w);
+  color: var(--login-art-fg);
+}
+
+.login__scene {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .login__points {
   display: flex;
   flex-direction: column;
@@ -663,7 +677,8 @@
 
 @media (max-width: 1199px) {
   .login__points,
-  .login__note {
+  .login__note,
+  .login__art {
     display: none;
   }
 }

@@ -178,6 +178,7 @@
   --p-size-login-ico:32px;                                 /* 登录页左栏能力图标底座边长 */
   --p-size-login-lead-max:26em;                            /* 登录页引导句行宽上限：15px × 26 ≈ 390px，约 45 字/行 */
   --p-size-viewport-h:100vh;                               /* 整屏高：只用于「至少占满一屏」的页面容器（登录页） */
+  --p-size-login-art-w:476px;                              /* 登录页左栏视觉带上限宽（1440 下左栏 485 → 留 9px 右缘） */
   --p-size-stat-ico:20px;                                  /* 统计卡图标边长：与 13px 标签同级的 20px 画面档，不再新增 24px 档 */
   --p-size-timeline-dot:8px;                               /* 时间轴节点圆点直径：<8px 在 1080p 下读不出「节点」，>10px 会压过课程名的视觉重量 */
 }
@@ -785,6 +786,8 @@
   --login-note-fs:var(--p-fs-13);
   --login-switch-fg:var(--accent-strong);
   --login-page-min-h:var(--p-size-viewport-h);
+  --login-art-w:var(--p-size-login-art-w);                 /* 左栏视觉带上限宽：1440 下左栏实测 485，取 476 留出右缘呼吸位；<1200 折叠时与能力清单一起隐藏 */
+  --login-art-fg:var(--text-art);                          /* 视觉带线稿色：全场唯一的「装饰性插图」通道，形状不透明白、只做辅助 */
 }
 /* ---- utility ---- */
 :root{
