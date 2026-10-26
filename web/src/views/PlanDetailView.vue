@@ -17,7 +17,8 @@ import Field from '@/components/base/Field.vue'
 import FormGrid from '@/components/base/FormGrid.vue'
 import Notice from '@/components/base/Notice.vue'
 import ErrorSummary from '@/components/base/ErrorSummary.vue'
-import { S06, S09 } from '@/domain/copy'
+import { S06, S09, S15 } from '@/domain/copy'
+import { formatDateTime } from '@/domain/format'
 import { validatePlanForm } from '@/domain/validate'
 import type { AppError } from '@/api/errors'
 import { usePlansStore } from '@/stores/plans'
@@ -40,6 +41,19 @@ const issueText = (field: string): string | null => {
   if (!kind) return null
   return kind === 'date-range' ? S09.dateRangeError : kind === 'required' ? '必填' : null
 }
+
+/** 右栏只读信息层（§6.2）：全部取最近一次服务端响应的 `detail`，不做本地推导。 */
+const railItems = computed(() => {
+  const d = store.detail
+  if (!d) return []
+  return [
+    { k: S09.labelStartDate, v: d.start_date ?? S09.noDates },
+    { k: S09.labelEndDate, v: d.end_date ?? S09.noDates },
+    { k: S09.labelSource, v: sourceLabel.value },
+    { k: S09.colUpdatedAt, v: formatDateTime(d.updated_at) },
+    { k: S15.labelVersion, v: String(d.version) },
+  ]
+})
 
 function syncFromDetail() {
   const d = store.detail
@@ -105,7 +119,9 @@ onMounted(() => void load())
 
 <template>
   <Wrap>
-    <Card :title="S09.listTitle">
+    <div class="split">
+      <div>
+        <Card :title="S09.listTitle">
       <ErrorSummary
         id="plan-edit-errors"
         :issues="issues.map((i) => ({ field: i.field, label: i.field, reason: issueText(i.field) ?? '' }))"
@@ -152,6 +168,23 @@ onMounted(() => void load())
           <Btn variant="ghost" @click="router.push({ name: 'plans' })">{{ S09.listTitle }}</Btn>
         </div>
       </form>
-    </Card>
+        </Card>
+      </div>
+
+      <!-- 右栏 280：只读信息层（§6.2）。<1200 时整块回落到主列下方，信息不丢。
+           不用 KVList：`.kv` 的 8em 键列在 244px 可用宽里会把日期断成两行，
+           右栏改用上下堆叠的键值对（同一组信息、无新 class/token）。 -->
+      <aside class="split__rail">
+        <Card>
+          <div v-if="store.detail" class="stack">
+            <div v-for="item in railItems" :key="item.k">
+              <div class="small muted">{{ item.k }}</div>
+              <div>{{ item.v }}</div>
+            </div>
+          </div>
+          <p v-else class="small muted">{{ S15.railLoading }}</p>
+        </Card>
+      </aside>
+    </div>
   </Wrap>
 </template>

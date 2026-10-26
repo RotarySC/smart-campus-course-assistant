@@ -357,6 +357,103 @@
   flex: 0 0 auto;
 }
 
+/* ==== split（主列 + 右栏；rb.css 阶段 B 新增块）
+   与 `.workspace` 同栅格参数，差别只在用途：workspace 是助手页，split 是表格/详情页。 */
+.split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--wrap-gap);
+}
+
+.split__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-row-gap);
+}
+
+@media (min-width: 1200px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) var(--wrap-rail-w);
+  }
+}
+
+/* ==== stat（统计条；rb.css 阶段 B 新增块）==== */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--card-suggest-gap);
+}
+
+@media (min-width: 768px) {
+  .stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-stat-gap);
+  padding: var(--card-body-pad);
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.stat__value {
+  font-size: var(--card-stat-value-fs);
+  font-weight: var(--card-stat-value-fw);
+  color: var(--card-stat-value-fg);
+}
+
+.stat__label {
+  font-size: var(--card-stat-label-fs);
+  color: var(--card-stat-label-fg);
+}
+
+/* ==== timeline（时间轴；rb.css 阶段 B 新增块）==== */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-timeline-gap);
+}
+
+.timeline__item {
+  display: flex;
+  gap: var(--card-suggest-gap);
+}
+
+.timeline__time {
+  flex: 0 0 var(--card-timeline-time-col);
+  font-size: var(--card-timeline-time-fs);
+  color: var(--card-timeline-time-fg);
+}
+
+.timeline__box {
+  flex: 1 1 auto;
+  padding: var(--card-timeline-box-pad);
+  border-left: var(--card-timeline-box-border-w) solid var(--card-timeline-box-border-color);
+  border-radius: var(--card-timeline-box-radius);
+  background: var(--card-timeline-box-bg);
+}
+
+/* ==== progress（进度条；rb.css 阶段 B 新增块）
+   宽度由行内 style 给（与输入框自动增高同一类登记例外），比例值不进 CSS。 ==== */
+.progress {
+  display: block;
+  height: var(--card-progress-h);
+  border-radius: var(--card-progress-radius);
+  background: var(--card-progress-bg);
+  overflow: hidden;
+}
+
+.progress__bar {
+  display: block;
+  height: 100%;
+  background: var(--card-progress-bar-bg);
+}
+
 /* ==== login（01 §10；rb.css:405–411）==== */
 .login {
   max-width: var(--login-max-w);
@@ -397,6 +494,8 @@
   border-radius: var(--btn-radius);
   font: inherit;
   font-weight: var(--btn-fw);
+  /* 按钮文字不折行：窄列（如表格「操作」）里否则会把「打开」折成两行 */
+  white-space: nowrap;
   cursor: pointer;
   background: var(--btn-bg);
   color: var(--btn-fg);
@@ -1270,6 +1369,11 @@ a.chip:hover {
   flex-wrap: wrap;
   gap: var(--row-gap);
   align-items: center;
+}
+
+/* 行内不换行：表格「操作」列放两个按钮时用，避免竖着堆 */
+.row--nowrap {
+  flex-wrap: nowrap;
 }
 
 .spacer {

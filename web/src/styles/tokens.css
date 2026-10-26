@@ -410,6 +410,25 @@
   --card-suggest-ico-fg:var(--accent-strong);              /* 对方标底 8.9:1（≥3:1 图形） */
   --card-suggest-ico-radius:var(--p-radius-10);
   --card-suggest-hover-border-color:var(--border-strong);  /* 建议卡可点：悬停只改边框色，不加位移与过渡 */
+  --card-stat-gap:var(--p-space-1);                        /* 统计卡内「数值 ↔ 标签」间距（阶段 B 新增） */
+  --card-stat-value-fs:var(--p-fs-20);
+  --card-stat-value-fw:var(--p-fw-semibold);
+  --card-stat-value-fg:var(--text-primary);
+  --card-stat-label-fs:var(--p-fs-13);
+  --card-stat-label-fg:var(--text-muted);
+  --card-timeline-gap:var(--p-space-3);                    /* 时间轴条目之间的纵向间距（课表今日 / 计划最近活动） */
+  --card-timeline-time-fs:var(--p-fs-13);
+  --card-timeline-time-fg:var(--text-muted);
+  --card-timeline-time-col:auto;                           /* 时刻列按内容宽自适应：右栏只有 280 − 2×18 的可用宽，固定 8em 会把条目正文压成两行 */
+  --card-timeline-box-border-color:var(--accent);          /* 左侧 3px 实心条：时间轴条目「有安排」的唯一色标 */
+  --card-timeline-box-border-w:var(--p-bw-3);
+  --card-timeline-box-bg:var(--bg-hover-weak);
+  --card-timeline-box-pad:var(--p-space-2);
+  --card-timeline-box-radius:var(--p-radius-6);
+  --card-progress-h:var(--p-space-1);                      /* 计划进度条高度（阶段 B 新增） */
+  --card-progress-radius:var(--p-radius-pill);
+  --card-progress-bg:var(--bg-muted);
+  --card-progress-bar-bg:var(--accent);
 }
 /* ---- btn ---- */
 :root{

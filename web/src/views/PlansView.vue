@@ -20,10 +20,11 @@ import DataTable from '@/components/base/DataTable.vue'
 import EmptyState from '@/components/base/EmptyState.vue'
 import Notice from '@/components/base/Notice.vue'
 import ErrorSummary from '@/components/base/ErrorSummary.vue'
+import Pill from '@/components/base/Pill.vue'
 import { ICONS } from '@/components/base/icons'
-import { S09, S12 } from '@/domain/copy'
+import { S09, S12, S15 } from '@/domain/copy'
 import { planDeleteConfirmText } from '@/domain/mapError'
-import { formatDateRange, formatDateTime } from '@/domain/format'
+import { formatDateRange, formatDateTime, fill } from '@/domain/format'
 import { validatePlanForm } from '@/domain/validate'
 import type { Plan } from '@/api/types'
 import { usePlansStore } from '@/stores/plans'
@@ -42,18 +43,74 @@ const issues = ref<ReturnType<typeof validatePlanForm>>([])
 const columns = [
   { key: 'title', label: S09.colTitle },
   { key: 'range', label: S09.colRange, num: true },
-  { key: 'source', label: S09.colSource },
-  { key: 'updated', label: S09.colUpdatedAt, num: true },
   { key: 'actions', label: S09.colActions },
 ]
+
+/* ---- 只读信息层（§6.4）：进度、剩余天数全部前端按 start_date/end_date 计算，不新增接口 ---- */
+
+function dayIndex(iso: string): number {
+  return Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10))
+}
+
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function spanDays(a: string, b: string): number {
+  return Math.round((dayIndex(b) - dayIndex(a)) / 86_400_000)
+}
+
+/** 已进行比例：0–100 的整数；日期不全或区间非法时给 0（卡片上不画进度）。 */
+function progressOf(p: Plan): number {
+  if (!p.start_date || !p.end_date) return 0
+  const total = spanDays(p.start_date, p.end_date)
+  if (total <= 0) return 100
+  return Math.max(0, Math.min(100, Math.round((spanDays(p.start_date, todayIso()) / total) * 100)))
+}
+
+function isOngoing(p: Plan): boolean {
+  if (!p.start_date || !p.end_date) return false
+  const t = todayIso()
+  return p.start_date <= t && t <= p.end_date
+}
+
+function daysLeft(p: Plan): number | null {
+  if (!p.end_date) return null
+  return Math.max(0, spanDays(todayIso(), p.end_date))
+}
+
+const stats = computed(() => {
+  const latest = store.items.reduce<string | null>(
+    (acc, p) => (acc === null || p.updated_at > acc ? p.updated_at : acc),
+    null,
+  )
+  return {
+    total: store.total,
+    ongoing: store.items.filter(isOngoing).length,
+    assistant: store.items.filter((p) => p.source === 'assistant').length,
+    updated: latest ? latest.slice(0, 10) : '—',
+  }
+})
+
+/** 最近活动：按更新时间倒序取 3 条。 */
+const recent = computed(() => [...store.items].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 3))
+
+/** 即将结束：有截止日期的按截止日升序取 2 条。 */
+const ending = computed(() =>
+  store.items.filter((p) => p.end_date).sort((a, b) => (a.end_date ?? '').localeCompare(b.end_date ?? '')).slice(0, 2),
+)
 
 const rows = computed(() =>
   store.items.map((p) => ({
     id: p.id,
     title: p.title,
-    range: formatDateRange(p.start_date, p.end_date, S09.noDates),
-    source: p.source === 'assistant' ? S09.sourceAssistant : S09.sourceManual,
-    updated: formatDateTime(p.updated_at),
+    source: p.source,
+    sourceLabel: p.source === 'assistant' ? S09.sourceAssistant : S09.sourceManual,
+    updatedLabel: formatDateTime(p.updated_at).slice(0, 10),
+    rangeLabel: formatDateRange(p.start_date, p.end_date, S09.noDates),
+    pct: progressOf(p),
+    progressLabel: `已进行约 ${progressOf(p)}%`,
     actions: '',
   })),
 )
@@ -121,7 +178,28 @@ onMounted(() => void load())
 
 <template>
   <Wrap>
-    <Card :title="S09.listTitle">
+    <div class="split">
+      <div class="stack">
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat__value">{{ stats.total }}</span>
+            <span class="stat__label">{{ S15.statPlanTotal }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">{{ stats.ongoing }}</span>
+            <span class="stat__label">{{ S15.statPlanOngoing }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">{{ stats.assistant }}</span>
+            <span class="stat__label">{{ S15.statPlanAssistant }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">{{ stats.updated }}</span>
+            <span class="stat__label">{{ S15.statPlanUpdated }}</span>
+          </div>
+        </div>
+
+        <Card :title="S09.listTitle">
       <FormGrid>
         <Field :label="S09.searchLabel" for-id="plan-search">
           <Control id="plan-search" v-model="titleInput" type="search" @blur="load" />
@@ -168,16 +246,36 @@ onMounted(() => void load())
       </form>
 
       <DataTable v-if="rows.length > 0" :caption="S09.listTitle" :columns="columns" :rows="rows" name-key="title">
-        <template #cell-actions="{ row }">
-          <Btn size="sm" @click="openPlan(row.id)">{{ S09.open }}</Btn>
-          <Btn size="sm" variant="danger" @click="askDelete(row.id)">
+        <template #cell-title="{ row }">
+          <span>{{ row.title }}</span>
+          <Pill :variant="row.source === 'assistant' ? 'info' : 'default'">
             <template #icon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <path v-for="(d, i) in ICONS.trash" :key="i" :d="d" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path v-for="(d, i) in (row.source === 'assistant' ? ICONS.messageCircle : ICONS.plus)" :key="i" :d="d" />
               </svg>
             </template>
-            {{ S09.remove }}
-          </Btn>
+            {{ row.sourceLabel }}
+          </Pill>
+          <span class="small muted">{{ row.updatedLabel }}</span>
+        </template>
+        <template #cell-range="{ row }">
+          <span class="small">{{ row.rangeLabel }}</span>
+          <span class="progress" role="img" :aria-label="row.progressLabel">
+            <span class="progress__bar" :style="{ width: row.pct + '%' }"></span>
+          </span>
+        </template>
+        <template #cell-actions="{ row }">
+          <div class="row row--nowrap">
+            <Btn size="sm" @click="openPlan(row.id)">{{ S09.open }}</Btn>
+            <Btn size="sm" variant="danger" @click="askDelete(row.id)">
+              <template #icon>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path v-for="(d, i) in ICONS.trash" :key="i" :d="d" />
+                </svg>
+              </template>
+              {{ S09.remove }}
+            </Btn>
+          </div>
         </template>
       </DataTable>
 
@@ -199,6 +297,41 @@ onMounted(() => void load())
           <Btn size="sm" variant="ghost" @click="confirmPlan = null">{{ S12.cancel }}</Btn>
         </template>
       </Notice>
-    </Card>
+        </Card>
+      </div>
+
+      <!-- 右栏 280：最近活动 / 即将结束 / 提示（§6.4）。<1200 整块回落主列下方。 -->
+      <aside class="split__rail">
+        <Card :title="S15.railRecent">
+          <div v-if="recent.length > 0" class="timeline">
+            <div v-for="p in recent" :key="p.id" class="timeline__item">
+              <span class="timeline__time">{{ p.updated_at.slice(5, 10) }}</span>
+              <div class="timeline__box">
+                <b>{{ p.title }}</b>
+                <div class="small muted">{{ p.source === 'assistant' ? S09.sourceAssistant : S09.sourceManual }}</div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="small muted">{{ S09.emptyList }}</p>
+        </Card>
+
+        <Card :title="S15.railEnding">
+          <div v-if="ending.length > 0" class="stack">
+            <div v-for="p in ending" :key="p.id" class="stack">
+              <b class="small">{{ p.title }}</b>
+              <span class="small muted">{{ fill(S15.railDaysLeft, { N: String(daysLeft(p) ?? 0) }) }} · {{ p.end_date }}</span>
+              <span class="progress" role="img" :aria-label="`已进行约 ${progressOf(p)}%`">
+                <span class="progress__bar" :style="{ width: progressOf(p) + '%' }"></span>
+              </span>
+            </div>
+          </div>
+          <p v-else class="small muted">{{ S09.noDates }}</p>
+        </Card>
+
+        <Card>
+          <p class="small muted">{{ S15.planHint }}</p>
+        </Card>
+      </aside>
+    </div>
   </Wrap>
 </template>

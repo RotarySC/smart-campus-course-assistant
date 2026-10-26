@@ -16,9 +16,9 @@ import Field from '@/components/base/Field.vue'
 import EmptyState from '@/components/base/EmptyState.vue'
 import ScheduleTable from '@/components/product/ScheduleTable.vue'
 import { ICONS } from '@/components/base/icons'
-import { S07, S08 } from '@/domain/copy'
+import { S07, S08, S15 } from '@/domain/copy'
 import { noCoursesText } from '@/domain/mapError'
-import { formatDateWithWeekday, fill, weekdayZh } from '@/domain/format'
+import { formatDateWithWeekday, formatTimeRange, fill, weekdayZh } from '@/domain/format'
 import { useSchedulesStore } from '@/stores/schedules'
 
 const store = useSchedulesStore()
@@ -30,6 +30,21 @@ const currentDate = computed(() => store.fromDate ?? '')
 const dateLabel = computed(() => (currentDate.value ? formatDateWithWeekday(currentDate.value) : ''))
 const emptyTitle = computed(() => noCoursesText(currentDate.value, weekdayZh(currentDate.value)))
 const footer = computed(() => fill(S07.footerTemplate, { timezone: store.schoolTimezone ?? '' }))
+
+/**
+ * 只读信息层（§6.4）：全部来自**当前已加载的那一天**，不新增接口、不做周范围查询。
+ * 「下一节课」= 开始时间晚于当前时刻的第一节；没有就渲染破折号（不写自造句）。
+ */
+const nowHHMM = computed(() => {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+})
+
+const nextClass = computed(() => store.items.find((s) => s.start_time > nowHHMM.value) ?? null)
+
+const dayEnd = computed(() =>
+  store.items.reduce<string | null>((acc, s) => (acc === null || s.end_time > acc ? s.end_time : acc), null),
+)
 
 async function load(date?: string) {
   try {
@@ -62,7 +77,29 @@ onMounted(() => void load())
 
 <template>
   <Wrap>
-    <Card :title="S07.title">
+    <div class="split">
+      <div class="stack">
+        <!-- 统计条：4 卡，全部来自当前已加载数据（§6.4） -->
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat__value">{{ store.items.length }}</span>
+            <span class="stat__label">{{ S15.statTodayCourses }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">{{ nextClass ? nextClass.start_time : '—' }}</span>
+            <span class="stat__label">{{ S15.statNextClass }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">{{ dayEnd ?? '—' }}</span>
+            <span class="stat__label">{{ S15.statDayEnd }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__value">&le; 31 天</span>
+            <span class="stat__label">{{ S15.statRange }}</span>
+          </div>
+        </div>
+
+        <Card :title="S07.title">
       <div class="row">
         <Btn size="sm" :aria-label="S07.prevDay" @click="shiftDay(-1)">
           <template #icon>
@@ -83,7 +120,7 @@ onMounted(() => void load())
         <span class="small muted">{{ S07.rangeLimit }}</span>
       </div>
 
-      <Field :label="S07.colTime" for-id="schedule-date">
+      <Field :label="S15.dateField" for-id="schedule-date">
         <Control id="schedule-date" v-model="dateInput" type="date" @blur="load(dateInput || undefined)" />
       </Field>
 
@@ -105,7 +142,30 @@ onMounted(() => void load())
 
       <p v-else-if="!loaded" class="muted small">{{ S07.title }}</p>
     </Card>
+      </div>
 
-    <p class="small muted">{{ footer }}</p>
+      <aside class="split__rail">
+        <!-- 时间轴只渲染已加载日；无课/错误时不渲染（§6.4 裁决） -->
+        <Card v-if="store.items.length > 0" :title="S15.timelineToday">
+          <div class="timeline">
+            <div v-for="s in store.items" :key="s.id" class="timeline__item">
+              <span class="timeline__time">{{ s.start_time }}</span>
+              <div class="timeline__box">
+                <b>{{ s.course_name }}</b>
+                <div class="small muted">
+                  {{ formatTimeRange(s.start_time, s.end_time) }}<span v-if="s.location"> · {{ s.location }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="small muted">{{ S15.timelineEnd }}</p>
+        </Card>
+
+        <Card :title="S15.scheduleNoteTitle">
+          <p class="small muted">{{ footer }}</p>
+          <p class="small muted">{{ S07.rangeLimit }}</p>
+        </Card>
+      </aside>
+    </div>
   </Wrap>
 </template>

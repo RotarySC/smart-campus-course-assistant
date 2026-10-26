@@ -227,6 +227,28 @@ export const S15 = {
   railLoading: '正在读取…', // content-spec:211
   railScheduleError: '课表暂时读取不到', // content-spec:212
   railPlansError: '计划暂时读取不到', // content-spec:212
+
+  /** 我的课表 · 只读信息层（content-spec:215–222）。 */
+  statTodayCourses: '今日课程', // content-spec:217
+  statNextClass: '下一节课', // content-spec:217
+  statDayEnd: '今日结束', // content-spec:217
+  statRange: '查询跨度', // content-spec:217
+  dateField: '查询日期', // content-spec:218（日期框可见 label）
+  timelineToday: '今日时间轴', // content-spec:219
+  timelineEnd: '之后没有安排', // content-spec:219
+  scheduleNoteTitle: '课表说明', // content-spec:222
+
+  /** 学习计划 · 只读信息层（content-spec:226–232）。 */
+  statPlanTotal: '计划总数', // content-spec:228
+  statPlanOngoing: '进行中', // content-spec:228
+  statPlanAssistant: '助手生成', // content-spec:228
+  statPlanUpdated: '最近更新', // content-spec:228
+  railRecent: '最近活动', // content-spec:229
+  railEnding: '即将结束', // content-spec:229
+  /** 占位符 `{N}` 由 `fill()` 填充，逐字形态见 content-spec:227。 */
+  railDaysLeft: '还剩 {N} 天', // content-spec:229
+  labelVersion: '版本', // content-spec:230
+  planHint: '在对话里让助手拟定计划，确认后可直接保存到学习计划，无需手动搬运。', // content-spec:231
 } as const
 
 /**
