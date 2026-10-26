@@ -22,7 +22,7 @@ import ChatStream from '@/components/product/ChatStream.vue'
 import CitationList from '@/components/product/CitationList.vue'
 import DraftCard from '@/components/product/DraftCard.vue'
 import { ICONS } from '@/components/base/icons'
-import { S02, S03, S05, S06 } from '@/domain/copy'
+import { S02, S03, S05, S06, S15 } from '@/domain/copy'
 import { canSubmitMessage } from '@/domain/validate'
 import { mapErrorText } from '@/domain/mapError'
 import { useChatStore } from '@/stores/chat'
@@ -116,7 +116,7 @@ onMounted(() => {
       <div v-if="showIdle" class="chips">
         <Btn v-for="ex in S02.examples" :key="ex" size="sm" @click="useExample(ex)">{{ ex }}</Btn>
       </div>
-      <EmptyState v-else-if="!active" variant="empty" :title="S02.title">
+      <EmptyState v-else-if="!active" variant="empty" icon="messageCircle" :title="S02.title">
         <template #actions>
           <Btn size="sm" @click="clearConversation">{{ S02.clearConversation }}</Btn>
         </template>
@@ -183,13 +183,15 @@ onMounted(() => {
       v-model="message"
       :label="S02.composerLabel"
       :hint="S02.composerHint"
+      :enter-hint="S15.composerEnterHint"
       :pending="chat.isStreaming"
       @submit="submit"
     >
       <template #actions>
         <!-- 空白不可提交：**按钮**禁用（content-spec S02）；输入框不得因空白而禁用，
-             否则用户永远无法输入第一个字符（阶段 B 未渲染验证时漏掉的真实缺陷）。 -->
-        <Btn variant="primary" :disabled="!canSubmit || chat.isStreaming" @click="submit">{{ S02.send }}</Btn>
+             否则用户永远无法输入第一个字符（阶段 B 未渲染验证时漏掉的真实缺陷）。
+             用 `type="submit"` 走表单提交，避免再挂一个 click 处理器（会双触发）。 -->
+        <Btn variant="primary" type="submit" :disabled="!canSubmit || chat.isStreaming">{{ S02.send }}</Btn>
       </template>
     </Composer>
   </Wrap>

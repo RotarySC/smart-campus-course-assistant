@@ -181,7 +181,7 @@ onMounted(() => void load())
         </template>
       </DataTable>
 
-      <EmptyState v-else-if="store.isEmpty" variant="empty" :title="S09.emptyList">
+      <EmptyState v-else-if="store.isEmpty" variant="empty" icon="listChecks" :title="S09.emptyList">
         <template #actions>
           <Btn size="sm" @click="creating = true">{{ S09.createManual }}</Btn>
         </template>

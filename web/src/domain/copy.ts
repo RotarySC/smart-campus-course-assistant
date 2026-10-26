@@ -94,6 +94,12 @@ export const S07 = {
   footer: '时间为学校时区 Asia/Shanghai', // content-spec:118
   /** 页脚模板：只有 `Asia/Shanghai` 是**数据**（`SchedulePage.school_timezone`），其余逐字。 */
   footerTemplate: '时间为学校时区 {timezone}', // content-spec:118
+  /**
+   * 纯图标按钮的可访问名（组件 chrome，归组件规格管辖，不进 content-spec）：
+   * 02-actions-status.md §Btn 明确「冻结原型 records.html:22/26 的『查看前一天 / 查看后一天』是范例」。
+   */
+  prevDay: '查看前一天',
+  nextDay: '查看后一天',
 } as const
 
 /* ===================== S08 我的课表 · 两种空状态（content-spec:122–124） ===================== */
@@ -200,6 +206,16 @@ export const S12 = {
   overlapAck: '需确认后继续', // content-spec:169（冲突确认面板的状态标记）
   deleteConfirmNote: '将记录操作人', // content-spec:171
   /** 停用课程不可选（content-spec:164）——只读提示，无冻结逐字文案，故不渲染自造句子。 */
+} as const
+
+/**
+ * S15 桌面自适应增量（content-spec:192–202，按落地批次逐段追加）。
+ *
+ * 只放桌面布局带来的**新**句子；S01–S13 的既有文案不被改写（content-spec §2 S15 前言）。
+ */
+export const S15 = {
+  /** 输入条提示行（content-spec:201）。放在 `.composer__bar` 左侧，随「发送」按钮同行。 */
+  composerEnterHint: 'Enter 发送 · Shift+Enter 换行',
 } as const
 
 /**

@@ -183,7 +183,7 @@ onMounted(() => void load())
         </template>
       </DataTable>
 
-      <EmptyState v-else-if="store.coursesEmpty" variant="empty" :title="S10.title" />
+      <EmptyState v-else-if="store.coursesEmpty" variant="empty" icon="library" :title="S10.title" />
 
       <Notice v-if="store.error" variant="danger" role="alert">
         <p>{{ store.error.code }}</p>

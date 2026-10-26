@@ -541,7 +541,19 @@ async function main() {
       savePng('pages-plans.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
 
       // 8.4 G8 登出 → 回登录页
-      check('G8 顶栏「退出登录」', await clickByText('退出登录'))
+      // 阶段 B 起「退出登录」**只**在用户菜单里（默认不可见），必须先展开菜单再点。
+      check('G8 打开用户菜单', await evaluate(`(() => {
+        const t = document.querySelector('.usermenu__trigger')
+        if (!t) return false
+        t.click()
+        return true
+      })()`))
+      await sleep(200)
+      check(
+        'G8 菜单已展开（aria-expanded=true）',
+        (await evaluate(`document.querySelector('.usermenu__trigger')?.getAttribute('aria-expanded')`)) === 'true',
+      )
+      check('G8 菜单内「退出登录」', await clickByText('退出登录'))
       await waitPath('/login', '登录页')
       check('G8 登出后回到 /login', (await evaluate('location.pathname')) === '/login')
 

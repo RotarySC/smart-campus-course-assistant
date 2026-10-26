@@ -64,7 +64,7 @@ onMounted(() => void load())
   <Wrap>
     <Card :title="S07.title">
       <div class="row">
-        <Btn size="sm" :aria-label="S07.title" @click="shiftDay(-1)">
+        <Btn size="sm" :aria-label="S07.prevDay" @click="shiftDay(-1)">
           <template #icon>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path v-for="(d, i) in ICONS.chevronLeft" :key="i" :d="d" />
@@ -72,7 +72,7 @@ onMounted(() => void load())
           </template>
         </Btn>
         <span class="field__label" aria-live="polite">{{ dateLabel }}</span>
-        <Btn size="sm" @click="shiftDay(1)">
+        <Btn size="sm" :aria-label="S07.nextDay" @click="shiftDay(1)">
           <template #icon>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path v-for="(d, i) in ICONS.chevronRight" :key="i" :d="d" />
@@ -90,14 +90,14 @@ onMounted(() => void load())
       <ScheduleTable v-if="store.items.length > 0" :items="store.items" :caption="S07.title" />
 
       <!-- ① 成功的空：中性，**不得**使用错误色。 -->
-      <EmptyState v-else-if="store.isEmpty" variant="empty" :title="emptyTitle">
+      <EmptyState v-else-if="store.isEmpty" variant="empty" icon="calendar" :title="emptyTitle">
         <template #actions>
           <Btn size="sm" @click="goToday">{{ S08.changeDate }}</Btn>
         </template>
       </EmptyState>
 
       <!-- ② 服务异常：错误语义 + role="alert"，与 ① 明显不同。 -->
-      <EmptyState v-else-if="store.hasError" variant="error" :title="S08.fetchFailed">
+      <EmptyState v-else-if="store.hasError" variant="error" icon="triangleAlert" :title="S08.fetchFailed">
         <template #actions>
           <Btn size="sm" @click="load(currentDate || undefined)">{{ S08.retry }}</Btn>
         </template>

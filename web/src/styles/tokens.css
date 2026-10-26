@@ -145,6 +145,7 @@
 :root{
   --p-z-composer:20;
   --p-z-appbar:40;
+  --p-z-menu:50;                                           /* 顶栏下拉面板：高于顶栏内容（40）、低于 skip-link（60） */
   --p-z-tabbar:40;
   --p-z-skiplink:60;
 }
@@ -159,7 +160,10 @@
   --p-size-cellname-min:180px;                             /* 表格文件名列最小宽；小于此值 break-word 会把列压成 1 字符宽 */
   --p-size-full:100%;
   --p-offset-offscreen:-100px;                             /* 跳转链接未聚焦时移出视口的位置 */
-  --p-size-content-max:880px;
+  --p-size-content-max:1000px;                             /* 内容区最大宽（顶栏内部与页面容器同宽）。2026-10-25 由 880px 提升，桌面端主列 684 + 右栏 280 + 间距 36 才放得下 */
+  --p-size-menu-min:220px;                                 /* 顶栏用户菜单面板最小宽：不随触发器显示名伸缩，「退出登录」始终一行 */
+  --p-size-composer-min-h:52px;                            /* 输入框最小高（1 行文本 + 上下内边距）；自动增高的下限，上限以行内 height 承担（登记例外） */
+  --p-size-composer-max-h:200px;                           /* 输入框最大高：超过后内部滚动，不把发送按钮挤出视口 */
   --p-size-assistant-max:720px;
   --p-size-login-max:420px;
   --p-size-prose-max:68ch;
@@ -300,10 +304,33 @@
   --appbar-pad-x:var(--p-space-3);
   --appbar-gap:var(--p-space-3);
   --appbar-nav-gap:var(--p-space-1);                       /* 内联导航项之间的间距（rb.css:136），与 --appbar-gap 不同 */
-  --appbar-nav-offset-x:var(--p-space-2);                  /* 导航区左侧偏移（rb.css:136 margin-left），把导航与品牌分开 */
+  --appbar-nav-margin-left:auto;                           /* 导航区左侧外边距（rb.css:136）：auto 吸收品牌与 Tab 组之间的空白，把 Tab 组整体推到右侧、紧邻用户菜单。2026-10-25 由 12px 固定偏移改为右对齐 */
   --appbar-user-gap:var(--p-space-2);                      /* 用户区图标与身份标签的间距（rb.css:137） */
   --appbar-z:var(--p-z-appbar);
   --appbar-max-w:var(--layout-content-max);
+  --appbar-trigger-pad-x:var(--p-space-1);
+  --appbar-trigger-pad-y:var(--p-space-1);
+  --appbar-trigger-radius:var(--p-radius-10);
+  --appbar-trigger-hover-bg:var(--bg-hover-weak);
+  --appbar-avatar-size:var(--p-size-mark-sm);              /* 触发器里的姓名首字圆牌，与品牌标记同尺寸，视觉上成一组 */
+  --appbar-avatar-radius:var(--p-radius-pill);
+  --appbar-avatar-bg:var(--accent);
+  --appbar-avatar-fg:var(--accent-tint);
+  --appbar-avatar-fs:var(--p-fs-13);
+  --appbar-avatar-fw:var(--p-fw-semibold);
+  --appbar-menu-bg:var(--bg-card);
+  --appbar-menu-offset-y:var(--p-space-1);                 /* 面板与触发器之间的纵向间距（rb.css 新增块） */
+  --appbar-menu-pad:var(--p-space-1);
+  --appbar-menu-radius:var(--p-radius-10);
+  --appbar-menu-border-w:var(--p-bw-1);
+  --appbar-menu-border-color:var(--border);
+  --appbar-menu-shadow:var(--elevation-card);
+  --appbar-menu-min-w:var(--p-size-menu-min);
+  --appbar-menu-item-h:var(--p-size-tap);                  /* 菜单项最小高 = 最小触控目标（44px） */
+  --appbar-menu-item-pad-x:var(--p-space-2);
+  --appbar-menu-item-radius:var(--p-radius-6);
+  --appbar-menu-item-hover-bg:var(--bg-hover-weak);
+  --appbar-menu-z:var(--p-z-menu);                         /* 高于顶栏内容、低于 skip-link（§5.2） */
 }
 /* ---- brand ---- */
 :root{
@@ -386,6 +413,9 @@
   --btn-fw:var(--p-fw-semibold);
   --btn-fs-sm:var(--p-fs-15);
   --btn-disabled-opacity:var(--p-opacity-disabled);
+  --btn-disabled-bg:var(--bg-muted);                       /* 禁用态中性色，与可点的主色按钮拉开（不只靠透明度） */
+  --btn-disabled-fg:var(--text-muted);
+  --btn-disabled-border-color:var(--border);
   --btn-primary-bg:var(--accent);
   --btn-primary-fg:var(--text-on-accent);
   --btn-primary-border-color:var(--accent);
@@ -489,6 +519,18 @@
   --composer-count-fg:var(--text-muted);
   --composer-z:var(--p-z-composer);
   --composer-bottom:var(--shell-tabbar-h);                 /* 窄屏吸附在标签栏之上；≥sm 归零 */
+  --composer-box-bg:var(--bg-card);
+  --composer-box-border-w:var(--p-bw-1);
+  --composer-box-border-color:var(--border-field);         /* 输入容器比卡片边框更实一层：它本身是可输入的控件外形 */
+  --composer-box-radius:var(--p-radius-14);
+  --composer-box-pad:var(--p-space-2);
+  --composer-box-shadow:var(--elevation-card);
+  --composer-input-min-h:var(--p-size-composer-min-h);
+  --composer-input-max-h:var(--p-size-composer-max-h);
+  --composer-input-fg:var(--text-primary);
+  --composer-hint-fs:var(--p-fs-13);
+  --composer-hint-fg:var(--text-muted);
+  --composer-foot-gap:var(--p-space-2);
 }
 /* ---- cite ---- */
 :root{
@@ -546,7 +588,7 @@
   --empty-hint-fs:var(--p-fs-15);
   --empty-hint-fg:var(--text-secondary);
   --empty-error-border-color:var(--danger-border);
-  --empty-error-bg:var(--state-danger-tint);
+  --empty-error-bg:var(--bg-card);                         /* 错误空态不再用浅红底（2026-10-25 裁决）：危险语义只由实线边 + 危险图标 + 危险标题承载 */
   --empty-error-fg:var(--state-danger);
 }
 /* ---- field ---- */

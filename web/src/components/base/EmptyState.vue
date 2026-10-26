@@ -7,20 +7,25 @@
  * 文案由调用方传入（必须来自 content-spec）。
  */
 import { ICONS } from './icons'
+import type { IconName } from './icons'
 
-const props = withDefaults(defineProps<{ variant?: 'empty' | 'error'; title: string; hint?: string }>(), {
-  variant: 'empty',
-  hint: '',
-})
+const props = withDefaults(
+  defineProps<{ variant?: 'empty' | 'error'; title: string; hint?: string; icon?: IconName }>(),
+  {
+    variant: 'empty',
+    hint: '',
+  },
+)
 const isError = (): boolean => props.variant === 'error'
+/** 6 种语义必须靠**不同图标**区分（02-actions-status.md §Empty：E1–E6）；未传则退回旧兜底。 */
+const iconName = (): IconName => props.icon ?? (isError() ? 'circleAlert' : 'image')
 </script>
 
 <template>
   <div class="empty" :class="{ 'empty--error': isError() }" :role="isError() ? 'alert' : undefined">
     <div class="empty__art" aria-hidden="true">
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-        <template v-if="isError()"><path v-for="(d, i) in ICONS.circleAlert" :key="i" :d="d" /></template>
-        <template v-else><path v-for="(d, i) in ICONS.image" :key="i" :d="d" /></template>
+        <path v-for="(d, i) in ICONS[iconName()]" :key="i" :d="d" />
       </svg>
     </div>
     <p class="empty__title">{{ title }}</p>

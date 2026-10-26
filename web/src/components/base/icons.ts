@@ -33,6 +33,12 @@ export const ICONS = {
   image: ['M3 3h18v18H3z', 'M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z', 'm21 15-5-5L5 21'],
   quote: ['M10 11H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v7a3 3 0 0 1-3 3', 'M19 11h-4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v7a3 3 0 0 1-3 3'],
   externalLink: ['M15 3h6v6', 'M10 14 21 3', 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'],
+  /** 「全库尚无资料」空态（02-actions-status.md E3）；底栏/顶栏「助手」入口。 */
+  inbox: ['M22 12h-6l-2 3h-4l-2-3H2', 'M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'],
+  /** 「问资料 / 对话」入口图形（导航用，不复用品牌 library 标）。 */
+  messageCircle: ['M7.9 20A9 9 0 1 0 4 16.1L2 22Z'],
+  /** 用户菜单触发器的展开箭头（01-shell-navigation.md §2 用户菜单）。 */
+  chevronDown: ['m6 9 6 6 6-6'],
 } as const
 
 export type IconName = keyof typeof ICONS

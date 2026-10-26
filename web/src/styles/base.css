@@ -73,15 +73,19 @@
   padding: var(--appbar-pad-y) var(--appbar-pad-x);
 }
 
-/* 导航：<768 隐藏（改用底部标签栏），≥768 内联。rb.css:136、145–147 */
+/* 导航：<768 隐藏（改用底部标签栏），≥768 内联。rb.css:136
+   `--appbar-nav-margin-left:auto` 吸收品牌与 Tab 组之间的空白（§5.3）。 */
 .appbar__nav {
   display: none;
   gap: var(--appbar-nav-gap);
-  margin-left: var(--appbar-nav-offset-x);
+  margin-left: var(--appbar-nav-margin-left);
 }
 
+/* 用户区不再是「撑到最右」的那一个：右对齐由导航的 auto 外边距完成（§5.3）。
+   与 Tab 组的间距直接取 `.appbar__inner` 的 flex gap（`--appbar-gap`），
+   不再叠加第二层外边距 —— 否则 18 + 12 = 30px，比设计稿宽一半。 */
 .appbar__user {
-  margin-left: auto;
+  margin-left: 0;
   display: flex;
   align-items: center;
   gap: var(--appbar-user-gap);
@@ -91,6 +95,75 @@
   .appbar__nav {
     display: flex;
   }
+}
+
+/* ==== usermenu（01 §2 用户菜单；rb.css 阶段 B 新增块）====
+   面板显隐由组件 `open` 状态 + `v-show` 控制：`:focus-within` 不在白名单（§5.2）。 */
+.usermenu {
+  position: relative;
+}
+
+.usermenu__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--appbar-user-gap);
+  min-height: var(--appbar-menu-item-h);
+  padding: var(--appbar-trigger-pad-y) var(--appbar-trigger-pad-x);
+  border: var(--appbar-menu-border-w) solid transparent;
+  border-radius: var(--appbar-trigger-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.usermenu__trigger:hover {
+  background: var(--appbar-trigger-hover-bg);
+}
+
+.usermenu__avatar {
+  width: var(--appbar-avatar-size);
+  height: var(--appbar-avatar-size);
+  border-radius: var(--appbar-avatar-radius);
+  background: var(--appbar-avatar-bg);
+  color: var(--appbar-avatar-fg);
+  display: grid;
+  place-items: center;
+  font-size: var(--appbar-avatar-fs);
+  font-weight: var(--appbar-avatar-fw);
+  flex: 0 0 auto;
+}
+
+.usermenu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--appbar-menu-offset-y));
+  z-index: var(--appbar-menu-z);
+  min-width: var(--appbar-menu-min-w);
+  padding: var(--appbar-menu-pad);
+  background: var(--appbar-menu-bg);
+  border: var(--appbar-menu-border-w) solid var(--appbar-menu-border-color);
+  border-radius: var(--appbar-menu-radius);
+  box-shadow: var(--appbar-menu-shadow);
+}
+
+.usermenu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--appbar-menu-item-h);
+  padding: 0 var(--appbar-menu-item-pad-x);
+  border: 0;
+  border-radius: var(--appbar-menu-item-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.usermenu__item:hover {
+  background: var(--appbar-menu-item-hover-bg);
 }
 
 /* ==== brand（01 §3；rb.css:132–134、406–409）==== */
@@ -284,8 +357,12 @@
   width: 100%;
 }
 
+/* 禁用：中性色 + 降透明（§9.1 btn 组新增 3 个 token）。原生 [disabled]，不用 aria-disabled。 */
 .btn[disabled] {
   opacity: var(--btn-disabled-opacity);
+  background: var(--btn-disabled-bg);
+  color: var(--btn-disabled-fg);
+  border-color: var(--btn-disabled-border-color);
   cursor: not-allowed;
 }
 
@@ -633,7 +710,8 @@ a.chip:hover {
   }
 }
 
-/* ==== composer（03 §Composer；rb.css:266–273）==== */
+/* ==== composer（03 §Composer；rb.css:266–273 + 阶段 B 新增块）====
+   外层仍吸附在底部；内部改为「标签 + 输入容器 + 提示行」三段（§7）。 */
 .composer {
   position: sticky;
   bottom: calc(var(--composer-bottom) + env(safe-area-inset-bottom, 0px));
@@ -641,6 +719,9 @@ a.chip:hover {
   padding: var(--composer-pad-y) 0 var(--composer-pad-y);
   border-top: var(--composer-border-w) solid var(--composer-border-color);
   z-index: var(--composer-z);
+  display: flex;
+  flex-direction: column;
+  gap: var(--composer-gap);
 }
 
 @media (min-width: 768px) {
@@ -659,6 +740,48 @@ a.chip:hover {
   margin-left: auto;
   font-size: var(--composer-count-fs);
   color: var(--composer-count-fg);
+}
+
+/* 输入容器：边框、圆角、投影都长在容器上，textarea 自身无边框（§7） */
+.composer__box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--composer-gap);
+  background: var(--composer-box-bg);
+  border: var(--composer-box-border-w) solid var(--composer-box-border-color);
+  border-radius: var(--composer-box-radius);
+  padding: var(--composer-box-pad);
+  box-shadow: var(--composer-box-shadow);
+}
+
+/* 双类选择器是为了盖过 04 节的 `.textarea`（0,1,0）——输入条不是普通表单控件 */
+.composer__box .composer__input {
+  width: 100%;
+  min-height: var(--composer-input-min-h);
+  max-height: var(--composer-input-max-h);
+  overflow: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--composer-input-fg);
+  font: inherit;
+  resize: none;
+}
+
+.composer__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--composer-gap);
+}
+
+.composer__hint {
+  font-size: var(--composer-hint-fs);
+  color: var(--composer-hint-fg);
+}
+
+.composer__foot {
+  display: flex;
+  gap: var(--composer-foot-gap);
 }
 
 /* ==== cite（03 §Citation；rb.css:276–288）==== */
