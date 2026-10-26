@@ -326,15 +326,17 @@
     grid-template-columns: minmax(0, 1fr) var(--wrap-rail-w);
   }
 
-  /* 右栏「悬浮卡」：≥lg 起贴在顶栏下方，整页一起滚时它像浮在内容上方（2026-10-26 用户需求）。
-     `align-self:start` 是 sticky 生效的前提 —— 否则栅格会把右栏拉伸成全列高，粘不住。
-     `z-index` 必须在输入条之上：输入条是 fixed 的整幅底色，否则右栏下半张卡会被它啃掉
-     （用户 1269×563 的截图里「学习计划」卡就断在标题下面）。 */
+  /* 右栏「悬浮卡」：≥lg 起 `position:fixed` 钉在视口右侧、顶栏下方 —— **永远浮着**，
+     与页面内容长短无关（2026-10-26 用户需求：不跟随滚动条移动）。
+     不用 sticky 的原因：sticky 的可粘距离 = 栅格行高 − 右栏高；空对话时左列 385、右栏 382，
+     余量只有 3px，一滚就被容器推走（用户实测「只吸一下就跟着页面走」）。
+     `z-index` 高于输入条（20），所以不会被输入条的整幅底色切掉。 */
   .workspace__rail {
-    position: sticky;
+    position: fixed;
     top: var(--wrap-rail-top);
+    right: calc(50% - var(--wrap-max) / 2);
+    width: var(--wrap-rail-w);
     z-index: var(--wrap-rail-z);
-    align-self: start;
   }
 
   /* 桌面端取消左右内边距：1000 就是内容列本身，顶栏与正文因此严格对齐 */

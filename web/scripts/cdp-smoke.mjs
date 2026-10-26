@@ -511,9 +511,9 @@ async function main() {
         `.workspace__scroll=${pinInfo?.inner ? '仍存在' : '已删除'} 主列 overflow-y=${pinInfo?.mainOverflow}`,
       )
       check(
-        '右栏悬浮：≥1200 时 position:sticky 吸在顶栏下、且层叠高于输入条（不被底色切掉）',
+        '右栏悬浮：≥1200 时 position:fixed 永远钉在顶栏下（页面滚 900 也不动）、层叠高于输入条',
         pinInfo?.vw < 1200 ||
-          (pinInfo?.railPos === 'sticky' &&
+          (pinInfo?.railPos === 'fixed' &&
             parseFloat(pinInfo?.railTop) > 0 &&
             pinInfo?.railZ > pinInfo?.formZ &&
             Math.abs(pinInfo?.railTop1 - parseFloat(pinInfo?.railTop)) <= 1),
