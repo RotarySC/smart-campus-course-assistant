@@ -571,6 +571,7 @@
   --composer-border-color:var(--border);
   --composer-border-w:var(--p-bw-1);
   --composer-float-gap:var(--p-space-4);                   /* 胶囊距视口底部的留白（浮起感）：24px；同时是外层的下内边距 */
+  --composer-box-border-focus:var(--focus);                /* 胶囊聚焦时的边框色：焦点指示从输入框内部挪到胶囊边框上（不再套一圈绿色小框） */
   --composer-pad-y:var(--p-space-2);
   --composer-gap:var(--p-space-2);
   --composer-count-fs:var(--p-fs-13);

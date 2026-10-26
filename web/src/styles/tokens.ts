@@ -228,6 +228,7 @@ export const tokens = {
   "--composer-bottom": "56px",
   "--composer-box-bg": "#FFFFFF",
   "--composer-box-border-color": "#78716C",
+  "--composer-box-border-focus": "#0F4A42",
   "--composer-box-border-w": "1px",
   "--composer-box-pad": "18px",
   "--composer-box-radius": "24px",

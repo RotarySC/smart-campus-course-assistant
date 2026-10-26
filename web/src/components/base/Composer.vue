@@ -37,6 +37,9 @@ const fieldId = 'composer-input'
 const hintId = 'composer-enter-hint'
 const limitId = 'composer-limit'
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+/** 焦点指示放在胶囊边框上（`--composer-box-border-focus` + 环），而不是在内部套一圈小 outline。
+ *  原因见 base.css 里 `.composer__box .composer__input:focus-visible` 的注释。 */
+const focused = ref(false)
 
 const count = computed(() => codePointLength(props.modelValue))
 const canSubmit = computed(() => props.modelValue.trim().length > 0 && count.value <= props.maxlength)
@@ -71,7 +74,7 @@ onMounted(autoGrow)
 
 <template>
   <form class="composer" @submit.prevent="onSubmit">
-    <div class="composer__box">
+    <div class="composer__box" :class="{ 'composer__box--focus': focused }">
       <label class="sr-only" :for="fieldId">{{ label }}</label>
       <textarea
         ref="inputEl"
@@ -84,6 +87,8 @@ onMounted(autoGrow)
         :disabled="disabled || pending"
         :aria-describedby="describedBy"
         @input="onInput"
+        @focus="focused = true"
+        @blur="focused = false"
         @keydown.enter.exact.prevent="onSubmit"
       />
       <div class="composer__bar">

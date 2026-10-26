@@ -1214,6 +1214,18 @@ a.chip:hover {
   box-shadow: var(--composer-box-shadow);
 }
 
+/* 聚焦指示：胶囊**边框**转品牌绿（2026-10-26 用户反馈「内部绿框太割裂」）。
+   全局 `:focus-visible` 的规则仍适用于其它控件；这里是**唯一**的本地覆盖，
+   焦点并没有被藏起来 —— 指示由 24px 圆角胶囊的 1px 边框承担（灰 → 品牌绿），
+   与胶囊同形，不再在内部套一个圆角 4px 的小绿框。 */
+.composer__box .composer__input:focus-visible {
+  outline: none;
+}
+
+.composer__box--focus {
+  border-color: var(--composer-box-border-focus);
+}
+
 /* 双类选择器是为了盖过 04 节的 `.textarea`（0,1,0）——输入条不是普通表单控件 */
 .composer__box .composer__input {
   width: 100%;
