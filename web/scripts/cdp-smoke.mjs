@@ -561,6 +561,53 @@ async function main() {
         statIcons?.cards === 4 && statIcons.icos.every((i) => i && i.hidden === 'true' && i.paths > 0),
         JSON.stringify(statIcons),
       )
+      // P5b 裁决 B1：表格 <caption> 与卡头标题逐字重复（8 个调用点都传卡头标题）。
+      // 处理：caption 加 `.sr-only` 视觉隐藏、留在 DOM 里当表格的可访问名。
+      // 这里同时钉住三件事：不占布局、隐藏的确实是重复内容、读屏仍拿得到表格名。
+      const capInfo = await evaluate(`(() => {
+        const cap = document.querySelector('.table caption');
+        if (!cap) return { present: false };
+        const r = cap.getBoundingClientRect();
+        const s = getComputedStyle(cap);
+        const head = cap.closest('.card')?.querySelector('.card__head');
+        const text = (cap.textContent || '').trim();
+        const headText = head ? (head.textContent || '').trim() : '';
+        // 命中测试：被 clip 裁掉的元素不可能成为某点的最上层元素 —— 与 padding 造成的盒尺寸无关
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return {
+          present: true, text, headText,
+          w: Math.round(r.width), h: Math.round(r.height),
+          position: s.position, clip: s.clip,
+          hitIsCaption: hit === cap || (!!hit && cap.contains(hit)),
+          duplicate: headText.includes(text),
+        };
+      })()`)
+      const fullyClipped = /^rect\(\s*0(px)?,?\s*0(px)?,?\s*0(px)?,?\s*0(px)?\s*\)$/.test(capInfo?.clip ?? '')
+      check(
+        'B1 caption 视觉隐藏（.sr-only：绝对定位 + 全裁 + 点不中）',
+        capInfo?.present === true &&
+          capInfo.position === 'absolute' &&
+          fullyClipped &&
+          capInfo.hitIsCaption === false,
+        `rect=${capInfo?.w}×${capInfo?.h} position=${capInfo?.position} clip=${capInfo?.clip} hitIsCaption=${capInfo?.hitIsCaption}`,
+      )
+      check(
+        'B1 caption 隐藏的正是卡头标题（重复而非信息）',
+        capInfo?.duplicate === true,
+        `caption=「${capInfo?.text}」cardHead=「${capInfo?.headText}」`,
+      )
+      const axTableName = await (async () => {
+        try {
+          const doc = await cdp.send('DOM.getDocument', { depth: 0 })
+          const q = await cdp.send('DOM.querySelector', { nodeId: doc.root.nodeId, selector: '.table' })
+          const ax = await cdp.send('Accessibility.getPartialAXTree', { nodeId: q.nodeId, fetchRelatives: false })
+          const t = (ax.nodes ?? []).find((x) => x.role?.value === 'table' || x.role?.value === 'grid')
+          return t?.name?.value ?? ''
+        } catch (e) {
+          return `ERR ${e.message}`
+        }
+      })()
+      check('B1 caption 仍是表格的可访问名（读屏可读）', axTableName === capInfo?.text, `AX name=「${axTableName}」`)
       savePng('pages-schedules.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
 
       // 8.2 S09 学习计划列表
