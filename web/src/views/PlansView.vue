@@ -200,7 +200,9 @@ onMounted(() => void load())
         </div>
 
         <Card :title="S09.listTitle">
-      <FormGrid>
+          <!-- 卡片内所有块统一走 .stack 的 12px 间距：否则「新建计划」会贴在筛选框与表格之间 -->
+          <div class="stack">
+            <FormGrid>
         <Field :label="S09.searchLabel" for-id="plan-search">
           <Control id="plan-search" v-model="titleInput" type="search" @blur="load" />
         </Field>
@@ -296,7 +298,8 @@ onMounted(() => void load())
           <Btn size="sm" variant="danger" @click="doDelete">{{ S09.remove }}</Btn>
           <Btn size="sm" variant="ghost" @click="confirmPlan = null">{{ S12.cancel }}</Btn>
         </template>
-      </Notice>
+            </Notice>
+          </div>
         </Card>
       </div>
 
