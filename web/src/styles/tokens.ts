@@ -244,8 +244,8 @@ export const tokens = {
   "--composer-input-fg": "#1C1917",
   "--composer-input-max-h": "200px",
   "--composer-input-min-h": "52px",
-  "--composer-pad-y": "12px",
-  "--composer-reserve": "calc(12px + 1px * 2 + 18px * 2 + 52px + 12px + 44px + 24px)",
+  "--composer-pad-y": "6px",
+  "--composer-reserve": "calc(6px + 1px * 2 + 18px * 2 + 52px + 12px + 44px + 24px)",
   "--composer-tip-max-w": "220px",
   "--composer-tip-offset-y": "12px",
   "--composer-z": "20",
@@ -528,6 +528,7 @@ export const tokens = {
   "--p-z-appbar": "40",
   "--p-z-composer": "20",
   "--p-z-menu": "50",
+  "--p-z-rail": "30",
   "--p-z-skiplink": "60",
   "--p-z-tabbar": "40",
   "--pending": "#8A4107",
@@ -677,8 +678,9 @@ export const tokens = {
   "--wrap-pad-x-sm": "24px",
   "--wrap-pad-y": "24px",
   "--wrap-pad-y-sm": "36px",
-  "--wrap-rail-sticky-top": "calc(56px + 12px)",
+  "--wrap-rail-top": "calc(56px + 12px)",
   "--wrap-rail-w": "280px",
+  "--wrap-rail-z": "30",
 } as const;
 
 export type TokenName = keyof typeof tokens;

@@ -327,10 +327,13 @@
   }
 
   /* 右栏「悬浮卡」：≥lg 起贴在顶栏下方，整页一起滚时它像浮在内容上方（2026-10-26 用户需求）。
-     `align-self:start` 是 sticky 生效的前提 —— 否则栅格会把右栏拉伸成全列高，粘不住。 */
+     `align-self:start` 是 sticky 生效的前提 —— 否则栅格会把右栏拉伸成全列高，粘不住。
+     `z-index` 必须在输入条之上：输入条是 fixed 的整幅底色，否则右栏下半张卡会被它啃掉
+     （用户 1269×563 的截图里「学习计划」卡就断在标题下面）。 */
   .workspace__rail {
     position: sticky;
-    top: var(--wrap-rail-sticky-top);
+    top: var(--wrap-rail-top);
+    z-index: var(--wrap-rail-z);
     align-self: start;
   }
 

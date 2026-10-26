@@ -478,6 +478,8 @@ async function main() {
         const mainOverflow = getComputedStyle(main).overflowY;
         const railPos = rail ? getComputedStyle(rail).position : null;
         const railTop = rail ? getComputedStyle(rail).top : null;
+        const railZ = rail ? Number(getComputedStyle(rail).zIndex) : 0;
+        const formZ = Number(getComputedStyle(form).zIndex) || 0;
         const railTop0 = rail ? Math.round(rail.getBoundingClientRect().top) : null;
         // 往主列顶部灌 1500px 内容 → 文档变长，只有文档这一个滚动条能滚
         const fill = document.createElement('div');
@@ -493,7 +495,7 @@ async function main() {
         const railTop1 = rail ? Math.round(rail.getBoundingClientRect().top) : null;
         fill.remove();
         window.scrollTo(0, 0);
-        return { gap0, gap1, before, after, pageScroll, grew, inner, mainOverflow, railPos, railTop, railTop0, railTop1, vw: innerWidth, vh: innerHeight };
+        return { gap0, gap1, before, after, pageScroll, grew, inner, mainOverflow, railPos, railTop, railZ, formZ, railTop0, railTop1, vw: innerWidth, vh: innerHeight };
       })()`)
       check(
         '输入条 fixed 钉在视口底部（页面滚 900 也不动）',
@@ -509,12 +511,13 @@ async function main() {
         `.workspace__scroll=${pinInfo?.inner ? '仍存在' : '已删除'} 主列 overflow-y=${pinInfo?.mainOverflow}`,
       )
       check(
-        '右栏悬浮：≥1200 时 position:sticky，页面滚动时吸在顶栏下',
+        '右栏悬浮：≥1200 时 position:sticky 吸在顶栏下、且层叠高于输入条（不被底色切掉）',
         pinInfo?.vw < 1200 ||
           (pinInfo?.railPos === 'sticky' &&
             parseFloat(pinInfo?.railTop) > 0 &&
+            pinInfo?.railZ > pinInfo?.formZ &&
             Math.abs(pinInfo?.railTop1 - parseFloat(pinInfo?.railTop)) <= 1),
-        `vw=${pinInfo?.vw} position=${pinInfo?.railPos} top=${pinInfo?.railTop} 栏顶 ${pinInfo?.railTop0}→${pinInfo?.railTop1}`,
+        `vw=${pinInfo?.vw} position=${pinInfo?.railPos} top=${pinInfo?.railTop} z=${pinInfo?.railZ}>${pinInfo?.formZ} 栏顶 ${pinInfo?.railTop0}→${pinInfo?.railTop1}`,
       )
       const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
       savePng('smoke-assistant.png', shot2.data)
