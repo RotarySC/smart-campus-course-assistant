@@ -11,6 +11,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as authApi from '@/api/auth'
+import type { RegisterInput } from '@/api/auth'
 import * as meApi from '@/api/me'
 import type { AuthSnapshot } from '@/api/client'
 import type { AppError } from '@/api/errors'
@@ -79,6 +80,28 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const res = await authApi.login(input)
+      accessToken.value = res.access_token
+      tokenType.value = res.token_type
+      expiresAt.value = res.expires_at
+      user.value = res.user
+      status.value = 'authenticated'
+    } catch (e) {
+      error.value = e as AppError
+      status.value = 'anonymous'
+      throw e
+    }
+  }
+
+  /**
+   * 自助注册（`POST /auth/register`）：成功即自动登录，收尾与 `login()` 完全一致
+   * （调用方随后仍必须 `fetchMe()` 补 capabilities —— §7.3 G7 对注册同样适用）。
+   * 失败**不改 state**，只写 error 后抛出，由表单按 `code` 就近回填。
+   */
+  async function register(input: RegisterInput): Promise<void> {
+    status.value = 'authenticating'
+    error.value = null
+    try {
+      const res = await authApi.register(input)
       accessToken.value = res.access_token
       tokenType.value = res.token_type
       expiresAt.value = res.expires_at
@@ -190,6 +213,7 @@ export const useSessionStore = defineStore('session', () => {
     canAdmin,
     auth,
     login,
+    register,
     fetchMe,
     logout,
     onAuthFailure,

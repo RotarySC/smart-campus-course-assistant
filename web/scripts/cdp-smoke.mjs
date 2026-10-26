@@ -314,11 +314,23 @@ async function main() {
       })()`)
       await sleep(250)
     }
+    /**
+     * 按选择器点击。登录页改成两栏 + Tab 之后，「登录」这两个字同时出现在
+     * 「登录 Tab」与「登录按钮」上，`clickByText('登录')` 会命中 Tab（§15.6 已登记）。
+     * 因此登录提交一律用冻结的 id `#login-submit`。
+     */
+    const clickSelector = (selector) =>
+      evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el || el.disabled || el.getClientRects().length === 0) return false;
+        el.click();
+        return true;
+      })()`)
     const rows = () => evaluate("document.querySelectorAll('.table tbody tr').length")
     const loginAs = async (account, password) => {
       await typeInto('#login-account', account)
       await typeInto('#login-password', password)
-      await clickByText('登录')
+      await clickSelector('#login-submit')
       return waitFor(
         async () => {
           const p = await evaluate('location.pathname')
@@ -328,10 +340,37 @@ async function main() {
       )
     }
 
+    // ---- 5.1) 两栏登录页的 Tab 切换：只切面板、不改 URL（§15.2）----
+    {
+      const tabState = () =>
+        evaluate(`(() => ({
+          sel: document.querySelector('#login-tab')?.getAttribute('aria-selected'),
+          regSel: document.querySelector('#register-tab')?.getAttribute('aria-selected'),
+          loginHidden: document.querySelector('#login-panel')?.hasAttribute('hidden'),
+          regHidden: document.querySelector('#register-panel')?.hasAttribute('hidden'),
+          path: location.pathname,
+        }))()`)
+      const beforeTab = await tabState()
+      check('§15.2 默认选中「登录」Tab 且注册面板 hidden', beforeTab.sel === 'true' && beforeTab.regSel === 'false' && beforeTab.loginHidden === false && beforeTab.regHidden === true)
+      await clickSelector('#register-tab')
+      await sleep(120)
+      const afterTab = await tabState()
+      check('§15.2 切到注册：aria-selected 与面板显隐同步', afterTab.regSel === 'true' && afterTab.sel === 'false' && afterTab.loginHidden === true && afterTab.regHidden === false)
+      check('§15.2 切 Tab 不改 URL', afterTab.path === beforeTab.path, `${beforeTab.path} → ${afterTab.path}`)
+      check(
+        '§15.5 注册面板字段齐全（4 个冻结 id + 提交按钮）',
+        await evaluate(`['#register-account','#register-name','#register-password','#register-password2','#register-submit'].every((s) => !!document.querySelector(s))`),
+      )
+      await clickSelector('#login-tab')
+      await sleep(120)
+      const backTab = await tabState()
+      check('§15.2 切回登录：恢复默认面板', backTab.sel === 'true' && backTab.regHidden === true && backTab.loginHidden === false)
+    }
+
     if (LOGIN) {
       check('填入账号', await typeInto('#login-account', ACCOUNT), ACCOUNT)
       check('填入密码', await typeInto('#login-password', PASSWORD), '******')
-      check('提交登录', await clickByText('登录'))
+      check('提交登录', await clickSelector('#login-submit'))
       // 等页面**离开** /login（登录是异步的：login → /me → replace）。
       let landed = '/login'
       try {

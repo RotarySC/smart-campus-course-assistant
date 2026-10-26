@@ -454,13 +454,38 @@
   background: var(--card-progress-bar-bg);
 }
 
-/* ==== login（01 §10；rb.css:405–411）==== */
-.login {
-  max-width: var(--login-max-w);
+/* ==== login（01 §10；rb.css:503–535）====
+   ≥1200：左栏 minmax(0,1fr) + 右卡 404、列距 72；<1200：单列，容器 ≤452、卡 ≤420，
+   左栏只留 brand + 标题 + 引导句（.login__points / .login__note 隐藏）。
+   两栏左栏只回答「这是什么 / 能干什么」：不加动画、不做营销式渐变（§15.1）。 */
+.login-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: var(--login-intro-gap);
+  max-width: var(--login-single-max);
   margin: 0 auto;
+  padding: var(--login-page-pad-y) var(--login-page-pad-x);
+  min-height: var(--login-page-min-h);
+}
+
+@media (min-width: 1200px) {
+  .login-page {
+    grid-template-columns: minmax(0, 1fr) var(--login-card-w);
+    gap: var(--login-column-gap);
+    max-width: var(--wrap-max);
+    padding-inline: 0;
+  }
+}
+
+.login-page__intro {
   display: flex;
   flex-direction: column;
-  gap: var(--login-gap);
+  gap: var(--login-intro-gap);
+}
+
+.login-page__intro h1 {
+  font-size: var(--login-title-fs);
 }
 
 .login__brand {
@@ -474,10 +499,137 @@
   font-size: var(--login-sub-fs);
 }
 
+.login__lead {
+  max-width: var(--login-lead-max);
+  color: var(--login-sub-fg);
+  font-size: var(--login-lead-fs);
+}
+
+.login__points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--login-point-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.login__point {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--login-point-gap);
+}
+
+.login__point-ico {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--login-point-ico);
+  height: var(--login-point-ico);
+  border: var(--login-card-border-w) solid var(--login-card-border-color);
+  border-radius: var(--login-tab-radius);
+  background: var(--login-card-bg);
+  color: var(--login-switch-fg);
+}
+
+.login__point div {
+  display: flex;
+  flex-direction: column;
+}
+
+.login__point b {
+  font-size: var(--login-point-fs);
+  font-weight: 600;
+}
+
+.login__point div span {
+  color: var(--login-sub-fg);
+  font-size: var(--login-point-desc-fs);
+}
+
+.login__note {
+  color: var(--login-sub-fg);
+  font-size: var(--login-note-fs);
+}
+
+.login__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--login-intro-gap);
+  width: 100%;
+  max-width: var(--login-max-w);
+  margin: 0 auto;
+  padding: var(--login-card-pad);
+  border: var(--login-card-border-w) solid var(--login-card-border-color);
+  border-radius: var(--login-card-radius);
+  background: var(--login-card-bg);
+  box-shadow: var(--login-card-shadow);
+}
+
+@media (min-width: 1200px) {
+  .login__card {
+    max-width: var(--login-card-w);
+    margin: 0;
+  }
+}
+
+.login__tabs {
+  display: flex;
+  gap: var(--login-tabs-pad);
+  height: var(--login-tab-h);
+  padding: var(--login-tabs-pad);
+  border-radius: var(--login-tabs-radius);
+  background: var(--login-tabs-bg);
+}
+
+.login__tab {
+  flex: 1 1 0;
+  border: 0;
+  border-radius: var(--login-tab-radius);
+  background: none;
+  color: var(--login-tab-fg);
+  font: inherit;
+  font-size: var(--login-tab-fs);
+  cursor: pointer;
+}
+
+.login__tab[aria-selected="true"] {
+  background: var(--login-tab-on-bg);
+  color: var(--login-tab-on-fg);
+  box-shadow: var(--login-tab-on-shadow);
+}
+
+.login__panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.login__panel[hidden] {
+  display: none;
+}
+
+.login__switch {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--login-switch-fg);
+  font: inherit;
+  font-size: var(--login-lead-fs);
+  cursor: pointer;
+}
+
 .login__foot {
   color: var(--login-foot-fg);
   font-size: var(--login-foot-fs);
   text-align: center;
+}
+
+@media (max-width: 1199px) {
+  .login__points,
+  .login__note {
+    display: none;
+  }
 }
 
 /* ============ 02-actions-status.md ============ */

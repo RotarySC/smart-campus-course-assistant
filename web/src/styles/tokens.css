@@ -174,6 +174,10 @@
   --p-size-bubble-max:88%;
   --p-sr-clip-size:1px;                                    /* 仅供视觉隐藏（sr-only）使用，不是视觉设计尺寸 */
   --p-sr-clip-offset:-1px;
+  --p-size-login-card:404px;                               /* 登录页右卡宽（≥1200 两栏）：1000 内容 − 列距 72 − 左栏弹性 */
+  --p-size-login-ico:32px;                                 /* 登录页左栏能力图标底座边长 */
+  --p-size-login-lead-max:26em;                            /* 登录页引导句行宽上限：15px × 26 ≈ 390px，约 45 字/行 */
+  --p-size-viewport-h:100vh;                               /* 整屏高：只用于「至少占满一屏」的页面容器（登录页） */
 }
 /* ---- opacity ---- */
 :root{
@@ -241,6 +245,7 @@
   --layout-rail-w:var(--p-size-rail);
   --layout-assistant-max:var(--p-size-assistant-max);
   --layout-prose-max:var(--p-size-prose-max);
+  --layout-login-card-w:var(--p-size-login-card);
 }
 /* ---- shell ---- */
 :root{
@@ -736,6 +741,38 @@
   --login-sub-fg:var(--text-secondary);
   --login-foot-fs:var(--p-fs-13);
   --login-foot-fg:var(--text-muted);
+  --login-card-w:var(--layout-login-card-w);
+  --login-single-max:calc(var(--layout-login-card-w) + var(--p-space-8));
+  --login-column-gap:var(--p-space-12);
+  --login-page-pad-y:var(--p-space-8);
+  --login-page-pad-x:var(--p-space-4);
+  --login-intro-gap:var(--p-space-6);
+  --login-card-pad:var(--p-space-4);
+  --login-card-radius:var(--p-radius-14);
+  --login-card-bg:var(--bg-card);
+  --login-card-border-w:var(--p-bw-1);
+  --login-card-border-color:var(--border);
+  --login-card-shadow:var(--elevation-card);
+  --login-tabs-bg:var(--bg-muted);
+  --login-tabs-pad:var(--p-space-3px);
+  --login-tabs-radius:var(--p-radius-10);
+  --login-tab-h:var(--p-size-tap);
+  --login-tab-fs:var(--p-fs-15);
+  --login-tab-fg:var(--text-secondary);
+  --login-tab-radius:var(--p-radius-7);
+  --login-tab-on-bg:var(--bg-card);
+  --login-tab-on-fg:var(--text-primary);
+  --login-tab-on-shadow:var(--elevation-card);
+  --login-title-fs:var(--p-fs-24);
+  --login-lead-fs:var(--p-fs-15);
+  --login-lead-max:var(--p-size-login-lead-max);
+  --login-point-gap:var(--p-space-2);
+  --login-point-ico:var(--p-size-login-ico);
+  --login-point-fs:var(--p-fs-15);
+  --login-point-desc-fs:var(--p-fs-13);
+  --login-note-fs:var(--p-fs-13);
+  --login-switch-fg:var(--accent-strong);
+  --login-page-min-h:var(--p-size-viewport-h);
 }
 /* ---- utility ---- */
 :root{

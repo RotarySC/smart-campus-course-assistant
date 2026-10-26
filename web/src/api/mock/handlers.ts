@@ -148,6 +148,50 @@ export async function handleMock(rawUrl: string, init: RequestInit): Promise<Res
     })
   }
 
+  /**
+   * 自助注册（openapi `POST /auth/register`）：201 + 与登录**同结构**的令牌（注册即自动登录）。
+   * mock 与后端同语义：字段非法 422 + `field_errors`（供表单就近回填）、重复账号 409、
+   * 成功固定 `role="student"`（`role` 不在入参里）。mock 数据只在内存，刷新即回到种子数据。
+   */
+  if (method === 'POST' && path === '/auth/register') {
+    const b = body<{ account?: string; display_name?: string; password?: string }>(init)
+    const account = (b.account ?? '').trim()
+    const displayName = (b.display_name ?? '').trim()
+    const password = b.password ?? ''
+    const fieldErrors: Array<{ field: string; reason: string }> = []
+    if (account.length < 3 || account.length > 64) {
+      fieldErrors.push({ field: 'account', reason: '账号长度需在 3 到 64 个字符之间。' })
+    }
+    if (displayName.length === 0 || displayName.length > 50) {
+      fieldErrors.push({ field: 'display_name', reason: '显示名长度需在 1 到 50 个字符之间。' })
+    }
+    if (password.length < 8 || password.length > 1024) {
+      fieldErrors.push({ field: 'password', reason: '密码长度需在 8 到 1024 个字符之间。' })
+    }
+    if (fieldErrors.length > 0) {
+      return fail(422, 'VALIDATION_FAILED', 'invalid register payload', { field_errors: fieldErrors })
+    }
+    if (users.some((x) => x.account === account)) return fail(409, 'DUPLICATE_ACCOUNT', 'account already exists')
+    const u = {
+      id: `u_stu_${Date.now().toString(36)}`,
+      account,
+      display_name: displayName,
+      role: 'student' as const,
+      enabled: true,
+      version: 1,
+      password,
+    }
+    users.push(u)
+    const token = `tok_${u.id}_${Date.now().toString(36)}`
+    sessions.set(token, u.id)
+    return created({
+      access_token: token,
+      token_type: 'Bearer',
+      expires_at: '2026-10-22T21:47:00+08:00',
+      user: { id: u.id, account: u.account, display_name: u.display_name, role: u.role, enabled: u.enabled, version: u.version },
+    })
+  }
+
   if (method === 'POST' && path === '/auth/logout') {
     const h = new Headers(init.headers)
     const token = (h.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')

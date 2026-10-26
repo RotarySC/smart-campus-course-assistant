@@ -143,6 +143,12 @@ export const LIMITS = {
   uploadMaxFileBytes: 20 * 1024 * 1024,
   uploadMaxBatchBytes: 50 * 1024 * 1024,
   scheduleRangeDays: 31,
+  /** `RegisterInput.account`（openapi）：trim 后 3–64。 */
+  registerAccountMin: 3,
+  registerAccountMax: 64,
+  /** `RegisterInput.password`：8–1024。 */
+  registerPasswordMin: 8,
+  registerPasswordMax: 1024,
 } as const
 
 /* ============ 超时（§5.8） ============ */

@@ -23,6 +23,25 @@ export const S01 = {
   invalidCredentials: '账号或密码不正确，请重试。', // content-spec:56
   accountDisabled: '当前账号不可用，请联系管理员。', // content-spec:59
   sessionFootnote: '登录会话有效期 2 小时，到期后需要重新登录。', // content-spec:58
+  /* ---- 阶段 B · P2d 两栏登录页与自助注册（content-spec S15.5） ---- */
+  tabLogin: '登录', // content-spec:243
+  tabRegister: '注册', // content-spec:243
+  registerTitle: '查课表 · 问资料 · 存计划，一个入口', // content-spec:236（逐字同 subtitle，不新增词）
+  lead: '基于本校课程资料回答问题，课表与学习计划都在同一个页面里。', // content-spec:237
+  points: [
+    { title: '查我的课表', desc: '按日期查今天的课、下一节课与当天结束时间。' }, // content-spec:239
+    { title: '问课程资料', desc: '依据课程资料回答，并在回答里标出资料来源。' }, // content-spec:240
+    { title: '存学习计划', desc: '把拟定好的计划直接存进学习计划，随时回看。' }, // content-spec:241
+  ],
+  toRegister: '还没有账号？去注册', // content-spec:244
+  toLogin: '已有账号？去登录', // content-spec:245
+  labelName: '显示名', // content-spec:245
+  labelConfirm: '确认密码', // content-spec:245
+  submitRegister: '创建账号', // content-spec:245
+  accountTooShort: '账号至少 3 个字符。', // content-spec:247
+  passwordTooShort: '密码至少 8 位。', // content-spec:248
+  passwordMismatch: '两次输入的密码不一致。', // content-spec:249
+  duplicateAccount: '该账号已被注册，请换一个或直接登录。', // content-spec:251
 } as const
 
 /* ===================== S02 助手 · 空闲态（content-spec:61–69） ===================== */

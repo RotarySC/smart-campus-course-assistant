@@ -41,6 +41,7 @@ const FROZEN_BY_CODE: Record<string, string> = {
   NO_TEXT_EXTRACTED: S11.noTextExtracted, // content-spec:156（S11 失败原因）
   UPLOAD_TOO_LARGE: S11.uploadHint, // content-spec:151（S11 限额说明）
   UNSUPPORTED_FILE_TYPE: S11.uploadHint, // content-spec:151（S11 允许类型）
+  DUPLICATE_ACCOUNT: S01.duplicateAccount, // content-spec:251（S15.5 注册）
 }
 
 /** 该码是否属于「会话失效」路径（§4.6 唯一失效出口）。 */
@@ -69,8 +70,9 @@ export function mapErrorText(e: MappableError): string | null {
  * - 客户端即时校验产生的 `kind` 在这里映射到已冻结文案；
  * - `too-long` 返回 `null`：长度已被原生 `maxlength` 在输入侧封死，
  *   绕过它（粘贴/脚本）的情况由服务端 `VALIDATION_FAILED` 给出权威 reason。
+ * - `too-short` 的文案按**字段**区分（账号 3 / 密码 8 是两条冻结句），因此 `field` 是必需入参。
  */
-export function fieldIssueText(kind: IssueKind): string | null {
+export function fieldIssueText(kind: IssueKind, field?: string): string | null {
   switch (kind) {
     case 'required':
     case 'missing-selection':
@@ -82,6 +84,12 @@ export function fieldIssueText(kind: IssueKind): string | null {
       return S12.timeRangeError // content-spec:165
     case 'range-days':
       return S07.rangeLimit // content-spec:114
+    case 'too-short':
+      if (field === 'account') return S01.accountTooShort // content-spec:247
+      if (field === 'password') return S01.passwordTooShort // content-spec:248
+      return null
+    case 'mismatch':
+      return S01.passwordMismatch // content-spec:249
     case 'too-long':
       return null
   }

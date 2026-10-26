@@ -23,6 +23,8 @@ import { codePointLength } from './format'
 export type IssueKind =
   | 'required'
   | 'too-long'
+  | 'too-short'
+  | 'mismatch'
   | 'missing-selection'
   | 'date-range'
   | 'time-range'
@@ -45,6 +47,9 @@ export const MAXLEN: Record<string, number> = {
   description: LIMITS.courseDescription,
   location: LIMITS.scheduleLocation,
   reason: LIMITS.overlapReason,
+  account: LIMITS.registerAccountMax,
+  display_name: LIMITS.studentDisplayName,
+  password: LIMITS.registerPasswordMax,
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -70,6 +75,40 @@ export function validateLogin(input: LoginInput): FieldIssues {
   // openapi Login：account 3..64；password 1..1024
   if (input.account.trim().length === 0) out.push({ field: 'account', kind: 'required' })
   if (input.password.length === 0) out.push({ field: 'password', kind: 'required' })
+  return out
+}
+
+/* ===================== S01 注册（openapi POST /auth/register：account/display_name/password） ===================== */
+export interface RegisterInput {
+  account: string
+  display_name: string
+  password: string
+  /** 确认密码**只存在于表单**，不是 `RegisterInput` 的字段（openapi 里没有它）。 */
+  confirm: string
+}
+
+/**
+ * 客户端只为「明显不成立」把关（§11.1：减少一次往返，**不是权威**）。
+ * - 账号：trim 后 3–64（与 `RegisterInput.account` 一致）
+ * - 显示名：非空白 1–50
+ * - 密码：8–1024（与 `RegisterInput.password` 一致）
+ * - 确认密码：与密码**逐字**相等
+ * 服务端 `VALIDATION_FAILED.errors[].reason` 仍是权威文案来源。
+ */
+export function validateRegister(input: RegisterInput): FieldIssues {
+  const out: FieldIssue[] = []
+  const account = input.account.trim()
+  if (account.length === 0) out.push({ field: 'account', kind: 'required' })
+  else if (codePointLength(account) < LIMITS.registerAccountMin) out.push({ field: 'account', kind: 'too-short' })
+  if (input.display_name.trim().length === 0) out.push({ field: 'display_name', kind: 'required' })
+  if (input.password.length === 0) out.push({ field: 'password', kind: 'required' })
+  else if (codePointLength(input.password) < LIMITS.registerPasswordMin)
+    out.push({ field: 'password', kind: 'too-short' })
+  if (input.confirm !== input.password) out.push({ field: 'confirm', kind: 'mismatch' })
+  for (const f of ['account', 'display_name', 'password'] as const) {
+    const i = tooLong(f, input[f])
+    if (i) out.push(i)
+  }
   return out
 }
 
