@@ -304,18 +304,11 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--wrap-gap);
+  /* 底部为**固定**输入条预留高度（整页只有一个滚动条，滚到底时最后一行不被胶囊盖住） */
+  padding-bottom: var(--composer-reserve);
 }
 
 .workspace__main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--stack-gap);
-  min-width: 0;
-}
-
-/* 内部滚动区：卡片 / 对话 / 草稿都在这层滚，输入条留在外面。
-   窄屏（<1200 单栏）不启用定高 —— 右栏卡片在下方，整页照旧一起滚。 */
-.workspace__scroll {
   display: flex;
   flex-direction: column;
   gap: var(--stack-gap);
@@ -333,25 +326,7 @@
     grid-template-columns: minmax(0, 1fr) var(--wrap-rail-w);
   }
 
-  /* ≥lg 两栏：主列定高（一屏减顶栏/内边距），对话区内部滚动，输入条钉在列底。
-     只靠 sticky 做不到 —— sticky 挡得住元素，挡不住「页脚随页面滚走」这件事。 */
-  .workspace__main {
-    height: var(--wrap-body-h);
-  }
-
-  .workspace__scroll {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-  }
-
-  /* 输入条不再参与滚动：主列定高后它坐在最后一行 */
-  .composer {
-    position: relative;
-    bottom: auto;
-  }
-
-  /* 右栏「悬浮卡」：≥lg 起贴在顶栏下方，主列滚动手不动（2026-10-26 用户需求）。
+  /* 右栏「悬浮卡」：≥lg 起贴在顶栏下方，整页一起滚时它像浮在内容上方（2026-10-26 用户需求）。
      `align-self:start` 是 sticky 生效的前提 —— 否则栅格会把右栏拉伸成全列高，粘不住。 */
   .workspace__rail {
     position: sticky;
@@ -1175,25 +1150,64 @@ a.chip:hover {
 }
 
 /* ==== composer（03 §Composer；rb.css 阶段 B 输入条）====
-   2026-10-26 改版（用户需求）：**悬浮胶囊**输入条 —— 一个容器里放起 textarea 与底栏
-   （上限提示 + 字数 + 圆形发送按钮）；不贴边、靠浮起层阴影与圆角从内容里"抬起来"。
-   窄屏（<1200 单栏）沿用原行为：sticky 吸附在标签栏之上，随页面滚动；
-   ≥lg 两栏时主列定高，输入条是列的最后一行，天然钉在底部。 */
+   2026-10-26 第二次改版（用户需求）：
+   ① **整页只有一个滚动条** —— 不再给主列定高、不再有内部滚动区（`workspace__scroll` 已删）；
+   ② 表单 `position: fixed` 钉在视口底部，滚动时浮在内容之上（像贴边的广告位）；
+   ③ 表单自己**不是**一个色块容器：底色只是为了让内容柔和消失，上沿由 `::after` 渐变溶解，
+      没有硬边、没有横贯全宽的分隔线 —— 上一版正是那条色带把对话卡横切成两半，
+      用户两次指认「有个容器把页面分割了」。 */
 .composer {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: calc(var(--composer-bottom) + env(safe-area-inset-bottom, 0px));
-  background: var(--composer-bg);
-  /* 下沿留出浮起间距（不再有一条横贯全宽的分隔线） */
-  padding: var(--composer-pad-y) 0 var(--composer-float-gap);
   z-index: var(--composer-z);
   display: flex;
   flex-direction: column;
   gap: var(--composer-gap);
+  /* 输入条与正文列左右对齐：窄屏吃 wrap 的横向内边距，并跟着 wrap 的居中与 max-width 走 */
+  padding-top: var(--composer-pad-y);
+  padding-bottom: var(--composer-float-gap);
+  padding-left: max(var(--wrap-pad-x), calc(50% - var(--wrap-max) / 2 + var(--wrap-pad-x)));
+  padding-right: max(var(--wrap-pad-x), calc(50% - var(--wrap-max) / 2 + var(--wrap-pad-x)));
+}
+
+/* 内容滑进输入条下方时被这层渐隐带走（`::before` 啃住的不透明底 + `::after` 上沿淡出）。
+   `z-index:-1` 是必需的：绝对定位的伪元素默认画在**在流子盒之上**，会把胶囊整个盖住；
+   放进表单自己的层叠上下文（表单有 z-index）后，它退到胶囊下面、仍盖住页面内容。 */
+.composer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--composer-bg);
+  pointer-events: none;
+}
+
+.composer::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--composer-fade-h);
+  background: linear-gradient(to top, var(--composer-bg), transparent);
+  pointer-events: none;
 }
 
 @media (min-width: 768px) {
   .composer {
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: max(var(--wrap-pad-x-sm), calc(50% - var(--wrap-max) / 2 + var(--wrap-pad-x-sm)));
+    padding-right: max(var(--wrap-pad-x-sm), calc(50% - var(--wrap-max) / 2 + var(--wrap-pad-x-sm)));
+  }
+}
+
+/* ≥lg：正文列宽 = 1000 − 右栏 280 − 列距 36 = 684，输入条跟着主列走，不压到右栏下面 */
+@media (min-width: 1200px) {
+  .composer {
+    padding-left: calc(50% - var(--wrap-max) / 2);
+    padding-right: calc(50% - var(--wrap-max) / 2 + var(--wrap-rail-w) + var(--wrap-gap));
   }
 }
 

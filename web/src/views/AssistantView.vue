@@ -48,11 +48,10 @@ const canSubmit = computed(() => canSubmitMessage(message.value))
 const showIdle = computed(() => chat.rounds.length === 0)
 
 /**
- * 对话区自己滚（2026-10-26 起输入条不再参与页面滚动）。
+ * 整页只有一个滚动条（2026-10-26 用户需求）：对话不再自己滚，跟随判定落在文档上。
  * 只在「用户本来就在底部」时跟随（`chat.shouldFollowScroll`，距底 < 48px），
  * 否则不动 —— 用户往上翻看历史时不能被流式文本强行拽回底部。
  */
-const scrollEl = ref<HTMLElement | null>(null)
 const streamChars = computed(() => {
   const rounds = chat.rounds.reduce(
     (n, r) => n + r.userMessage.length + r.blocks.reduce((m, b) => m + (b.text?.length ?? 0), 0),
@@ -61,9 +60,8 @@ const streamChars = computed(() => {
   return rounds + (active.value ? active.value.blocks.length : 0)
 })
 watch(streamChars, () => {
-  const el = scrollEl.value
-  if (!el) return
-  if (chat.shouldFollowScroll(el)) void nextTick(() => { el.scrollTop = el.scrollHeight })
+  const el = document.documentElement
+  if (chat.shouldFollowScroll(el)) void nextTick(() => window.scrollTo(0, el.scrollHeight))
 })
 
 /** 三个示例入口的图标（装饰性，可访问名来自按钮文字）。 */
@@ -144,9 +142,7 @@ onMounted(() => {
   <Wrap>
     <div class="workspace">
       <div class="workspace__main">
-        <!-- 对话区自己滚（.workspace__scroll），输入条留在滚动区外面，永远停在主列底部 -->
-        <div ref="scrollEl" class="workspace__scroll">
-          <Card :title="S02.title">
+        <Card :title="S02.title">
           <p>{{ S02.capability }}</p>
 
           <Notice variant="info" role="note">
@@ -253,7 +249,6 @@ onMounted(() => {
           <p>{{ mapErrorText(chat.error) ?? chat.error.code }}</p>
           <span class="small">{{ chat.error.requestId }}</span>
         </Notice>
-        </div>
 
         <Composer
           v-model="message"

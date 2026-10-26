@@ -463,44 +463,58 @@ async function main() {
       const tipShown = await evaluate(`getComputedStyle(document.querySelector('.composer__send'), '::after').visibility`)
       check('悬停发送按钮时冒泡提示出现（无 transition，visibility 切换）', tipHidden === 'hidden' && tipShown === 'visible', `${tipHidden} → ${tipShown}`)
 
-      // 固定底部 + 右栏悬浮（2026-10-26 布局改版）：
-      // 主列定高（一屏减顶栏/内边距），对话区在 `.workspace__scroll` 里自己滚，
-      // 输入条是列的最后一行 —— 所以「对话变长」不该让它动。
+      // 固定底部 + 整页一个滚动条 + 右栏悬浮（2026-10-26 布局改版）：
+      // 输入条 `position: fixed` 浮在内容之上；页面本身只有**一个**滚动条，
+      // 不再有「大滚动条里套一个小滚动条」的主列滚动区（`.workspace__scroll` 已删除）。
       const pinInfo = await evaluate(`(async () => {
         const form = document.querySelector('.composer');
         const main = document.querySelector('.workspace__main');
-        const scroll = document.querySelector('.workspace__scroll');
         const rail = document.querySelector('.workspace__rail');
-        if (!form || !main || !scroll) return null;
-        const gapToMain = Math.round(main.getBoundingClientRect().bottom - form.getBoundingClientRect().bottom);
-        const before = Math.round(form.getBoundingClientRect().bottom);
+        if (!form || !main) return null;
+        const fb = () => form.getBoundingClientRect();
+        const gap0 = Math.round(innerHeight - fb().bottom);
+        const before = Math.round(fb().top);
+        const inner = !!document.querySelector('.workspace__scroll');
+        const mainOverflow = getComputedStyle(main).overflowY;
         const railPos = rail ? getComputedStyle(rail).position : null;
         const railTop = rail ? getComputedStyle(rail).top : null;
-        // 往滚动区灌 1500px 内容（flex-shrink:0，否则被纵向 flex 压回可视高）→ 只有滚动区滚
+        const railTop0 = rail ? Math.round(rail.getBoundingClientRect().top) : null;
+        // 往主列顶部灌 1500px 内容 → 文档变长，只有文档这一个滚动条能滚
         const fill = document.createElement('div');
         fill.style.height = '1500px';
-        fill.style.flex = '0 0 1500px';
-        scroll.appendChild(fill);
+        main.insertBefore(fill, main.firstChild);
         await new Promise((r) => setTimeout(r, 80));
-        scroll.scrollTop = 900;
+        const grew = document.documentElement.scrollHeight > innerHeight + 1000;
+        window.scrollTo(0, 900);
         await new Promise((r) => setTimeout(r, 120));
-        const after = Math.round(form.getBoundingClientRect().bottom);
-        const scrolled = Math.round(scroll.scrollTop);
         const pageScroll = Math.round(window.scrollY);
+        const after = Math.round(fb().top);
+        const gap1 = Math.round(innerHeight - fb().bottom);
+        const railTop1 = rail ? Math.round(rail.getBoundingClientRect().top) : null;
         fill.remove();
-        scroll.scrollTop = 0;
         window.scrollTo(0, 0);
-        return { gapToMain, before, after, scrolled, pageScroll, railPos, railTop, vw: innerWidth, mainH: Math.round(main.getBoundingClientRect().height), vh: innerHeight };
+        return { gap0, gap1, before, after, pageScroll, grew, inner, mainOverflow, railPos, railTop, railTop0, railTop1, vw: innerWidth, vh: innerHeight };
       })()`)
       check(
-        '输入条固定在主列底部（对话再长也不动）',
-        pinInfo?.gapToMain === 0 && pinInfo?.before === pinInfo?.after && pinInfo?.scrolled === 900 && pinInfo?.pageScroll === 0,
-        `gapToMain=${pinInfo?.gapToMain} bottom=${pinInfo?.before}→${pinInfo?.after} scrollTop=${pinInfo?.scrolled} pageScroll=${pinInfo?.pageScroll}`,
+        '输入条 fixed 钉在视口底部（页面滚 900 也不动）',
+        pinInfo?.before === pinInfo?.after &&
+          pinInfo?.gap0 === pinInfo?.gap1 &&
+          pinInfo?.pageScroll === 900 &&
+          pinInfo?.grew === true,
+        `top=${pinInfo?.before}→${pinInfo?.after} 距底=${pinInfo?.gap0}→${pinInfo?.gap1} scrollY=${pinInfo?.pageScroll} 文档变长=${pinInfo?.grew}`,
       )
       check(
-        '右栏悬浮：≥1200 时 position:sticky 且吸顶偏移为顶栏 + 间距',
-        pinInfo?.vw < 1200 || (pinInfo?.railPos === 'sticky' && parseFloat(pinInfo?.railTop) > 0),
-        `vw=${pinInfo?.vw} position=${pinInfo?.railPos} top=${pinInfo?.railTop}`,
+        '整页只有一个滚动条：主列没有内部滚动区',
+        pinInfo?.inner === false && pinInfo?.mainOverflow === 'visible',
+        `.workspace__scroll=${pinInfo?.inner ? '仍存在' : '已删除'} 主列 overflow-y=${pinInfo?.mainOverflow}`,
+      )
+      check(
+        '右栏悬浮：≥1200 时 position:sticky，页面滚动时吸在顶栏下',
+        pinInfo?.vw < 1200 ||
+          (pinInfo?.railPos === 'sticky' &&
+            parseFloat(pinInfo?.railTop) > 0 &&
+            Math.abs(pinInfo?.railTop1 - parseFloat(pinInfo?.railTop)) <= 1),
+        `vw=${pinInfo?.vw} position=${pinInfo?.railPos} top=${pinInfo?.railTop} 栏顶 ${pinInfo?.railTop0}→${pinInfo?.railTop1}`,
       )
       const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
       savePng('smoke-assistant.png', shot2.data)

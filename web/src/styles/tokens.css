@@ -400,7 +400,6 @@
   --wrap-rail-w:var(--layout-rail-w);                      /* ≥lg 两栏栅格的右栏宽（阶段 B 新增） */
   --wrap-gap:var(--p-space-6);                             /* ≥lg 两栏栅格的列间距 36px；1000 − 280 − 36 = 684 主列 */
   --wrap-rail-sticky-top:calc(var(--p-size-appbar) + var(--p-space-2)); /* 右栏悬浮卡吸顶偏移：顶栏 56 + 间距 6 */
-  --wrap-body-h:calc(var(--p-size-viewport-h) - var(--p-size-appbar) - var(--p-space-6) * 2); /* 助手页主列可用高（仅 ≥lg 两栏模式）：一屏 − 顶栏 56 − wrap 纵向内边距 36×2；对话区内部滚动、输入条钉在列底 */
 }
 /* ---- card ---- */
 :root{
@@ -592,6 +591,8 @@
   --composer-foot-gap:var(--p-space-2);
   --composer-tip-offset-y:var(--p-space-2);                /* 发送按钮冒泡提示与按钮的垂直间距 */
   --composer-tip-max-w:var(--p-size-tip-max);              /* 冒泡提示最大宽 */
+  --composer-fade-h:var(--p-space-6);                      /* 输入条上方的淡出带高度：内容滑到胶囊下面时柔和消失。表单本身不再有整块底色与横贯全宽的分隔线（2026-10-26 用户反馈「有个容器把页面分割了」） */
+  --composer-reserve:calc(var(--composer-pad-y) + var(--composer-box-border-w) * 2 + var(--composer-box-pad) * 2 + var(--composer-input-min-h) + var(--composer-gap) + var(--btn-icon-size) + var(--composer-float-gap)); /* 页面底部为固定输入条预留的高度（空态实高 182px）：整页只有一个滚动条，滚到底时最后一行不被胶囊盖住 */
 }
 /* ---- cite ---- */
 :root{
