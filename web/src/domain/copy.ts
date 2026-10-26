@@ -295,31 +295,30 @@ export const ACTIONS = {
  *
  * 口径来自 `design/system/README.md` 收口裁决 13：content-spec 管屏幕内容文案，
  * 组件规格管组件 chrome 文案（跳转链接、landmark 命名、标识标签）。
- * 这里只登记**必需但 content-spec 未冻结**的标识标签，并显式标注归属待办 ——
- * 未经登记的自造句子一律不允许。
+ * P5b 裁决 B3（2026-10-26）把这里**逐条冻结进了组件规格**，本常量表不再是"待冻结登记"，
+ * 而是规格的唯一实现处——改字必须先改规格：
+ *
+ *   01-shell-navigation.md §11 → C1–C6（skipToMain / mainId / primaryNav / mainLandmark / logout / adminNav）
+ *   02-actions-status.md    §7  → C7–C8（requestIdLabel / errorCodeLabel）
+ *
+ * 未经登记的句子一律不允许（`content-spec` 与组件规格都没写的，就不渲染）。
  */
 export const CHROME = {
-  /** `request_id` 的标签（§3.4「500 → 展示安全文案 + request_id 供支持定位」要求可展示）。 */
+  /** C7（02 §7）：`request_id` 的标签。§3.4 要求 500 可展示，供支持定位。 */
   requestIdLabel: '请求编号',
-  /** 业务错误码的标签（§3.4/§4.8：分支一律基于 code，且 500 需可核对）。 */
+  /** C8（02 §7）：业务错误码的标签。§3.4/§4.8：分支一律基于 code，且 500 需可核对。 */
   errorCodeLabel: '错误码',
-  /** 跳过链接文案（组件规格 01 §7；rb.css:115–118）。 */
+  /** C1（01 §11）：跳过链接文案（组件规格 01 §7；rb.css:115–118）。 */
   skipToMain: '跳到主要内容',
-  /** skip-link 的目标 id（App.vue 提供 `<main id="main">`）。 */
+  /** C2（01 §11）：skip-link 的目标 id —— 是技术 id，不是文案（App.vue 提供 `<main id="main">`）。 */
   mainId: 'main',
-  /** 主导航的 landmark 名称（组件规格 01 §2 AppBar）。 */
+  /** C3（01 §11）：主导航的 landmark 名称（组件规格 01 §2 AppBar；TabBar 复用同一名）。 */
   primaryNav: '主导航',
-  /**
-   * 登出按钮的可访问名。§4.5 规定登出行为，但 content-spec 没有冻结按钮文案；
-   * 归组件 chrome 文案（裁决 13 的口径），并在报告里登记为待冻结项。
-   */
+  /** C5（01 §11）：登出按钮的可访问名。§4.5 规定登出行为，文案归组件 chrome。 */
   logout: '退出登录',
-  /** `主体` landmark 名称（`<main id="main">`，skip-link 的目标）。 */
+  /** C4（01 §11）：`主体` landmark 名称（`<main id="main">`，skip-link 的目标）。 */
   mainLandmark: '主要内容',
-  /**
-   * 管理中心二级导航的 landmark 名称。content-spec 未冻结导航容器名，
-   * 归组件 chrome 文案（裁决 13 的口径），登记为待冻结项。
-   */
+  /** C6（01 §11）：管理中心二级导航的 landmark 名称。 */
   adminNav: '管理中心导航',
 } as const
 
