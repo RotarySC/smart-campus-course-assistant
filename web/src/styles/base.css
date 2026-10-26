@@ -313,6 +313,15 @@
   min-width: 0;
 }
 
+/* 内部滚动区：卡片 / 对话 / 草稿都在这层滚，输入条留在外面。
+   窄屏（<1200 单栏）不启用定高 —— 右栏卡片在下方，整页照旧一起滚。 */
+.workspace__scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap);
+  min-width: 0;
+}
+
 .workspace__rail {
   display: flex;
   flex-direction: column;
@@ -322,6 +331,32 @@
 @media (min-width: 1200px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr) var(--wrap-rail-w);
+  }
+
+  /* ≥lg 两栏：主列定高（一屏减顶栏/内边距），对话区内部滚动，输入条钉在列底。
+     只靠 sticky 做不到 —— sticky 挡得住元素，挡不住「页脚随页面滚走」这件事。 */
+  .workspace__main {
+    height: var(--wrap-body-h);
+  }
+
+  .workspace__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* 输入条不再参与滚动：主列定高后它坐在最后一行 */
+  .composer {
+    position: relative;
+    bottom: auto;
+  }
+
+  /* 右栏「悬浮卡」：≥lg 起贴在顶栏下方，主列滚动手不动（2026-10-26 用户需求）。
+     `align-self:start` 是 sticky 生效的前提 —— 否则栅格会把右栏拉伸成全列高，粘不住。 */
+  .workspace__rail {
+    position: sticky;
+    top: var(--wrap-rail-sticky-top);
+    align-self: start;
   }
 
   /* 桌面端取消左右内边距：1000 就是内容列本身，顶栏与正文因此严格对齐 */
@@ -771,6 +806,16 @@
   font-size: var(--btn-fs-sm);
 }
 
+/* 圆形图标按钮（2026-10-26 新增；03-conversation.md §Composer 的发送按钮）
+   只要图标、没有文字：宽高等值 + 药丸圆角；图标边长由内联 svg 的 width/height 给，不进 CSS。 */
+.btn--icon {
+  width: var(--btn-icon-size);
+  height: var(--btn-icon-size);
+  min-height: var(--btn-icon-size);
+  padding: 0;
+  border-radius: var(--btn-icon-radius);
+}
+
 /* ==== chip（02 §Chip；rb.css:392–396）==== */
 .chips {
   display: flex;
@@ -1129,8 +1174,11 @@ a.chip:hover {
   }
 }
 
-/* ==== composer（03 §Composer；rb.css:266–273 + 阶段 B 新增块）====
-   外层仍吸附在底部；内部改为「标签 + 输入容器 + 提示行」三段（§7）。 */
+/* ==== composer（03 §Composer；rb.css 阶段 B 输入条）====
+   2026-10-26 改版（用户需求）：**一体式**输入条 —— 一个容器里放起 textarea 与底栏
+   （上限提示 + 字数 + 圆形发送按钮）。
+   窄屏（<1200 单栏）沿用原行为：sticky 吸附在标签栏之上，随页面滚动；
+   ≥lg 两栏时主列定高，输入条是列的最后一行，天然钉在底部。 */
 .composer {
   position: sticky;
   bottom: calc(var(--composer-bottom) + env(safe-area-inset-bottom, 0px));
@@ -1149,14 +1197,7 @@ a.chip:hover {
   }
 }
 
-.composer__row {
-  display: flex;
-  gap: var(--composer-gap);
-  align-items: flex-end;
-}
-
 .composer__count {
-  margin-left: auto;
   font-size: var(--composer-count-fs);
   color: var(--composer-count-fg);
 }
@@ -1187,9 +1228,16 @@ a.chip:hover {
   resize: none;
 }
 
+/* 标签退成 placeholder 后，占位文字与提示同一级弱化（不再新增 token） */
+.composer__box .composer__input::placeholder {
+  color: var(--composer-hint-fg);
+  opacity: 1;
+}
+
 .composer__bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--composer-gap);
 }
 
@@ -1200,7 +1248,39 @@ a.chip:hover {
 
 .composer__foot {
   display: flex;
+  align-items: center;
   gap: var(--composer-foot-gap);
+}
+
+/* 发送按钮的冒泡提示：外层包一层承接 hover（`:disabled` 的按钮自身收不到 `:hover`）。
+   提示文案来自 `data-tip`，与读屏的 `aria-describedby` 同一句（content-spec S15.6）。 */
+.composer__send {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.composer__send::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--composer-tip-offset-y));
+  z-index: var(--composer-z);
+  max-width: var(--composer-tip-max-w);
+  padding: var(--composer-box-pad);
+  border: var(--composer-box-border-w) solid var(--composer-box-border-color);
+  border-radius: var(--composer-box-radius);
+  background: var(--composer-box-bg);
+  color: var(--composer-input-fg);
+  font-size: var(--composer-hint-fs);
+  white-space: nowrap;
+  box-shadow: var(--composer-box-shadow);
+  visibility: hidden;
+}
+
+.composer__send:hover::after,
+.composer__send:focus-within::after {
+  visibility: visible;
 }
 
 /* ==== cite（03 §Citation；rb.css:276–288）==== */

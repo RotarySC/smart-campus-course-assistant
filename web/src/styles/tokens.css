@@ -182,6 +182,7 @@
   --p-size-login-art-w-compact:360px;                      /* 笔记本档（1200–1439）视觉带宽：屏幕高度通常只有 720–800，视觉带不许把左栏顶出首屏 */
   --p-size-stat-ico:20px;                                  /* 统计卡图标边长：与 13px 标签同级的 20px 画面档，不再新增 24px 档 */
   --p-size-timeline-dot:8px;                               /* 时间轴节点圆点直径：<8px 在 1080p 下读不出「节点」，>10px 会压过课程名的视觉重量 */
+  --p-size-tip-max:220px;                                  /* 冒泡提示最大宽：13px 字号下约 16 个汉字 */
 }
 /* ---- opacity ---- */
 :root{
@@ -394,6 +395,8 @@
   --wrap-inner-pad-x:0;                                    /* 嵌套 .wrap（助手片段自带 wrap）时内层左右内边距归零，避免双重缩进 */
   --wrap-rail-w:var(--layout-rail-w);                      /* ≥lg 两栏栅格的右栏宽（阶段 B 新增） */
   --wrap-gap:var(--p-space-6);                             /* ≥lg 两栏栅格的列间距 36px；1000 − 280 − 36 = 684 主列 */
+  --wrap-rail-sticky-top:calc(var(--p-size-appbar) + var(--p-space-2)); /* 右栏悬浮卡吸顶偏移：顶栏 56 + 间距 6 */
+  --wrap-body-h:calc(var(--p-size-viewport-h) - var(--p-size-appbar) - var(--p-space-6) * 2); /* 助手页主列可用高（仅 ≥lg 两栏模式）：一屏 − 顶栏 56 − wrap 纵向内边距 36×2；对话区内部滚动、输入条钉在列底 */
 }
 /* ---- card ---- */
 :root{
@@ -474,6 +477,8 @@
   --btn-ghost-bg:transparent;
   --btn-ghost-fg:var(--text-secondary);
   --btn-ghost-border-color:transparent;
+  --btn-icon-size:var(--p-size-tap);                       /* 圆形图标按钮直径：与最小触控目标同值 */
+  --btn-icon-radius:var(--p-radius-pill);                  /* 圆形图标按钮圆角：药丸半径即正圆 */
 }
 /* ---- pill ---- */
 :root{
@@ -579,6 +584,8 @@
   --composer-hint-fs:var(--p-fs-13);
   --composer-hint-fg:var(--text-muted);
   --composer-foot-gap:var(--p-space-2);
+  --composer-tip-offset-y:var(--p-space-2);                /* 发送按钮冒泡提示与按钮的垂直间距 */
+  --composer-tip-max-w:var(--p-size-tip-max);              /* 冒泡提示最大宽 */
 }
 /* ---- cite ---- */
 :root{

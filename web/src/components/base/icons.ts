@@ -39,6 +39,8 @@ export const ICONS = {
   messageCircle: ['M7.9 20A9 9 0 1 0 4 16.1L2 22Z'],
   /** 用户菜单触发器的展开箭头（01-shell-navigation.md §2 用户菜单）。 */
   chevronDown: ['m6 9 6 6 6-6'],
+  /** 发送按钮的上行箭头（03-conversation.md §Composer，2026-10-26 改版）。 */
+  arrowUp: ['M12 19V5', 'm5 12 7-7 7 7'],
 } as const
 
 export type IconName = keyof typeof ICONS

@@ -405,6 +405,103 @@ async function main() {
       check('S02 边界提示条逐字存在', page.boundary === true)
       check('导航外壳存在（nav）', page.nav === true)
       check('助手页 document.title', /· 校园课程智能助手$/.test(page.title ?? ''), page.title)
+
+      // ---- 输入条改版（2026-10-26）：一体式 / 圆形发送按钮 / 冒泡提示 / 贴底 ----
+      const composerShape = await evaluate(`(() => {
+        const form = document.querySelector('.composer');
+        const box = form && form.querySelector('.composer__box');
+        const ta = form && form.querySelector('textarea');
+        const send = form && form.querySelector('.composer__send');
+        const btn = send && send.querySelector('button');
+        const label = form && form.querySelector('label.field__label');
+        if (!form || !box || !ta || !btn) return null;
+        const br = btn.getBoundingClientRect();
+        const cs = getComputedStyle(btn);
+        return {
+          onePiece: box.contains(ta) && box.contains(btn),
+          counterInBox: box.contains(form.querySelector('.composer__count')),
+          visibleLabel: label ? label.textContent.trim() : '',
+          placeholder: ta.getAttribute('placeholder'),
+          sendText: (btn.textContent || '').trim(),
+          ariaLabel: btn.getAttribute('aria-label'),
+          radius: cs.borderRadius,
+          square: Math.abs(br.width - br.height) <= 1,
+          size: Math.round(br.width),
+          tip: send.getAttribute('data-tip'),
+        };
+      })()`)
+      check(
+        '输入条一体式：textarea / 字数 / 发送按钮同在一个 .composer__box',
+        composerShape?.onePiece === true && composerShape.counterInBox === true,
+        JSON.stringify(composerShape),
+      )
+      check(
+        '「你的问题」由可见 label 改为 placeholder',
+        composerShape?.visibleLabel === '' && composerShape?.placeholder === '你的问题',
+        `label=「${composerShape?.visibleLabel}」placeholder=「${composerShape?.placeholder}」`,
+      )
+      check(
+        '发送按钮：圆形、无文字、可访问名仍是「发送」',
+        composerShape?.square === true &&
+          composerShape?.radius === '999px' &&
+          composerShape?.sendText === '' &&
+          composerShape?.ariaLabel === '发送',
+        `size=${composerShape?.size} radius=${composerShape?.radius} text=「${composerShape?.sendText}」arialabel=「${composerShape?.ariaLabel}」`,
+      )
+      check(
+        '快捷键说明变成发送按钮的冒泡提示（data-tip）',
+        composerShape?.tip === 'Enter 发送 · Shift+Enter 换行',
+        `tip=「${composerShape?.tip}」`,
+      )
+      const tipHidden = await evaluate(`getComputedStyle(document.querySelector('.composer__send'), '::after').visibility`)
+      const sendPoint = await evaluate(`(() => {
+        const r = document.querySelector('.composer__send').getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      })()`)
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: sendPoint.x, y: sendPoint.y })
+      await sleep(200)
+      const tipShown = await evaluate(`getComputedStyle(document.querySelector('.composer__send'), '::after').visibility`)
+      check('悬停发送按钮时冒泡提示出现（无 transition，visibility 切换）', tipHidden === 'hidden' && tipShown === 'visible', `${tipHidden} → ${tipShown}`)
+
+      // 固定底部 + 右栏悬浮（2026-10-26 布局改版）：
+      // 主列定高（一屏减顶栏/内边距），对话区在 `.workspace__scroll` 里自己滚，
+      // 输入条是列的最后一行 —— 所以「对话变长」不该让它动。
+      const pinInfo = await evaluate(`(async () => {
+        const form = document.querySelector('.composer');
+        const main = document.querySelector('.workspace__main');
+        const scroll = document.querySelector('.workspace__scroll');
+        const rail = document.querySelector('.workspace__rail');
+        if (!form || !main || !scroll) return null;
+        const gapToMain = Math.round(main.getBoundingClientRect().bottom - form.getBoundingClientRect().bottom);
+        const before = Math.round(form.getBoundingClientRect().bottom);
+        const railPos = rail ? getComputedStyle(rail).position : null;
+        const railTop = rail ? getComputedStyle(rail).top : null;
+        // 往滚动区灌 1500px 内容（flex-shrink:0，否则被纵向 flex 压回可视高）→ 只有滚动区滚
+        const fill = document.createElement('div');
+        fill.style.height = '1500px';
+        fill.style.flex = '0 0 1500px';
+        scroll.appendChild(fill);
+        await new Promise((r) => setTimeout(r, 80));
+        scroll.scrollTop = 900;
+        await new Promise((r) => setTimeout(r, 120));
+        const after = Math.round(form.getBoundingClientRect().bottom);
+        const scrolled = Math.round(scroll.scrollTop);
+        const pageScroll = Math.round(window.scrollY);
+        fill.remove();
+        scroll.scrollTop = 0;
+        window.scrollTo(0, 0);
+        return { gapToMain, before, after, scrolled, pageScroll, railPos, railTop, vw: innerWidth, mainH: Math.round(main.getBoundingClientRect().height), vh: innerHeight };
+      })()`)
+      check(
+        '输入条固定在主列底部（对话再长也不动）',
+        pinInfo?.gapToMain === 0 && pinInfo?.before === pinInfo?.after && pinInfo?.scrolled === 900 && pinInfo?.pageScroll === 0,
+        `gapToMain=${pinInfo?.gapToMain} bottom=${pinInfo?.before}→${pinInfo?.after} scrollTop=${pinInfo?.scrolled} pageScroll=${pinInfo?.pageScroll}`,
+      )
+      check(
+        '右栏悬浮：≥1200 时 position:sticky 且吸顶偏移为顶栏 + 间距',
+        pinInfo?.vw < 1200 || (pinInfo?.railPos === 'sticky' && parseFloat(pinInfo?.railTop) > 0),
+        `vw=${pinInfo?.vw} position=${pinInfo?.railPos} top=${pinInfo?.railTop}`,
+      )
       const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
       savePng('smoke-assistant.png', shot2.data)
     }
@@ -424,7 +521,7 @@ async function main() {
       check('填入提问', typed)
       const sent = await evaluate(`(() => {
         const btns = [...document.querySelectorAll('button')];
-        const b = btns.find((x) => x.textContent.trim() === '发送' && !x.disabled);
+        const b = btns.find((x) => x.getAttribute('aria-label') === '发送' && !x.disabled);
         if (!b) return false;
         b.click();
         return true;
@@ -473,7 +570,7 @@ async function main() {
         check(
           '第二轮：发送',
           await evaluate(`(() => {
-            const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '发送' && !x.disabled);
+            const b = [...document.querySelectorAll('button')].find((x) => x.getAttribute('aria-label') === '发送' && !x.disabled);
             if (!b) return false;
             b.click();
             return true;

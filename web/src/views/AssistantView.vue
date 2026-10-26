@@ -47,6 +47,25 @@ const active = computed(() => chat.activeRound)
 const canSubmit = computed(() => canSubmitMessage(message.value))
 const showIdle = computed(() => chat.rounds.length === 0)
 
+/**
+ * 对话区自己滚（2026-10-26 起输入条不再参与页面滚动）。
+ * 只在「用户本来就在底部」时跟随（`chat.shouldFollowScroll`，距底 < 48px），
+ * 否则不动 —— 用户往上翻看历史时不能被流式文本强行拽回底部。
+ */
+const scrollEl = ref<HTMLElement | null>(null)
+const streamChars = computed(() => {
+  const rounds = chat.rounds.reduce(
+    (n, r) => n + r.userMessage.length + r.blocks.reduce((m, b) => m + (b.text?.length ?? 0), 0),
+    0,
+  )
+  return rounds + (active.value ? active.value.blocks.length : 0)
+})
+watch(streamChars, () => {
+  const el = scrollEl.value
+  if (!el) return
+  if (chat.shouldFollowScroll(el)) void nextTick(() => { el.scrollTop = el.scrollHeight })
+})
+
 /** 三个示例入口的图标（装饰性，可访问名来自按钮文字）。 */
 const EXAMPLE_ICON: IconName[] = ['calendar', 'search', 'listChecks']
 
@@ -125,7 +144,9 @@ onMounted(() => {
   <Wrap>
     <div class="workspace">
       <div class="workspace__main">
-        <Card :title="S02.title">
+        <!-- 对话区自己滚（.workspace__scroll），输入条留在滚动区外面，永远停在主列底部 -->
+        <div ref="scrollEl" class="workspace__scroll">
+          <Card :title="S02.title">
           <p>{{ S02.capability }}</p>
 
           <Notice variant="info" role="note">
@@ -232,6 +253,7 @@ onMounted(() => {
           <p>{{ mapErrorText(chat.error) ?? chat.error.code }}</p>
           <span class="small">{{ chat.error.requestId }}</span>
         </Notice>
+        </div>
 
         <Composer
           v-model="message"
@@ -244,8 +266,26 @@ onMounted(() => {
           <template #actions>
             <!-- 空白不可提交：**按钮**禁用（content-spec S02）；输入框不得因空白而禁用，
                  否则用户永远无法输入第一个字符（阶段 B 未渲染验证时漏掉的真实缺陷）。
-                 用 `type="submit"` 走表单提交，避免再挂一个 click 处理器（会双触发）。 -->
-            <Btn variant="primary" type="submit" :disabled="!canSubmit || chat.isStreaming">{{ S02.send }}</Btn>
+                 用 `type="submit"` 走表单提交，避免再挂一个 click 处理器（会双触发）。
+                 2026-10-26 改版：圆形图标按钮（上行箭头），可访问名仍是 `S02.send`；
+                 快捷键说明改为它的冒泡提示（`data-tip`），禁用态由外层包一层 `.composer__send`
+                 承接 hover（`:disabled` 的按钮本身收不到 `:hover`）。 -->
+            <span class="composer__send" :data-tip="S15.composerEnterHint">
+              <Btn
+                class="btn--icon"
+                variant="primary"
+                type="submit"
+                :disabled="!canSubmit || chat.isStreaming"
+                :aria-label="S02.send"
+                aria-describedby="composer-enter-hint"
+              >
+                <template #icon>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path v-for="(d, i) in ICONS.arrowUp" :key="i" :d="d" />
+                  </svg>
+                </template>
+              </Btn>
+            </span>
           </template>
         </Composer>
       </div>
