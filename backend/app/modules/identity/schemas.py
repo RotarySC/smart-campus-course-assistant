@@ -19,6 +19,29 @@ class LoginInput(RequestModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class RegisterInput(RequestModel):
+    """自助注册（桌面自适应追加包 §15.4）：请求里**没有** role，落地固定 student。"""
+
+    account: str = Field(min_length=3, max_length=64)
+    display_name: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=INITIAL_PASSWORD_MIN, max_length=INITIAL_PASSWORD_MAX)
+
+    @field_validator("account")
+    @classmethod
+    def _account_trimmed(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not (3 <= len(trimmed) <= 64):
+            raise ValueError("账号去首尾空白后长度必须为 3–64")
+        return trimmed
+
+    @field_validator("display_name")
+    @classmethod
+    def _display_name_non_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("显示名不能为空白")
+        return value
+
+
 class StudentCreate(RequestModel):
     account: str = Field(min_length=3, max_length=64)
     display_name: str = Field(min_length=1, max_length=50)

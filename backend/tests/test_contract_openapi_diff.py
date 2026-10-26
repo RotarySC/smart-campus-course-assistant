@@ -375,16 +375,19 @@ def _all_operations(spec: dict[str, Any]) -> list[tuple[str, str]]:
     ]
 
 
-def test_design_package_shape_is_38_operations():
-    """设计包自身必须是 38 操作（34 公共 + 4 内部），防止对比基数漂移。"""
+def test_design_package_shape_is_39_operations():
+    """设计包自身必须是 39 操作（35 公共 + 4 内部），防止对比基数漂移。
+
+    39 = 原 38 + `POST /api/v1/auth/register`（桌面自适应追加包 §15.4，自助注册）。
+    """
     if not DESIGN_OPENAPI.exists():
         pytest.skip(f"契约文件缺失：{DESIGN_OPENAPI}")
     design = json.loads(DESIGN_OPENAPI.read_text(encoding="utf-8"))
     operations = _all_operations(design)
-    assert len(operations) == 38
+    assert len(operations) == 39
     public = [(m, p) for m, p in operations if not p.startswith("/internal/v1")]
     internal = [(m, p) for m, p in operations if p.startswith("/internal/v1")]
-    assert len(public) == 34 and len(internal) == 4
+    assert len(public) == 35 and len(internal) == 4
 
 
 async def test_full_openapi_structure_matches_design(client):
@@ -397,8 +400,8 @@ async def test_full_openapi_structure_matches_design(client):
     internal_ops = _all_operations(internal)
 
     design_public = [(m, p) for m, p in design_ops if not p.startswith("/internal/v1")]
-    assert len(design_public) == 34
-    assert len(public_ops) == 34 + len(RUNTIME_ONLY_PATHS)
+    assert len(design_public) == 35
+    assert len(public_ops) == 35 + len(RUNTIME_ONLY_PATHS)
     assert len(internal_ops) == 4
 
     internal_paths = {p for _, p in design_ops if p.startswith("/internal/v1")}

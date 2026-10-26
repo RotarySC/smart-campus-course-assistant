@@ -258,3 +258,91 @@ async def test_patch_student_requires_at_least_one_field(client, seeded):
         headers=seeded["admin_headers"],
     )
     assert response.status_code == 422
+
+
+# ===================== 自助注册（桌面自适应追加包 §15.4） =====================
+
+
+async def test_register_creates_student_and_logs_in(client):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"account": "new_student", "display_name": "新同学", "password": "demo1234"},
+    )
+    assert response.status_code == 201
+    data = response.json()["data"]
+    assert set(data) == {"access_token", "token_type", "expires_at", "user"}
+    assert data["user"]["role"] == "student"
+    assert data["user"]["enabled"] is True
+    assert data["user"]["account"] == "new_student"
+
+    # 注册即自动登录：同一令牌可直接访问 /me
+    headers = {"Authorization": f"Bearer {data['access_token']}"}
+    me = await client.get("/api/v1/me", headers=headers)
+    assert me.status_code == 200
+    assert me.json()["data"]["user"]["account"] == "new_student"
+    assert "admin" not in me.json()["data"]["capabilities"]
+
+    # 退出后可用刚注册的账号再次登录
+    assert (
+        await client.post("/api/v1/auth/logout", headers=headers)
+    ).status_code == 200
+    again = await client.post(
+        "/api/v1/auth/login",
+        json={"account": "new_student", "password": "demo1234"},
+    )
+    assert again.status_code == 200
+
+
+async def test_register_duplicate_account_conflicts(client):
+    payload = {"account": "dup_student", "display_name": "重复同学", "password": "demo1234"}
+    assert (await client.post("/api/v1/auth/register", json=payload)).status_code == 201
+
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "DUPLICATE_ACCOUNT"
+
+
+async def test_register_duplicate_is_case_and_space_insensitive(client):
+    assert (
+        await client.post(
+            "/api/v1/auth/register",
+            json={"account": "CaseUser", "display_name": "大小写", "password": "demo1234"},
+        )
+    ).status_code == 201
+    # 账号规范化按 casefold：大小写不同、首尾带空白都算同一个账号
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"account": "  caseuser  ", "display_name": "大小写二", "password": "demo1234"},
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "DUPLICATE_ACCOUNT"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"account": "ab", "display_name": "短账号", "password": "demo1234"},
+        {"account": "   ", "display_name": "空白账号", "password": "demo1234"},
+        {"account": "ok_account", "display_name": "   ", "password": "demo1234"},
+        {"account": "ok_account2", "display_name": "短密码", "password": "short"},
+    ],
+)
+async def test_register_validation_failed(client, payload):
+    response = await client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+async def test_register_rejects_role_field(client):
+    """请求体里没有 role：额外字段一律 422，管理员账号不能自助注册。"""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "account": "sneaky_admin",
+            "display_name": "想变管理员",
+            "password": "demo1234",
+            "role": "admin",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_FAILED"

@@ -19,6 +19,7 @@ from app.adapters.db.uow import UoW, uow
 from app.config import get_settings
 from app.modules.identity.schemas import (
     LoginInput,
+    RegisterInput,
     StudentCreate,
     StudentPatch,
     capabilities_for,
@@ -148,6 +149,69 @@ async def login(command: LoginInput, request_id: str) -> dict[str, Any]:
         "token_type": "Bearer",
         "expires_at": isoformat(expires_at),
         "user": user_view(locked),
+    }
+
+
+async def register(command: RegisterInput, request_id: str) -> dict[str, Any]:
+    """自助注册（桌面自适应追加包 §15.4）：建 student 账号并**在同一事务里**建 2h 会话。
+
+    并发：不先查后写（避免 TOCTOU），直接依赖 `uq_users_account` 的唯一约束，
+    把 `IntegrityError` 映射成 `DUPLICATE_ACCOUNT`（409）。
+    """
+    settings = get_settings()
+    trimmed, norm = normalize_account(command.account)
+    password_hash = await hash_password(command.password)
+    now = now_utc()
+    expires_at = now + timedelta(seconds=settings.session_ttl_seconds)
+    raw_token = new_session_token()
+
+    user = User(
+        id=new_id(PREFIX_USER),
+        account=trimmed,
+        account_norm=norm,
+        display_name=command.display_name.strip(),
+        password_hash=password_hash,
+        role="student",
+        enabled=True,
+        auth_version=1,
+        version=1,
+        created_at=to_db(now),
+        updated_at=to_db(now),
+    )
+    try:
+        async with uow() as tx:
+            tx.session.add(user)
+            await tx.session.flush()
+            tx.session.add(
+                AuthSession(
+                    id=new_id(PREFIX_SESSION),
+                    user_id=user.id,
+                    token_digest=token_digest(raw_token),
+                    auth_version=1,
+                    expires_at=to_db(expires_at),
+                    revoked_at=None,
+                    created_at=to_db(now),
+                )
+            )
+            append_audit(
+                tx,
+                action="auth.register",
+                object_type="user",
+                object_id=user.id,
+                result="success",
+                request_id=request_id,
+                actor_id=user.id,
+            )
+            await tx.commit()
+    except IntegrityError as exc:
+        mapped = map_integrity_error(exc)
+        raise mapped or ApiError("INTERNAL_ERROR") from None
+
+    return {
+        "access_token": raw_token,
+        "token_type": "Bearer",
+        "expires_at": isoformat(expires_at),
+        "user": user_view(user),
     }
 
 

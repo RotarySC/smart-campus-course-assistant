@@ -260,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chat/requests/{request_id}": {
         parameters: {
             query?: never;
@@ -692,6 +708,11 @@ export interface components {
             page_number?: number;
             reference_id: string;
             version_id: string;
+        };
+        RegisterInput: {
+            account: string;
+            display_name: string;
+            password: string;
         };
         SaveCreatedResult: {
             operation_id: string;
@@ -1602,6 +1623,45 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["Logout"];
+                        request_id: string;
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+            413: components["responses"]["ErrorResponse"];
+            415: components["responses"]["ErrorResponse"];
+            422: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+            504: components["responses"]["ErrorResponse"];
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Login"];
                         request_id: string;
                     };
                 };

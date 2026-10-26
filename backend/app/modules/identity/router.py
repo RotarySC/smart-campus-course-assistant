@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 
 from app.modules.identity import service
 from app.modules.identity.interface import get_actor, get_admin
-from app.modules.identity.schemas import LoginInput, StudentCreate, StudentPatch
+from app.modules.identity.schemas import LoginInput, RegisterInput, StudentCreate, StudentPatch
 from app.shared.context import ActorContext
 from app.shared.api_models import ERROR_RESPONSES, Envelope, Login, Logout, Me, StudentPage, User
 from app.shared.http import envelope, page_query, parse_optional_bool, request_id_of
@@ -22,6 +22,18 @@ def id_path():
 async def login(request: Request, body: LoginInput):
     data = await service.login(body, request_id_of(request))
     return envelope(request, data, status_code=200)
+
+
+@router.post(
+    "/auth/register",
+    operation_id="register",
+    status_code=201,
+    response_model=Envelope[Login],
+    responses=ERROR_RESPONSES,
+)
+async def register(request: Request, body: RegisterInput):
+    data = await service.register(body, request_id_of(request))
+    return envelope(request, data, status_code=201)
 
 
 @router.post("/auth/logout", operation_id="logout", response_model=Envelope[Logout], responses=ERROR_RESPONSES)

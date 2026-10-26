@@ -330,6 +330,18 @@ async def test_all_23_endpoints_contract(client, seeded, make_draft):
     }
     assert operation["state"] == "succeeded"
 
+    # 24) POST /auth/register —— 自助注册（桌面自适应追加包 §15.4，注册即自动登录）
+    fresh = assert_envelope(
+        await client.post(
+            "/api/v1/auth/register",
+            json={"account": "contract_fresh", "display_name": "契约新同学", "password": "demo1234"},
+        ),
+        201,
+    )
+    assert set(fresh) == {"access_token", "token_type", "expires_at", "user"}
+    assert set(fresh["user"]) == USER_KEYS
+    assert fresh["user"]["role"] == "student"
+
 
 async def test_extra_fields_rejected_on_json_bodies(client, seeded):
     cases = [
