@@ -96,3 +96,10 @@ design/**/shots/
 # 确需临时跟踪：git add -f design/<path>
 design/
 
+
+# ---- 代理约定文件不纳入版本控制 ----
+# AGENTS.md 是给本机自动化代理读的工作约定，不是产品产物，不随代码库分发；
+# 文件仍完整保留在磁盘上（供代理读取），入口文档也不再链接它。
+# 确需临时跟踪：git add -f AGENTS.md
+/AGENTS.md
+

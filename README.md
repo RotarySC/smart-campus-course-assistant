@@ -76,4 +76,4 @@ cd backend
 - 分支：`main` ← `dev` ← `phase/0x-*`；每车道一个 git worktree。
 - 测试分层：日常只跑 T0 定向 / T1 车道门禁，**T2 全量只在收尾阶段**统一执行。
 - 依赖安装走国内镜像（pip：阿里云；npm：`registry.npmmirror.com`）。
-- 过程性、开发、计划文档不入 git —— 见 [AGENTS.md](AGENTS.md)。
+- 过程性、开发、计划文档不入 git（需求 / 设计 / 计划 / 报告只留在磁盘，不随代码库分发）。
