@@ -79,21 +79,41 @@ onMounted(() => void load())
   <Wrap>
     <div class="split">
       <div class="stack">
-        <!-- 统计条：4 卡，全部来自当前已加载数据（§6.4） -->
+        <!-- 统计条：4 卡，全部来自当前已加载数据（§6.4）；图标是第 4 张卡的图形通道 -->
         <div class="stat-grid">
           <div class="stat">
+            <span class="stat__ico" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path v-for="(d, i) in ICONS.calendar" :key="i" :d="d" />
+              </svg>
+            </span>
             <span class="stat__value">{{ store.items.length }}</span>
             <span class="stat__label">{{ S15.statTodayCourses }}</span>
           </div>
           <div class="stat">
+            <span class="stat__ico" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path v-for="(d, i) in ICONS.clock" :key="i" :d="d" />
+              </svg>
+            </span>
             <span class="stat__value">{{ nextClass ? nextClass.start_time : '—' }}</span>
             <span class="stat__label">{{ S15.statNextClass }}</span>
           </div>
           <div class="stat">
+            <span class="stat__ico" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path v-for="(d, i) in ICONS.clock" :key="i" :d="d" />
+              </svg>
+            </span>
             <span class="stat__value">{{ dayEnd ?? '—' }}</span>
             <span class="stat__label">{{ S15.statDayEnd }}</span>
           </div>
           <div class="stat">
+            <span class="stat__ico" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path v-for="(d, i) in ICONS.search" :key="i" :d="d" />
+              </svg>
+            </span>
             <span class="stat__value">&le; 31 天</span>
             <span class="stat__label">{{ S15.statRange }}</span>
           </div>

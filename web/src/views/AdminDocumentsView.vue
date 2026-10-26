@@ -12,15 +12,17 @@ import Wrap from '@/components/base/Wrap.vue'
 import Card from '@/components/base/Card.vue'
 import Btn from '@/components/base/Btn.vue'
 import Notice from '@/components/base/Notice.vue'
+import EmptyState from '@/components/base/EmptyState.vue'
 import BatchPanel from '@/components/product/BatchPanel.vue'
 import AdminNav from '@/components/product/AdminNav.vue'
-import { ICONS } from '@/components/base/icons'
 import { S11 } from '@/domain/copy'
 import { useAdminStore } from '@/stores/admin'
 
 const store = useAdminStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const allowDuplicateNames = ref(false)
+/** 拖放区「正被拖入」态：只由 JS 切类（白名单里没有 `:drag-over` 这类伪类）。 */
+const dragOver = ref(false)
 
 async function load() {
   await store.listDocuments().catch(() => undefined)
@@ -30,12 +32,29 @@ function pick() {
   fileInput.value?.click()
 }
 
+async function uploadFiles(files: File[]) {
+  if (files.length === 0) return
+  await store.uploadBatch(files, { allow_duplicate_names: allowDuplicateNames.value }).catch(() => undefined)
+}
+
 async function onFiles(e: Event) {
   const input = e.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
-  if (files.length === 0) return
-  await store.uploadBatch(files, { allow_duplicate_names: allowDuplicateNames.value }).catch(() => undefined)
+  await uploadFiles(files)
   input.value = ''
+}
+
+/** 「选择文件」与拖放走同一条上传路径（同一批限制、同一发布规则）。 */
+async function onDrop(e: DragEvent) {
+  dragOver.value = false
+  await uploadFiles(Array.from(e.dataTransfer?.files ?? []))
+}
+
+/** `dragleave` 在子元素间移动也会触发：只有离开整个区域才熄掉高亮。 */
+function onDragLeave(e: DragEvent) {
+  const el = e.currentTarget as HTMLElement | null
+  const to = e.relatedTarget as Node | null
+  if (!el || !to || !el.contains(to)) dragOver.value = false
 }
 
 async function preview(id: string) {
@@ -57,7 +76,6 @@ onMounted(() => void load())
       <AdminNav />
 
       <div class="stack">
-        <p class="muted">{{ S11.uploadHint }}</p>
         <input
           ref="fileInput"
           class="sr-only"
@@ -68,20 +86,26 @@ onMounted(() => void load())
           tabindex="-1"
           @change="onFiles"
         />
-        <div class="row">
-          <Btn variant="primary" @click="pick">
-            <template #icon>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <path v-for="(d, i) in ICONS.upload" :key="i" :d="d" />
-              </svg>
-            </template>
-            {{ S11.chooseFile }}
-          </Btn>
-          <label class="row small">
-            <input v-model="allowDuplicateNames" type="checkbox" />
-            <span>{{ S11.publishRule }}</span>
-          </label>
-        </div>
+        <!-- 上传区 = 拖拽区 + 「选择文件」（content-spec S11）；E4「上传引导」就是这块虚线区，
+             不是遗漏态：整块 `.empty` 同时是落点与说明，键盘/点击走区内按钮。 -->
+        <EmptyState
+          variant="empty"
+          icon="upload"
+          :class="{ 'empty--over': dragOver }"
+          :title="S11.dropTitle"
+          :hint="S11.uploadHint"
+          @dragover.prevent="dragOver = true"
+          @dragleave="onDragLeave"
+          @drop.prevent="onDrop"
+        >
+          <template #actions>
+            <Btn variant="primary" @click="pick">{{ S11.chooseFile }}</Btn>
+          </template>
+        </EmptyState>
+        <label class="row small">
+          <input v-model="allowDuplicateNames" type="checkbox" />
+          <span>{{ S11.publishRule }}</span>
+        </label>
       </div>
 
       <BatchPanel

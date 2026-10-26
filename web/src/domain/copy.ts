@@ -185,10 +185,11 @@ export const S10 = {
 
 /* ===================== S11 管理中心 · 文档与批次（content-spec:151–161） ===================== */
 export const S11 = {
-  title: '管理中心 · 文档与批次', // content-spec:150
-  uploadHint: 'TXT / MD / 含文字层的 PDF / DOCX；单文件 ≤ 20 MiB；单批 ≤ 10 个、合计 ≤ 50 MiB', // content-spec:151
-  chooseFile: '选择文件', // content-spec:151
-  publishRule: '整批可见或整批不可见', // content-spec:152
+  title: '管理中心 · 文档与批次', // content-spec:161
+  uploadHint: 'TXT / MD / 含文字层的 PDF / DOCX；单文件 ≤ 20 MiB；单批 ≤ 10 个、合计 ≤ 50 MiB', // content-spec:162
+  chooseFile: '选择文件', // content-spec:162
+  dropTitle: '把文件拖到这里，或选择文件', // content-spec:162（S11 上传区：拖拽区标题）
+  publishRule: '整批可见或整批不可见', // content-spec:163
   colFile: '文件', // content-spec:160（原名）
   colType: '类型', // content-spec:160
   colSize: '大小', // content-spec:160

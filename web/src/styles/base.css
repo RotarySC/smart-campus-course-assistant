@@ -412,6 +412,15 @@
   color: var(--card-stat-label-fg);
 }
 
+/* 统计卡图标：4 张卡各一个图形（calendar / clock / clock / search），
+   色走 --card-stat-ico-fg（中性辅助色），语义由下方标签文字承担。 */
+.stat__ico {
+  width: var(--card-stat-ico);
+  height: var(--card-stat-ico);
+  color: var(--card-stat-ico-fg);
+  flex: 0 0 auto;
+}
+
 /* ==== timeline（时间轴；rb.css 阶段 B 新增块）==== */
 .timeline {
   display: flex;
@@ -422,6 +431,33 @@
 .timeline__item {
   display: flex;
   gap: var(--card-suggest-gap);
+  /* 时间轴导轨（§6.4 可选增强）：左侧留出「圆点 + 间距」一列，
+     圆点与连线由伪元素画（纯 CSS，零资产；伪元素不在状态白名单的禁列里）。 */
+  position: relative;
+  padding-inline-start: calc(var(--card-timeline-dot) + var(--card-timeline-rail-gap));
+}
+
+/* 节点圆点：条目顶部对齐，与色条同色。 */
+.timeline__item::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: var(--card-timeline-dot);
+  height: var(--card-timeline-dot);
+  border-radius: var(--card-timeline-dot-radius);
+  background: var(--card-timeline-dot-fg);
+}
+
+/* 连线段：从圆点底部延伸到下一条目（含条目间距），末条不画（不会拖着尾巴）。 */
+.timeline__item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-block-start: var(--card-timeline-dot);
+  inset-block-end: calc(var(--card-timeline-gap) * -1);
+  inset-inline-start: calc((var(--card-timeline-dot) - var(--card-timeline-rail-w)) / 2);
+  width: var(--card-timeline-rail-w);
+  background: var(--card-timeline-rail-bg);
 }
 
 .timeline__time {
@@ -941,6 +977,14 @@ a.chip:hover {
 .empty--error .empty__art,
 .empty--error .empty__title {
   color: var(--empty-error-fg);
+}
+
+/* 拖放区「正被拖入」态（02 §Empty E4）：虚线改实线 + 品牌绿描边 + 浅绿底。
+   只由 JS 切类承担——拖放不是 `:hover`，白名单里也没有 `:drag-over` 这类伪类。 */
+.empty--over {
+  border-style: solid;
+  border-color: var(--empty-over-border-color);
+  background: var(--empty-over-bg);
 }
 
 /* 空态内的动作行居中：用后代选择器复用既有 class，**不新增 class**

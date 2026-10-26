@@ -103,6 +103,29 @@ export function buildScript(message: string, requestId: string, conversationId: 
     return steps
   }
 
+  // ---------- S05 ③：全库为空（有检索、成功，但库本身没有已发布资料） ----------
+  if (message.includes('全库为空')) {
+    push(mk('status', { code: 'ACCEPTED', message: 'ACCEPTED', conversation_id: conversationId }), 0)
+    push(
+      mk('tool_start', { tool_call_id: 'tc_1', tool_name: 'search_course_docs', display_name: '正在检索课程资料' }),
+      200,
+    )
+    push(
+      mk('tool_end', {
+        tool_call_id: 'tc_1',
+        success: true,
+        result_status: 'empty',
+        corpus_empty: true,
+      }),
+      220,
+    )
+    for (const [i, piece] of [...'当前知识库还没有已发布的课程资料。'].entries()) {
+      push(mk('token', { text_delta: piece, answer_block_id: 'blk_1' }), 40 + i)
+    }
+    push(mk('done', { state: 'succeeded', citations: [] }), 220, true)
+    return steps
+  }
+
   // ---------- S05 ①：依据不足（检索成功但无足够依据） ----------
   if (message.includes('依据不足')) {
     push(mk('status', { code: 'ACCEPTED', message: 'ACCEPTED', conversation_id: conversationId }), 0)

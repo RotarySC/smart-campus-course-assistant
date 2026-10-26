@@ -546,6 +546,21 @@ async function main() {
       const scheduleText = await bodyText()
       check('S07 我的课表渲染真实课表行', n > 0, `${n} 行`)
       check('S07 未把「读取失败」与「当天无课」混为一谈', !scheduleText.includes('无法读取'), '')
+      // 统计条 4 卡各带一个 20×20 装饰图标（`.stat__ico` 内含 svg，aria-hidden）
+      const statIcons = await evaluate(`(() => {
+        const cards = [...document.querySelectorAll('.stat')];
+        const icos = cards.map((c) => {
+          const ico = c.querySelector('.stat__ico');
+          const svg = ico && ico.querySelector('svg');
+          return ico ? { hidden: ico.getAttribute('aria-hidden'), paths: svg ? svg.querySelectorAll('path').length : 0 } : null;
+        });
+        return { cards: cards.length, icos };
+      })()`)
+      check(
+        '课表统计条 4 卡各带 1 个装饰图标',
+        statIcons?.cards === 4 && statIcons.icos.every((i) => i && i.hidden === 'true' && i.paths > 0),
+        JSON.stringify(statIcons),
+      )
       savePng('pages-schedules.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
 
       // 8.2 S09 学习计划列表
@@ -682,6 +697,35 @@ async function main() {
           })()`)
           check(`二级导航「${label}」→ ${path}`, clicked && landed === path, `${landed}`)
           check(`二级导航「${label}」标记为当前页`, current === path, String(current))
+
+          // 8.6b 文档页：拖放区（E4）= `.empty` 虚线区 + upload 图标 + 「选择文件」，
+          // 拖入时由 JS 切 `.empty--over`（不是 :hover，白名单里没有 :drag-over）。
+          if (path === '/admin/documents') {
+            const zone = await evaluate(`(() => {
+              const el = document.querySelector('.card__body .empty');
+              const btn = el && [...el.querySelectorAll('button')].find((b) => b.textContent.trim() === '选择文件');
+              return el ? { art: el.querySelectorAll('.empty__art svg path').length, hasBtn: !!btn, dashed: getComputedStyle(el).borderTopStyle } : null;
+            })()`)
+            check(
+              '文档页上传区 = 拖放区（虚线 .empty + upload 图标 + 选择文件）',
+              !!zone && zone.art > 0 && zone.hasBtn === true && zone.dashed === 'dashed',
+              JSON.stringify(zone),
+            )
+            const over = await evaluate(`(async () => {
+              const el = document.querySelector('.card__body .empty');
+              if (!el) return null;
+              const tick = () => new Promise((r) => setTimeout(r, 60));
+              const dt = new DataTransfer();
+              el.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+              await tick();
+              const on = { cls: el.classList.contains('empty--over'), style: getComputedStyle(el).borderTopStyle };
+              el.dispatchEvent(new DragEvent('dragleave', { bubbles: true, cancelable: true, dataTransfer: dt }));
+              await tick();
+              const off = el.classList.contains('empty--over');
+              return { on: on.cls && on.style === 'solid', off };
+            })()`)
+            check('拖入时虚线转实线（.empty--over），离开后复原', over?.on === true && over?.off === false, JSON.stringify(over))
+          }
         }
         await clickAdminLink('课程管理')
         await waitPath('/admin/courses')

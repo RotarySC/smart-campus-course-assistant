@@ -66,6 +66,7 @@ logger = logging.getLogger("cca.assistant.runner")
 PROVIDER_TOOL_WHITELIST = frozenset({"get_my_schedule", "search_course_docs"})
 AUTH_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SESSION_EXPIRED"})
 MODEL_TOOL_NAME = "save_study_plan"
+SEARCH_TOOL_NAME = "search_course_docs"
 
 
 @dataclass
@@ -712,9 +713,17 @@ class Runner:
     ) -> None:
         plan_id = None
         operation_id = None
+        corpus_empty = None
         if record.tool_name == MODEL_TOOL_NAME and record.success:
             plan_id = record.payload.get("plan_id")
             operation_id = record.payload.get("operation_id")
+        if record.tool_name == SEARCH_TOOL_NAME and record.success:
+            # 全库为空 ≠ 本次没检索到：前者要告诉用户「找管理员」，后者提示「换个问法」。
+            evidence = record.payload.get("_evidence")
+            if isinstance(evidence, EvidenceSet):
+                corpus_empty = bool(evidence.corpus_empty)
+            else:
+                corpus_empty = bool(record.payload.get("corpus_empty", False))
         await self.channel.publish(
             "tool_end",
             lambda seq, ts: ToolEndData(
@@ -727,6 +736,7 @@ class Runner:
                 code=record.code,
                 plan_id=plan_id,
                 operation_id=operation_id,
+                corpus_empty=corpus_empty,
             ),
         )
 

@@ -239,3 +239,58 @@ async def test_fence_loss_prevents_stale_runner_commit(client, seeded):
         assert row.terminal_reason == "SERVICE_RESTARTED"
     finally:
         set_runtime(None)
+
+
+# --------------------------------------------------------------------------- #
+# S05 第 3 态「全库为空」：tool_end 必须把「库本身没资料」和「本次没检索到」分开
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def corpus_empty_runtime():
+    executor = StubToolExecutor()
+    executor.corpus_empty = True
+    runtime = Runtime(provider=DeterministicProvider(), executor=executor)
+    set_runtime(runtime)
+    yield runtime, executor
+    set_runtime(None)
+
+
+async def test_tool_end_reports_corpus_empty_for_document_search(
+    client, seeded, corpus_empty_runtime
+):
+    status, events = await read_stream(
+        client,
+        seeded["student_token"],
+        {"client_request_id": "creq_corpus_empty", "message": "实验课的预习要求是什么资料"},
+    )
+    assert status == 200, events
+    validate_sse_events(events)
+    assert_sse_invariants(events)
+
+    search_end = next(
+        event
+        for event in events
+        if event["event"] == "tool_end" and event["data"]["result_status"] == "empty"
+    )
+    assert search_end["data"]["success"] is True
+    assert search_end["data"]["corpus_empty"] is True
+
+
+@pytest.fixture
+def schedule_runtime():
+    runtime = Runtime(provider=DeterministicProvider(), executor=StubToolExecutor())
+    set_runtime(runtime)
+    yield runtime
+    set_runtime(None)
+
+
+async def test_tool_end_omits_corpus_empty_for_other_tools(client, seeded, schedule_runtime):
+    status, events = await read_stream(
+        client,
+        seeded["student_token"],
+        {"client_request_id": "creq_no_corpus_field", "message": "明天有课吗"},
+    )
+    assert status == 200, events
+    validate_sse_events(events)
+    tool_end = next(event for event in events if event["event"] == "tool_end")
+    # 非检索工具不得凭空带 corpus_empty（缺省即「不适用」，前端据此区分两种状态）
+    assert "corpus_empty" not in tool_end["data"]

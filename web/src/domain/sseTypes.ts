@@ -44,6 +44,8 @@ export interface ToolEndEventData extends SseBase {
   code?: string
   plan_id?: string
   operation_id?: string
+  /** 仅 `search_course_docs` 成功时出现；true = 全库尚无已发布资料（S05 第 3 态）。 */
+  corpus_empty?: boolean
 }
 
 export interface TokenEventData extends SseBase {

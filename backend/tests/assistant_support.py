@@ -364,6 +364,8 @@ class StubToolExecutor:
         self.fail_docs = False
         self.fail_save_codes: list[str] = []
         self.saved_plans: list[dict[str, str]] = []
+        # 全库为空（S05 第 3 态）：检索本身成功，但库中没有任何已发布资料。
+        self.corpus_empty = False
 
     async def execute(self, call: ToolCall, context: Any) -> ToolExecutionRecord:
         self.calls.append(call)
@@ -416,6 +418,22 @@ class StubToolExecutor:
                     dependency_state="failed",
                     code="RETRIEVAL_UNAVAILABLE",
                     payload={"code": "RETRIEVAL_UNAVAILABLE"},
+                )
+            if self.corpus_empty:
+                return ToolExecutionRecord(
+                    tool_name=call.tool_name,
+                    arguments=call.arguments,
+                    success=True,
+                    result_status="empty",
+                    dependency_state="empty",
+                    payload={
+                        "status": "empty",
+                        "corpus_empty": True,
+                        "revision": 0,
+                        "chunks": [],
+                        "references": [],
+                        "_evidence": EvidenceSet(status="empty", corpus_empty=True, revision=0),
+                    },
                 )
             reference = EvidenceReference(
                 reference_id="cit_fixture_1",

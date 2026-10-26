@@ -217,6 +217,10 @@
               "minLength": 1,
               "maxLength": 96,
               "pattern": "^[A-Za-z0-9._:-]+$"
+            },
+            "corpus_empty": {
+              "type": "boolean",
+              "description": "仅 search_course_docs 成功时出现：true = 全库尚无已发布资料（E3 全库为空），false/缺省 = 库里有资料但本次没检索到（依据不足）。两者文案与语义不同，前端据此区分 S05 的第 2、3 态。"
             }
           },
           "required": [

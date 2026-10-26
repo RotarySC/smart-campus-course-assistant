@@ -201,6 +201,9 @@ class ToolEndData(_Model):
     code: Annotated[str | None, Field(max_length=64)] = None
     plan_id: ID | None = None
     operation_id: OPERATION_ID | None = None
+    # 仅 search_course_docs 成功时出现：true = 全库尚无已发布资料（S05 第 3 态「全库为空」），
+    # 与「库里有资料但本次没检索到」（S05 第 2 态「依据不足」）是两个不同的产品状态。
+    corpus_empty: bool | None = None
 
 
 class TokenData(_Model):

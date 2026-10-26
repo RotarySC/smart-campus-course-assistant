@@ -56,6 +56,8 @@ export interface ChatTurn {
   operationId: string | null
   draftId: string | null
   draftVersion: number | null
+  /** `search_course_docs` 报「全库尚无已发布资料」（S05 第 3 态）；与「依据不足」不同。 */
+  corpusEmpty: boolean
 }
 
 /**
@@ -92,6 +94,7 @@ export function createTurn(clientRequestId: string): ChatTurn {
     operationId: null,
     draftId: null,
     draftVersion: null,
+    corpusEmpty: false,
   }
 }
 
@@ -211,6 +214,8 @@ export function reduce(prev: ChatTurn, e: SseEvent): { turn: ChatTurn; effects: 
         pushIssue(turn, 'unpaired-tool', effects)
         break
       }
+      // 全库为空是**结果性质**，不是步骤状态：记在本轮上，由终态区域决定渲染哪种文案。
+      if (e.data.corpus_empty === true) turn.corpusEmpty = true
       if (e.data.success === false) {
         step.status = 'failed'
         // A10：缺 code 时按 failed 渲染，用通用失败文案（文案由 mapError 提供）。

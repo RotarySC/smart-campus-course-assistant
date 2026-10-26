@@ -188,6 +188,20 @@ onMounted(() => {
               </template>
             </Notice>
 
+            <!-- 全库为空（E3）：`.empty` + inbox，和下面「依据不足」是两个不同状态
+                 （一个有资料但没命中，一个根本没有资料 → 该找管理员，不该换问法）。 -->
+            <EmptyState
+              v-else-if="
+                active.terminal === 'succeeded' &&
+                active.citations.length === 0 &&
+                active.blocks.length > 0 &&
+                active.corpusEmpty
+              "
+              variant="empty"
+              icon="inbox"
+              :title="S05.libraryEmpty"
+            />
+
             <!-- 依据不足（检索成功但没有足够依据）。 -->
             <Notice
               v-else-if="active.terminal === 'succeeded' && active.citations.length === 0 && active.blocks.length > 0"
