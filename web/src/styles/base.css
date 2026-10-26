@@ -251,6 +251,19 @@
   font-size: var(--tabbar-item-fs);
 }
 
+/* 标签栏占位（<768）：跟着 TabBar 一起渲染，所以登录页（没有标签栏）不会多出这块空白。
+   高度取 root 族的 `--root-tabbar-reserve`（语义就是「窄屏底部为标签栏留白，≥sm 归零」）：
+   不新增 tabbar 组 token，因为它与标签栏自身高度是两个概念（本值会把 safe-area 一起算进去）。 */
+.tabbar-spacer {
+  height: calc(var(--root-tabbar-reserve) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .tabbar-spacer {
+    display: none;
+  }
+}
+
 .tabbar__item[aria-current='page'] {
   color: var(--tabbar-item-current-fg);
   font-weight: var(--tabbar-item-current-fw);

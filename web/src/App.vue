@@ -74,6 +74,10 @@ onUnmounted(() => ui.disposeBreakpoints())
     </template>
   </TabBar>
 
+  <!-- 底部标签栏占位：**只有渲染了 TabBar 才有这块留白**（<768）。
+       早先是给 body 无条件加 padding-bottom，于是登录页（没有标签栏）也白白多出 56px 可滚动空白。 -->
+  <div v-if="showNav" class="tabbar-spacer"></div>
+
   <!-- 流式播报的独立 live region：`polite`，且**绝不**抢焦点（NFR-UX-001）。 -->
   <p class="sr-only" aria-live="polite" aria-atomic="true">{{ ui.liveMessage }}</p>
 </template>

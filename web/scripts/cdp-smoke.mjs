@@ -725,6 +725,36 @@ async function main() {
               return { on: on.cls && on.style === 'solid', off };
             })()`)
             check('拖入时虚线转实线（.empty--over），离开后复原', over?.on === true && over?.off === false, JSON.stringify(over))
+
+            // 8.6c 真 drop：构造带文件的 DataTransfer 派发 `drop`，断言上传请求**真的发出**。
+            // 用 Fetch 域拦在请求阶段并立即 Abort —— 证明「拖放 → 上传」这条链路通，同时**不写库**。
+            let pausedReq = null
+            cdp.on('Fetch.requestPaused', (p) => {
+              if (!pausedReq && p.request?.url?.includes('/admin/document-batches')) pausedReq = p
+            })
+            await cdp.send('Fetch.enable', {
+              patterns: [{ urlPattern: '*/api/v1/admin/document-batches*', requestStage: 'Request' }],
+            })
+            const dispatched = await evaluate(`(() => {
+              const el = document.querySelector('.card__body .empty');
+              if (!el) return false;
+              const dt = new DataTransfer();
+              dt.items.add(new File(['e2e drop probe —— 只验证请求发出，不落库'], 'e2e-drop-probe.txt', { type: 'text/plain' }));
+              el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+              return true;
+            })()`)
+            for (let i = 0; i < 60 && !pausedReq; i++) await sleep(100)
+            const probe = pausedReq
+              ? { method: pausedReq.request.method, url: pausedReq.request.url.replace(/^https?:\/\/[^/]+/, '') }
+              : null
+            if (pausedReq) await cdp.send('Fetch.failRequest', { requestId: pausedReq.requestId, errorReason: 'Aborted' })
+            await cdp.send('Fetch.disable')
+            await sleep(300)
+            check(
+              '拖入文件即发出上传请求（拦截后立即中止，不落库）',
+              dispatched === true && probe?.method === 'POST' && probe.url.includes('/admin/document-batches'),
+              JSON.stringify(probe),
+            )
           }
         }
         await clickAdminLink('课程管理')

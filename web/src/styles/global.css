@@ -34,8 +34,8 @@ body {
   color: var(--root-fg);
   font: var(--root-fs) / var(--root-lh) var(--root-font);
   font-variant-numeric: var(--root-font-variant);
-  /* 窄屏底部标签栏占位；≥sm 由媒体查询归零。 */
-  padding-bottom: calc(var(--root-tabbar-reserve) + env(safe-area-inset-bottom, 0px));
+  /* 窄屏底部标签栏占位**不在这里**：它由外壳的 `.tabbar-spacer` 承担（只有渲染了 TabBar 才占位）。
+     早先是 body 无条件 padding-bottom，导致登录页（无标签栏）多出 56px 死空白。 */
 }
 
 /* rb.css:104 */
