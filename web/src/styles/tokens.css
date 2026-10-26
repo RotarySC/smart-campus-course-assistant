@@ -400,8 +400,10 @@
   --wrap-inner-pad-x:0;                                    /* 嵌套 .wrap（助手片段自带 wrap）时内层左右内边距归零，避免双重缩进 */
   --wrap-rail-w:var(--layout-rail-w);                      /* ≥lg 两栏栅格的右栏宽（阶段 B 新增） */
   --wrap-gap:var(--p-space-6);                             /* ≥lg 两栏栅格的列间距 36px；1000 − 280 − 36 = 684 主列 */
-  --wrap-rail-top:calc(var(--p-size-appbar) + var(--p-space-2)); /* 右栏悬浮卡距视口顶的偏移：顶栏 56 + 间距 6（输入条 2026-10-26 傍晚改 fixed 后，这里也改 fixed：短内容页的 sticky 会被容器高度卡住、跟着页面滚走） */
+  --wrap-rail-top:calc(var(--p-size-appbar) + var(--wrap-pad-y-sm)); /* 右栏悬浮卡距视口顶的偏移 = 顶栏 56 + wrap 上内边距 36：这样右栏顶边与**左列第一张卡的顶边齐平**（2026-10-26 用户要求「左右两边水平位置要齐平」） */
   --wrap-rail-z:var(--p-z-rail);                           /* 右栏悬浮卡的层叠高度：高于输入条（20）、低于顶栏（40），这样它才是「浮在页面内容上方」而不是被输入条的底色切掉 */
+  --wrap-rail-summary-pad:var(--p-space-2);                /* 折叠摘要条的内边距（视口高度放不下两张卡时用它替代） */
+  --wrap-rail-summary-gap:var(--p-space-3);                /* 折叠摘要条里两块入口的间距 */
 }
 /* ---- card ---- */
 :root{

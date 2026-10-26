@@ -678,7 +678,9 @@ export const tokens = {
   "--wrap-pad-x-sm": "24px",
   "--wrap-pad-y": "24px",
   "--wrap-pad-y-sm": "36px",
-  "--wrap-rail-top": "calc(56px + 12px)",
+  "--wrap-rail-summary-gap": "18px",
+  "--wrap-rail-summary-pad": "12px",
+  "--wrap-rail-top": "calc(56px + 36px)",
   "--wrap-rail-w": "280px",
   "--wrap-rail-z": "30",
 } as const;

@@ -321,6 +321,29 @@
   gap: var(--card-row-gap);
 }
 
+/* 右栏正文（今日课表 + 学习计划）。单独包一层是为了**折叠时还能量到它的自然高度**：
+   折叠后它被 `position:absolute + visibility:hidden` 藏起来（不占位、也不可见），
+   `scrollHeight` 仍然可用，JS 靠它判断「展开会不会超出视口底」。 */
+.workspace__rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-row-gap);
+}
+
+/* 折叠摘要（2026-10-26 用户需求）：视口高度放不下两张卡时，右栏折成一行入口。
+   只用了既有文案 + 数字（标题 + 条数），不新增文案；完整内容仍在「我的课表 / 学习计划」页。 */
+.workspace__rail-summary {
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--wrap-rail-summary-gap);
+  padding: var(--wrap-rail-summary-pad);
+  border: var(--card-border-w) solid var(--card-border-color);
+  border-radius: var(--card-radius);
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+
 @media (min-width: 1200px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr) var(--wrap-rail-w);
@@ -337,6 +360,21 @@
     right: calc(50% - var(--wrap-max) / 2);
     width: var(--wrap-rail-w);
     z-index: var(--wrap-rail-z);
+  }
+
+  /* 折叠态（高度放不下两张卡时由 JS 加 class）：正文让位给一行摘要。
+     正文用**绝对定位**藏起来而不是 `display:none` —— 这样 JS 随时量得到它的自然高度，
+     视口一拉高就能立刻展开回去。 */
+  .workspace__rail--collapsed .workspace__rail-body {
+    position: absolute;
+    left: 0;
+    right: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .workspace__rail--collapsed .workspace__rail-summary {
+    display: flex;
   }
 
   /* 桌面端取消左右内边距：1000 就是内容列本身，顶栏与正文因此严格对齐 */

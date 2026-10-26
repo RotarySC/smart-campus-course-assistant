@@ -519,6 +519,56 @@ async function main() {
             Math.abs(pinInfo?.railTop1 - parseFloat(pinInfo?.railTop)) <= 1),
         `vw=${pinInfo?.vw} position=${pinInfo?.railPos} top=${pinInfo?.railTop} z=${pinInfo?.railZ}>${pinInfo?.formZ} 栏顶 ${pinInfo?.railTop0}→${pinInfo?.railTop1}`,
       )
+
+      // 折叠摘要（2026-10-26 用户需求）：右栏是 fixed 的，视口矮了会被底边切掉且滚不到，
+      // 所以放不下时折成一行摘要；折叠前后右栏顶边都必须与左列第一张卡的顶边齐平。
+      const railAlign = await evaluate(`(() => {
+        const rail = document.querySelector('.workspace__rail');
+        const card = document.querySelector('.workspace__main .card');
+        if (!rail || !card) return null;
+        return {
+          vw: innerWidth,
+          railTop: Math.round(rail.getBoundingClientRect().top),
+          cardTop: Math.round(card.getBoundingClientRect().top),
+          collapsed: rail.className.includes('collapsed'),
+        };
+      })()`)
+      check(
+        '右栏与左列顶边齐平（≥1200 悬浮卡不高于正文）',
+        railAlign?.vw < 1200 || (Math.abs(railAlign.railTop - railAlign.cardTop) <= 2 && railAlign.collapsed === false),
+        `vw=${railAlign?.vw} 右栏=${railAlign?.railTop} 左列=${railAlign?.cardTop} 折叠=${railAlign?.collapsed}`,
+      )
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1269, height: 420, deviceScaleFactor: 1, mobile: false })
+      await sleep(400)
+      const collapsedInfo = await evaluate(`(() => {
+        const rail = document.querySelector('.workspace__rail');
+        const sum = document.querySelector('.workspace__rail-summary');
+        const body = document.querySelector('.workspace__rail-body');
+        const card = document.querySelector('.workspace__main .card');
+        const sr = sum.getBoundingClientRect();
+        return {
+          vw: innerWidth, vh: innerHeight,
+          collapsed: rail.className.includes('collapsed'),
+          summaryShown: getComputedStyle(sum).display !== 'none',
+          bodyHidden: getComputedStyle(body).visibility === 'hidden',
+          railTop: Math.round(rail.getBoundingClientRect().top),
+          cardTop: Math.round(card.getBoundingClientRect().top),
+          sumBottom: Math.round(sr.bottom),
+          text: (sum.textContent || '').replace(/\\s+/g, ' ').trim(),
+        };
+      })()`)
+      check(
+        '视口压到 420 高：右栏折成一行摘要（两卡让位）、仍与左列齐平且不超出视口',
+        collapsedInfo?.vw < 1200 ||
+          (collapsedInfo?.collapsed === true &&
+            collapsedInfo?.summaryShown === true &&
+            collapsedInfo?.bodyHidden === true &&
+            collapsedInfo?.sumBottom <= collapsedInfo?.vh &&
+            Math.abs(collapsedInfo.railTop - collapsedInfo.cardTop) <= 2),
+        `${collapsedInfo?.text} | vh=${collapsedInfo?.vh} 摘要底=${collapsedInfo?.sumBottom} 右栏=${collapsedInfo?.railTop} 左列=${collapsedInfo?.cardTop}`,
+      )
+      await cdp.send('Emulation.clearDeviceMetricsOverride')
+      await sleep(300)
       const shot2 = await cdp.send('Page.captureScreenshot', { format: 'png' })
       savePng('smoke-assistant.png', shot2.data)
     }
