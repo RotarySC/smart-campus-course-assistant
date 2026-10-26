@@ -68,6 +68,7 @@
 :root{
   --p-ink-900-a04:rgba(28,25,23,.04);                      /* 弱 hover 底 */
   --p-ink-900-a03:rgba(28,25,23,.03);                      /* 只读控件底 */
+  --p-ink-900-a08:rgba(28,25,23,.08);                      /* 浮起层的投影色（悬浮胶囊）：比 hairline 的 a04 更明显，靠透明度而非黑色 */
 }
 /* ---- space.rhythm　布局节奏，6px 基准。方向 B 刻意避开 4 的倍数，形成密度身份。编号 n ⇒ n×6px。 ---- */
 :root{
@@ -120,6 +121,7 @@
   --p-radius-7:7px;                                        /* 小标记方块 */
   --p-radius-10:10px;                                      /* 控件 */
   --p-radius-14:14px;                                      /* 卡片 */
+  --p-radius-24:24px;                                      /* 悬浮胶囊（对话输入条）：比卡片大一档，视觉上脱离平面 */
   --p-radius-pill:999px;
 }
 /* ---- border.width ---- */
@@ -131,7 +133,8 @@
 }
 /* ---- elevation ---- */
 :root{
-  --p-shadow-1:0 1px 1px var(--p-ink-900-a04);             /* 唯一的层级：近平面，靠留白与边框分组而非投影 */
+  --p-shadow-1:0 1px 1px var(--p-ink-900-a04);             /* 近平面：靠留白与边框分组而非投影 */
+  --p-shadow-2:0 10px 30px var(--p-ink-900-a08);           /* 浮起一层（悬浮胶囊/浮层）：只有对话输入条用；整页仍以近平面为基调 */
 }
 /* ---- motion ---- */
 :root{
@@ -261,6 +264,7 @@
 /* ---- elevation ---- */
 :root{
   --elevation-card:var(--p-shadow-1);
+  --elevation-float:var(--p-shadow-2);                     /* 浮起层：输入条这类「不贴边、浮在内容上」的面 */
 }
 /* ---- motion ---- */
 :root{
@@ -566,6 +570,7 @@
   --composer-bg:var(--bg-page);
   --composer-border-color:var(--border);
   --composer-border-w:var(--p-bw-1);
+  --composer-float-gap:var(--p-space-4);                   /* 胶囊距视口底部的留白（浮起感）：24px；同时是外层的下内边距 */
   --composer-pad-y:var(--p-space-2);
   --composer-gap:var(--p-space-2);
   --composer-count-fs:var(--p-fs-13);
@@ -575,9 +580,9 @@
   --composer-box-bg:var(--bg-card);
   --composer-box-border-w:var(--p-bw-1);
   --composer-box-border-color:var(--border-field);         /* 输入容器比卡片边框更实一层：它本身是可输入的控件外形 */
-  --composer-box-radius:var(--p-radius-14);
-  --composer-box-pad:var(--p-space-2);
-  --composer-box-shadow:var(--elevation-card);
+  --composer-box-radius:var(--p-radius-24);                /* 悬浮胶囊圆角：比卡片大一档（14 → 24） */
+  --composer-box-pad:var(--p-space-3);                     /* 胶囊内边距：从 12 提到 18，让占位文字不贴着圆角 */
+  --composer-box-shadow:var(--elevation-float);            /* 悬浮胶囊用浮起层阴影（不再是卡片的 hairline） */
   --composer-input-min-h:var(--p-size-composer-min-h);
   --composer-input-max-h:var(--p-size-composer-max-h);
   --composer-input-fg:var(--text-primary);

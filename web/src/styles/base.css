@@ -1175,16 +1175,16 @@ a.chip:hover {
 }
 
 /* ==== composer（03 §Composer；rb.css 阶段 B 输入条）====
-   2026-10-26 改版（用户需求）：**一体式**输入条 —— 一个容器里放起 textarea 与底栏
-   （上限提示 + 字数 + 圆形发送按钮）。
+   2026-10-26 改版（用户需求）：**悬浮胶囊**输入条 —— 一个容器里放起 textarea 与底栏
+   （上限提示 + 字数 + 圆形发送按钮）；不贴边、靠浮起层阴影与圆角从内容里"抬起来"。
    窄屏（<1200 单栏）沿用原行为：sticky 吸附在标签栏之上，随页面滚动；
    ≥lg 两栏时主列定高，输入条是列的最后一行，天然钉在底部。 */
 .composer {
   position: sticky;
   bottom: calc(var(--composer-bottom) + env(safe-area-inset-bottom, 0px));
   background: var(--composer-bg);
-  padding: var(--composer-pad-y) 0 var(--composer-pad-y);
-  border-top: var(--composer-border-w) solid var(--composer-border-color);
+  /* 下沿留出浮起间距（不再有一条横贯全宽的分隔线） */
+  padding: var(--composer-pad-y) 0 var(--composer-float-gap);
   z-index: var(--composer-z);
   display: flex;
   flex-direction: column;
