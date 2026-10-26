@@ -285,6 +285,78 @@
   padding-right: var(--wrap-inner-pad-x);
 }
 
+/* ==== workspace（页面栅格；rb.css 阶段 B 新增块）
+   <lg 单列；≥1200 两栏：主列 minmax(0,1fr) + 右栏 280（1000 − 280 − 36 = 684）。 */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--wrap-gap);
+}
+
+.workspace__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stack-gap);
+  min-width: 0;
+}
+
+.workspace__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-row-gap);
+}
+
+@media (min-width: 1200px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) var(--wrap-rail-w);
+  }
+
+  /* 桌面端取消左右内边距：1000 就是内容列本身，顶栏与正文因此严格对齐 */
+  .wrap,
+  .appbar__inner {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* ==== suggest（助手页建议卡；rb.css 阶段 B 新增块）==== */
+.suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--card-suggest-gap);
+}
+
+.suggest__item {
+  display: flex;
+  align-items: center;
+  gap: var(--card-suggest-gap);
+  flex: 1 1 auto;
+  padding: var(--card-suggest-pad);
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggest__item:hover {
+  border-color: var(--card-suggest-hover-border-color);
+}
+
+.suggest__ico {
+  width: var(--card-suggest-ico);
+  height: var(--card-suggest-ico);
+  border-radius: var(--card-suggest-ico-radius);
+  background: var(--card-suggest-ico-bg);
+  color: var(--card-suggest-ico-fg);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
 /* ==== login（01 §10；rb.css:405–411）==== */
 .login {
   max-width: var(--login-max-w);

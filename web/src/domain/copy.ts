@@ -216,6 +216,17 @@ export const S12 = {
 export const S15 = {
   /** 输入条提示行（content-spec:201）。放在 `.composer__bar` 左侧，随「发送」按钮同行。 */
   composerEnterHint: 'Enter 发送 · Shift+Enter 换行',
+  /** 助手页右栏（content-spec:204–213）：标题、链接、两种空态、加载与错误。 */
+  railScheduleTitle: '今日课表', // content-spec:206
+  railPlansTitle: '学习计划', // content-spec:206
+  railWeekLink: '本周 →', // content-spec:207
+  railAllLink: '全部 →', // content-spec:207
+  railNoClass: '今天没有课', // content-spec:208
+  railNoPlans: '还没有学习计划。可以让助手根据课表和资料帮你拟定一份。', // content-spec:209
+  railDraftAction: '让助手拟定', // content-spec:210
+  railLoading: '正在读取…', // content-spec:211
+  railScheduleError: '课表暂时读取不到', // content-spec:212
+  railPlansError: '计划暂时读取不到', // content-spec:212
 } as const
 
 /**
