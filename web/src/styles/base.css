@@ -542,7 +542,7 @@
 }
 
 /* 视觉带（§15.7 A 路线：手写线条 SVG）。纯内联、零请求、单色 currentColor；
-   <1200 折叠单列时与能力清单一起隐藏（见文件末尾的 max-width:1199 段）。 */
+   ≥1440 取 400 宽；笔记本档（≤1439）收到 360 并让边界提示让位；<1200 折叠时与能力清单一起隐藏。 */
 .login__art {
   margin: 0;
   max-width: var(--login-art-w);
@@ -553,6 +553,18 @@
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* 笔记本档（≤1439）：屏幕高度通常只有 720–800，左栏必须压回首屏内。
+   视觉带收窄一档，边界提示隐藏（同一句话在助手页有一条完整的，不算丢信息）。 */
+@media (max-width: 1439px) {
+  .login__art {
+    max-width: var(--login-art-w-compact);
+  }
+
+  .login__note {
+    display: none;
+  }
 }
 
 .login__points {
