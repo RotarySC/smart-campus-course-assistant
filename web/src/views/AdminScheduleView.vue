@@ -18,6 +18,7 @@ import FormGrid from '@/components/base/FormGrid.vue'
 import Notice from '@/components/base/Notice.vue'
 import DataTable from '@/components/base/DataTable.vue'
 import { ICONS } from '@/components/base/icons'
+import AdminNav from '@/components/product/AdminNav.vue'
 import { ACTIONS, S12 } from '@/domain/copy'
 import { overlapText } from '@/domain/mapError'
 import { formatTimeRange } from '@/domain/format'
@@ -128,6 +129,8 @@ void schedules
 <template>
   <Wrap>
     <Card :title="S12.title">
+      <AdminNav />
+
       <form class="stack" @submit.prevent="submit(false)">
         <FormGrid :columns="2">
           <Field :label="S12.labelStudent" for-id="sch-student" required :error="errors.student_id ?? null">

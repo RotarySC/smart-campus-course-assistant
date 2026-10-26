@@ -729,6 +729,9 @@ a.chip:hover {
   font-size: var(--pill-fs);
   font-weight: var(--pill-fw);
   line-height: var(--pill-lh);
+  /* 胶囊是「图标 + 文字 + 颜色」的三重状态标记：文字折行会让状态难以辨认
+     （表格窄列里「可检索」曾被折成「可检 / 索」）。 */
+  white-space: nowrap;
   padding: var(--pill-pad-y) var(--pill-pad-x);
   border-radius: var(--pill-radius);
   background: var(--pill-bg);
@@ -967,6 +970,15 @@ a.chip:hover {
 
 .card__body {
   padding: var(--card-body-pad);
+}
+
+/* 卡片 body 内的块统一 12px 纵向节奏（与 `.stack` 同一个 token）。
+   起因：筛选框 / 工具按钮 / 表格 / 提示在卡内是平级块，各自不带外边距，
+   于是彼此贴住（学习计划页与 5 个管理端页面都是这个症状）。
+   用纯 margin 而不是把 body 改成 flex：不改变布局模式，也不影响卡内已有的 `.stack`
+   （body 只有一个 `.stack` 子元素时没有相邻兄弟，不会叠加）。 */
+.card__body > * + * {
+  margin-block-start: var(--stack-gap);
 }
 
 .card__foot {
@@ -1382,6 +1394,13 @@ a.chip:hover {
 .table thead th {
   font-size: var(--table-head-fs);
   color: var(--table-head-fg);
+  white-space: nowrap;
+}
+
+/* 单元格不折行（列定义里 `nowrap: true` 的列）：日期时刻、文件类型这类短值
+   折成两行只会让整张表看起来歪。用属性选择器，不引入新 class。 */
+.table th[data-nowrap="true"],
+.table td[data-nowrap="true"] {
   white-space: nowrap;
 }
 

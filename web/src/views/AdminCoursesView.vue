@@ -19,6 +19,7 @@ import EmptyState from '@/components/base/EmptyState.vue'
 import Pill from '@/components/base/Pill.vue'
 import Notice from '@/components/base/Notice.vue'
 import { ICONS } from '@/components/base/icons'
+import AdminNav from '@/components/product/AdminNav.vue'
 import { ACTIONS, S01, S10 } from '@/domain/copy'
 import { validateCourseForm } from '@/domain/validate'
 import type { AppError } from '@/api/errors'
@@ -122,6 +123,8 @@ onMounted(() => void load())
 <template>
   <Wrap>
     <Card :title="S10.title">
+      <AdminNav />
+
       <FormGrid>
         <Field :label="S10.filterLabel" for-id="course-query">
           <Control id="course-query" v-model="query" type="search" @blur="load" />

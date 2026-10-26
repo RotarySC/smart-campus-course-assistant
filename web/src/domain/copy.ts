@@ -268,6 +268,10 @@ export const S15 = {
   railDaysLeft: '还剩 {N} 天', // content-spec:229
   labelVersion: '版本', // content-spec:230
   planHint: '在对话里让助手拟定计划，确认后可直接保存到学习计划，无需手动搬运。', // content-spec:231
+
+  /* ---- 管理中心 · 学生账号（content-spec S15.6，本轮冻结）---- */
+  adminStudentsTitle: '管理中心 · 学生账号', // content-spec:257
+  adminStudentsFilter: '按账号或名称筛选', // content-spec:258（原实现误用课程页筛选 label）
 } as const
 
 /**
@@ -308,6 +312,11 @@ export const CHROME = {
   logout: '退出登录',
   /** `主体` landmark 名称（`<main id="main">`，skip-link 的目标）。 */
   mainLandmark: '主要内容',
+  /**
+   * 管理中心二级导航的 landmark 名称。content-spec 未冻结导航容器名，
+   * 归组件 chrome 文案（裁决 13 的口径），登记为待冻结项。
+   */
+  adminNav: '管理中心导航',
 } as const
 
 /**

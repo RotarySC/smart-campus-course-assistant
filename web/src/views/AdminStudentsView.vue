@@ -2,9 +2,9 @@
 /**
  * 管理 · 学生账号 `/admin/students`（§9.14）。
  *
- * **注意**：`content-spec.md` **没有**这一屏的文案块，路由与标题来自 `CONTRACT.md` §3.3，
- * 标题「管理中心 · 学生账号」是为满足 FR-AUTH-003 而**登记待冻结**的（§9.15 T1）。
- * 因此本视图只渲染 `API-REFERENCE.md` 能查到的字段（`account`/`display_name`/`enabled`/`version`）
+ * 文案：content-spec **S15.6** 已冻结本屏两句——页面标题「管理中心 · 学生账号」与筛选 label
+ * 「按账号或名称筛选」（此前标题是登记待冻结、筛选误用课程页的「按课程代码或名称筛选」）。
+ * 其余只渲染 `API-REFERENCE.md` 能查到的字段（`account`/`display_name`/`enabled`/`version`）
  * 与 §3.4 的码，**不自造任何屏幕文案**。
  */
 import { computed, onMounted, ref } from 'vue'
@@ -18,7 +18,8 @@ import DataTable from '@/components/base/DataTable.vue'
 import Notice from '@/components/base/Notice.vue'
 import Pill from '@/components/base/Pill.vue'
 import { ICONS } from '@/components/base/icons'
-import { ACTIONS, S10 } from '@/domain/copy'
+import AdminNav from '@/components/product/AdminNav.vue'
+import { ACTIONS, S10, S15 } from '@/domain/copy'
 import { useAdminStore } from '@/stores/admin'
 
 const store = useAdminStore()
@@ -73,9 +74,11 @@ onMounted(() => void load())
 
 <template>
   <Wrap>
-    <Card title="管理中心 · 学生账号">
+    <Card :title="S15.adminStudentsTitle">
+      <AdminNav />
+
       <FormGrid>
-        <Field :label="S10.filterLabel" for-id="student-query">
+        <Field :label="S15.adminStudentsFilter" for-id="student-query">
           <Control id="student-query" v-model="query" type="search" @blur="load" />
         </Field>
       </FormGrid>
@@ -97,7 +100,7 @@ onMounted(() => void load())
         </div>
       </form>
 
-      <DataTable v-if="rows.length > 0" :caption="'管理中心 · 学生账号'" :columns="columns" :rows="rows" name-key="display_name">
+      <DataTable v-if="rows.length > 0" :caption="S15.adminStudentsTitle" :columns="columns" :rows="rows" name-key="display_name">
         <template #cell-enabled="{ row }">
           <Pill :variant="row.isEnabled ? 'ok' : 'advice'">
             <template #icon>

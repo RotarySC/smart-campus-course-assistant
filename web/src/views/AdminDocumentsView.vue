@@ -13,6 +13,7 @@ import Card from '@/components/base/Card.vue'
 import Btn from '@/components/base/Btn.vue'
 import Notice from '@/components/base/Notice.vue'
 import BatchPanel from '@/components/product/BatchPanel.vue'
+import AdminNav from '@/components/product/AdminNav.vue'
 import { ICONS } from '@/components/base/icons'
 import { S11 } from '@/domain/copy'
 import { useAdminStore } from '@/stores/admin'
@@ -53,6 +54,8 @@ onMounted(() => void load())
 <template>
   <Wrap>
     <Card :title="S11.title">
+      <AdminNav />
+
       <div class="stack">
         <p class="muted">{{ S11.uploadHint }}</p>
         <input

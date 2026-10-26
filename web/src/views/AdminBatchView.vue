@@ -13,6 +13,7 @@ import Card from '@/components/base/Card.vue'
 import Notice from '@/components/base/Notice.vue'
 import Pill from '@/components/base/Pill.vue'
 import BatchPanel from '@/components/product/BatchPanel.vue'
+import AdminNav from '@/components/product/AdminNav.vue'
 import { ICONS } from '@/components/base/icons'
 import { S11 } from '@/domain/copy'
 import { useAdminStore } from '@/stores/admin'
@@ -37,6 +38,8 @@ onUnmounted(() => store.stopBatchPolling())
 <template>
   <Wrap>
     <Card :title="S11.title">
+      <AdminNav />
+
       <div class="row">
         <Pill :variant="store.batch?.state === 'failed' ? 'danger' : store.batch?.published ? 'ok' : 'info'">
           <template #icon>

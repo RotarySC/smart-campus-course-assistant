@@ -10,7 +10,7 @@
 withDefaults(
   defineProps<{
     caption: string
-    columns: Array<{ key: string; label: string; num?: boolean; right?: boolean }>
+    columns: Array<{ key: string; label: string; num?: boolean; right?: boolean; nowrap?: boolean }>
     rows: Array<Record<string, any>>
     /** 首列（字段名）用 `.cell-name` 呈现。 */
     nameKey?: string
@@ -27,7 +27,15 @@ withDefaults(
       <caption>{{ caption }}</caption>
       <thead>
         <tr>
-          <th v-for="col in columns" :key="col.key" scope="col" :class="{ r: col.right }">{{ col.label }}</th>
+          <th
+            v-for="col in columns"
+            :key="col.key"
+            scope="col"
+            :class="{ r: col.right }"
+            :data-nowrap="col.nowrap ? 'true' : undefined"
+          >
+            {{ col.label }}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -36,6 +44,7 @@ withDefaults(
             v-for="col in columns"
             :key="col.key"
             :data-label="col.label"
+            :data-nowrap="col.nowrap ? 'true' : undefined"
             :class="{ num: col.num, r: col.right, 'cell-name': col.key === nameKey }"
           >
             <slot :name="`cell-${col.key}`" :row="row">{{ row[col.key] }}</slot>

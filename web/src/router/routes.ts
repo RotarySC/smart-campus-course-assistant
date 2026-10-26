@@ -7,7 +7,7 @@
  */
 
 import type { RouteRecordRaw } from 'vue-router'
-import { S07, S09, S10, S11, S12 } from '@/domain/copy'
+import { S07, S09, S10, S11, S12, S15 } from '@/domain/copy'
 
 export type ActiveNav = 'assistant' | 'schedules' | 'plans' | 'admin'
 
@@ -84,8 +84,8 @@ export const routes: RouteRecordRaw[] = [
     path: '/admin/students',
     name: 'adminStudents',
     component: () => import('@/views/AdminStudentsView.vue'),
-    // §7.1 末行：「管理中心 · 学生账号」**没有 content-spec 依据**，是登记待冻结的标题（§9.15 T1）。
-    meta: { requiresAuth: true, requiresAdmin: true, title: '管理中心 · 学生账号', activeNav: 'admin' },
+    // content-spec S15.6 已冻结该标题（原先是登记待冻结的硬编码串）。
+    meta: { requiresAuth: true, requiresAdmin: true, title: S15.adminStudentsTitle, activeNav: 'admin' },
   },
 ]
 
@@ -102,3 +102,15 @@ export const NAV_ITEMS: Array<{ key: ActiveNav; appbar: string; tabbar: string; 
   { key: 'plans', appbar: S09.listTitle, tabbar: '计划', to: '/me/plans' },
   { key: 'admin', appbar: '管理中心', tabbar: '管理', to: '/admin/courses' },
 ]
+
+/**
+ * 管理中心二级导航的页面顺序（4 个管理页 + 文档批次详情页归入「文档与批次」）。
+ *
+ * 标签不在这里重复写：`AdminNav` 从对应路由的 `meta.title` 去掉冻结前缀「管理中心 · 」得到，
+ * 这样标题只有一处真源，不会与 `document.title` 漂移。
+ */
+export const ADMIN_PAGES = ['adminCourses', 'adminStudents', 'adminSchedules', 'adminDocuments'] as const
+export type AdminPageName = (typeof ADMIN_PAGES)[number]
+
+/** 详情页（`adminBatch`）没有自己的入口，导航上归属「文档与批次」。 */
+export const ADMIN_DETAIL_PARENT: AdminPageName = 'adminDocuments'

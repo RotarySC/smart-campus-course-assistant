@@ -60,9 +60,11 @@ function display(d: Document): { label: string; variant: Variant } {
 
 const columns = [
   { key: 'name', label: S11.colFile },
+  // 上传时间是短值且折行后难以辨认（「2026-10-21 / 08:40」），标 nowrap；
+  // 类型文案较长（「PDF（含文字层）」），允许折行以保住 960 的表宽、不触发横向滚动。
   { key: 'type', label: S11.colType },
-  { key: 'size', label: S11.colSize, num: true },
-  { key: 'uploaded', label: S11.colUploadedAt, num: true },
+  { key: 'size', label: S11.colSize, num: true, nowrap: true },
+  { key: 'uploaded', label: S11.colUploadedAt, num: true, nowrap: true },
   { key: 'status', label: S11.colStatus },
   { key: 'actions', label: S11.colActions },
 ]
@@ -110,8 +112,11 @@ function rows(): Row[] {
         </Pill>
       </template>
       <template #cell-actions="{ row }">
-        <Btn size="sm" @click="$emit('preview', row.id)">{{ S11.previewText }}</Btn>
-        <Btn v-if="row.cleanupRetryable" size="sm" @click="$emit('retryCleanup', row.id)">{{ S11.retryCleanup }}</Btn>
+        <!-- 两个按钮必须横排：`.row--nowrap` 防止窄列里竖着堆（同学习计划表格的处理）。 -->
+        <div class="row row--nowrap">
+          <Btn size="sm" @click="$emit('preview', row.id)">{{ S11.previewText }}</Btn>
+          <Btn v-if="row.cleanupRetryable" size="sm" @click="$emit('retryCleanup', row.id)">{{ S11.retryCleanup }}</Btn>
+        </div>
       </template>
     </DataTable>
   </div>

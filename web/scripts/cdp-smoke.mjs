@@ -634,6 +634,58 @@ async function main() {
         const stillAbsent = !(await bodyText()).includes(uiCode)
         check('S10 取消后未创建课程（列表无该代码）', stillAbsent)
         savePng('pages-admin-courses.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+
+        // ---- 8.6.1 管理中心二级导航：4 个管理页都必须能在应用内到达 ----
+        // 此前顶栏只有「管理中心」一个入口（落到 /admin/courses），另外三页只能手输 URL。
+        // 选择器限定在**卡片内的 nav**：顶栏一级导航与底部标签栏也指向 /admin/*，不限定会混淆。
+        const ADMIN_NAV_SCOPE = '.card__body nav a'
+        const adminLinks = await evaluate(`(() => [...document.querySelectorAll(${JSON.stringify(ADMIN_NAV_SCOPE)})]
+          .map((a) => ({ label: a.textContent.trim(), href: a.getAttribute('href'), current: a.getAttribute('aria-current') })))()`)
+        check(
+          '管理中心二级导航 4 项齐全',
+          Array.isArray(adminLinks) && adminLinks.length === 4 && adminLinks.every((l) => l.label && l.href),
+          JSON.stringify(adminLinks?.map((l) => l.label)),
+        )
+        check(
+          '二级导航当前项标记（课程管理 aria-current=page）',
+          adminLinks?.find((l) => l.href === '/admin/courses')?.current === 'page',
+        )
+        /** 点二级导航里的某一项（限定卡片内的 nav）。 */
+        const clickAdminLink = async (label) => {
+          const ok = await evaluate(`(() => {
+            const a = [...document.querySelectorAll(${JSON.stringify(ADMIN_NAV_SCOPE)})].find((x) => x.textContent.trim() === ${JSON.stringify(label)});
+            if (!a) return false;
+            a.click();
+            return true;
+          })()`)
+          await sleep(900)
+          return ok
+        }
+        for (const [label, path] of [
+          ['学生账号', '/admin/students'],
+          ['课表维护', '/admin/schedules'],
+          ['文档与批次', '/admin/documents'],
+        ]) {
+          const clicked = await clickAdminLink(label)
+          let landed = await evaluate('location.pathname')
+          try {
+            landed = await waitFor(async () => {
+              const p = await evaluate('location.pathname')
+              return p === path ? p : false
+            }, { label: `二级导航 → ${path}`, timeoutMs: 8_000 })
+          } catch {
+            /* 保留实际路径用于断言失败信息 */
+          }
+          const current = await evaluate(`(() => {
+            const a = [...document.querySelectorAll(${JSON.stringify(ADMIN_NAV_SCOPE)})].find((x) => x.getAttribute('aria-current') === 'page');
+            return a ? a.getAttribute('href') : null;
+          })()`)
+          check(`二级导航「${label}」→ ${path}`, clicked && landed === path, `${landed}`)
+          check(`二级导航「${label}」标记为当前页`, current === path, String(current))
+        }
+        await clickAdminLink('课程管理')
+        await waitPath('/admin/courses')
+        savePng('pages-admin-students.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
       }
       // 8.7 最终控制台复查
       await sleep(300)
