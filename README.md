@@ -12,7 +12,7 @@ Vue 3 + TypeScript 前端，FastAPI + SQLAlchemy(async) + MySQL 8.4 后端。助
 | 身份与会话 | 登录、**自助注册**（`POST /api/v1/auth/register`，注册即登录、固定学生角色）、Bearer 会话、登出即失效；学生与管理员两种角色 |
 | 课表 | 本人课程与课表查询，跨度 ≤ 31 天 |
 | 学习计划 | 计划列表/详情、对话内生成草稿、幂等保存（写入许可 + 容量槽） |
-| 资料问答 | 上传（拖拽或选择文件）→ 解析 → 分块 → 向量 → 整批发布 → 检索；回答带可展开引用，文档删除后引用返回 410；「全库尚无资料」与「本次没检索到」是两个不同状态；管理员预览抽取文本不可用时返回 state（`processing` / `parse_failed`）并说明原因，而不是一律 404 |
+| 资料问答 | 上传（拖拽或选择文件）→ 解析 → 分块 → 向量 → 整批发布 → 检索；回答带可展开引用，文档删除后引用返回 410；「全库尚无资料」与「本次没检索到」是两个不同状态，空库时提示联系管理员提供材料；课程名对应多门同名课程时先补问（列出课程代码、不检索），资料说法冲突时并列依据并提示可能不一致；管理员预览抽取文本不可用时返回 state（`processing` / `parse_failed`）并说明原因，而不是一律 404 |
 | 助手对话 | `POST /api/v1/chat/stream`：六类 SSE 事件、工具调用与回执、对话内保存 |
 | 管理端 | 课程、学生、课表、资料批次与发布的增删改查；四个管理页经二级导航互相直达 |
 | 运行统计 | `GET /api/v1/admin/stats/overview`（管理员）：按学校时区自然日窗口统计回答终止分类（succeeded／empty／failed／cancelled／timeout／limit_reached／auth_expired／pending）与计划、草稿、引用、工具、批次、幂等命中、写入核实计数；另给 worker 任务积压快照（pending/running/retry_wait/failed）与清理达标情况（succeeded/failed/超 5 分钟目标数）；只读聚合，不含正文 |
@@ -93,8 +93,9 @@ worker 常驻模式**启动即做一次**孤立文件巡检（`--no-startup-swee
 
 ## 验证状态
 
-- 后端 **282 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed；2026-10-27 收尾全量一次跑出 282 passed / 585 s）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。AI 容量槽选槽对 `SKIP LOCKED` 的瞬时假满做毫秒级有界重试：先在无锁查询里判断是否真满（真满立即 429、不排队），仍有空闲才重试最多 6 次（`test_assistant_api.py` 3 例守护）。资料链路的解析/向量参数摘要（分块 + Embedding Provider/维度）与向量空间都按版本行冻结：改 `CCA_CHUNK_SIZE`/`CCA_CHUNK_OVERLAP`/`CCA_EMBEDDING_DIM` 后，旧参数构建的版本会在发布/切版时以 `PROCESSING_FAILED` 拒绝（需重建），`CCA_VECTOR_SPACE` 在入库中途变化也不会把向量写进别的空间（`test_knowledge_publish.py` 3 例守护）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
+- 后端 **293 个用例**在真实 MySQL 上全绿（0 skipped / 0 xfailed；2026-10-27 收尾全量 292 passed + 1 例 `pymysql 2003`（Docker 端口映射瞬时断连，用例语义无关）——单例重跑即过；同一天的前一轮全量 282 passed 无噪声）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。AI 容量槽选槽对 `SKIP LOCKED` 的瞬时假满做毫秒级有界重试：先在无锁查询里判断是否真满（真满立即 429、不排队），仍有空闲才重试最多 6 次（`test_assistant_api.py` 3 例守护）。资料链路的解析/向量参数摘要（分块 + Embedding Provider/维度）与向量空间都按版本行冻结：改 `CCA_CHUNK_SIZE`/`CCA_CHUNK_OVERLAP`/`CCA_EMBEDDING_DIM` 后，旧参数构建的版本会在发布/切版时以 `PROCESSING_FAILED` 拒绝（需重建），`CCA_VECTOR_SPACE` 在入库中途变化也不会把向量写进别的空间（`test_knowledge_publish.py` 3 例守护）。测试环境断连噪声由 `backend/tests/db_retry.py` 做有界重试（只对连接层错误码、默认 4 次指数退避，约束冲突/语法错误/断言失败一律不重试，口径 `test_db_retry.py` 14 例守护）：覆盖 fixture 清表与 `client` 预热连接；用例内部新开的短连接仍可能偶发 1 例（本次 1/293），属环境噪声。
 - 对话入口去空白后非空才接受（全角空格同样 422）；历史超过 30k 字符预算时只保留最近完整问答对，并在 SSE `status.code=CONTEXT_TRUNCATED` 后于界面上给出可见提示（FR-CHAT-001）。重启恢复有整链路用例：入库/删除清理中途"进程被杀"（running + 租约过期）后由新 worker 接管，结果只发布一次、清理完成、已删文档不复活（`test_worker_restart.py` 2 例）。
+- 同名课程先补问（FR-QA-004）：问题里的课程名在课程目录里对应 ≥2 门课（不同课程代码）时，助手先列出课程代码请用户指明，**不发起检索、不混答**；用户直接报课程代码则视为已消歧（`backend/app/modules/assistant/clarify.py`，`test_assistant_clarify.py` 11 例守护）。资料未按课程打标签时的课程级过滤是 SRS 明确豁免项，实现不假装能做。
 - 批次发布要么整批可见、要么整批补偿：发布任务终态失败（重试预算耗尽或不可重试，如 `VECTOR_SPACE_MISMATCH`）会把批次推进 `compensating`→`failed` 并清理，不会永久停在 `processing`；发布事务内若发现文档已被并发删除，整批转补偿而绝不把 `removed` 文档改回 `shared`；未发布批次删掉其中一份文档时当场整批补偿（`test_knowledge_publish.py` 3 例守护）。
 - 日志默认脱敏：SQLAlchemy 的 `[parameters: …]` / `[SQL: …]` 参数块与 `password=`、`token=`、`Bearer …`、`Set-Cookie` 等凭据形态在 formatter 之前替换为 `<redacted>`（`backend/app/shared/log_redaction.py`，含异常 traceback，9 例守护）。审计记录带请求级耗时，403/404 权限拒绝写 `access.denied` 审计行。
 - 契约 `contracts/openapi_v0.1.json`：**40 个操作（公共 36）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）与 `GET /api/v1/admin/stats/overview`（运行统计聚合）。
@@ -103,6 +104,7 @@ worker 常驻模式**启动即做一次**孤立文件巡检（`--no-startup-swee
   headless 浏览器冒烟 **40/40 项**（登录页两栏与注册 Tab、SSE 文本流入、引用卡展开、助手输入条改版与整页单滚动）+ 逐屏走查 **69/69 项**
   （课表统计条图标与时间轴导轨 / 学习计划 / 登出菜单 / 管理端 4 页与二级导航可达性 / 文档页拖放区：形态、拖入态、拖入即发出上传请求（拦截后中止，不写库） / 表格 `caption` 视觉隐藏但仍作表格的可访问名 / 助手页一体式输入条：圆形发送按钮、悬停冒泡提示、对话再长也不动、右栏悬浮卡），控制台 0 error。
 - 自助注册闭环另有浏览器级用例 **21/21 项**：空表单不发请求、密码不一致就地报错、注册即登录、`role=student`、重复账号 409 就近回填、退出后可用新账号登录。
+- AT-31 安全与可访问性另有浏览器级用例 **15/15 项**（`node scripts/cdp-smoke.mjs --at31`，输出见 `verification/evidence/at31-cdp.log`）：只用键盘 Tab/Enter 完成登录与提问（焦点环 solid/3px）、`<script>` 与 `javascript:` 文本按纯文本渲染且无弹窗/无注入、375×667 与 767×1024 窄屏核心流程零横向溢出。上传侧的非法扩展名/伪造签名由 `test_knowledge_upload.py` 拒绝。
 - 检索空结果分两态：`tool_end.data.corpus_empty`（仅 `search_course_docs` 成功时出现）把「全库尚无资料」与「本次没检索到」分开；前者渲染 `inbox` 空态「管理员还没有上传可检索的课程资料。」而非「换个问法」。后端由 pytest 覆盖，前端由 mock 脚本 **9/9 项**覆盖。
 - 固定 AI 评测（50 条主体 + 16 条对抗）已在确定性 Provider 基线上跑过：有依据答案 + 引用联合通过率 **0.60**（门槛 0.90）、未覆盖问题 0/10、课表 9/10、计划 10/10、权限/注入/冲突 13/13；写入正确与隔离通过。**当前结论是「基线不达标」**：确定性 Hash Embedding 下「有依据」与「未覆盖」的检索分数区间重叠（实测 top 分 0.21–0.55 vs 0.19–0.36），**靠阈值分不开**，需真实 Embedding（TBD-04）后重标；相关性阈值已做成配置项 `CCA_RETRIEVAL_MIN_SCORE`，但**默认关闭（0）**：实测短查询相似度可低于 0.05，任何非零默认值都会误杀正常命中，须等真实 Embedding（TBD-04）评测标定后再打开。多来源判定类问题现在会并列依据并提示「可能不一致」（FR-QA-004 的冲突半边）。
 - 性能实测（本机单进程 + 真实 MySQL，200 份已发布文档、20 个在线用户 / 5 并发助手）：普通读取 **1200 次 100% 成功，P50/P95/P99 = 194/542/1226 ms**；助手 **120 个请求完成率 100%**（首状态 P95 470 ms、首段实质回答 P95 5.5 s）；1 MiB 内文本入库 **30 份 P95 4.7 s**；6 并发助手时 5 个进入执行、第 6 个 429 `CAPACITY_LIMITED`；模型/检索/向量库三类依赖故障下，课表、计划与课程管理仍全部可用。以上是**单机回环**数据，不含真实网络与真实模型时延。
