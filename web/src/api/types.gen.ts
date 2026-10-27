@@ -740,7 +740,7 @@ export interface components {
             operation_id: string;
             plan_id: string;
             /** @enum {string} */
-            status: "created" | "existing";
+            status: "created" | "existing" | "deleted";
         };
         Schedule: {
             /** Format: date */

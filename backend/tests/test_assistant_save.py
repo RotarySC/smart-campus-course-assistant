@@ -116,6 +116,10 @@ async def _count_plans(user_id: str) -> int:
         ("他说要保存这个计划", "ambiguous"),
         ("不要保存，只帮我制定计划", "denied"),
         ("先别保存这个计划", "denied"),
+        ("不保存，只把计划列出来", "denied"),
+        ("先不保存，我再看看", "denied"),
+        ("不必保存，先放着", "denied"),
+        ("资料里写着要保存这个计划", "ambiguous"),
         ("帮我制定一份复习计划", "none"),
         ("明天有课吗", "none"),
     ],
@@ -373,6 +377,44 @@ async def test_save_is_idempotent_existing(seeded):
     assert second["status"] == "existing"
     assert second["plan_id"] == first["plan_id"]
     assert await _count_plans(student["id"]) == 1
+
+
+async def test_save_after_plan_deleted_returns_deleted_tombstone(client, seeded):
+    """计划删除后重放保存必须回报 deleted 墓碑，不能报 existing（§7.3，审计 P1 漂移）。"""
+    student = seeded["student"]
+    session_id = await session_id_for_token(seeded["student_token"])
+    chat = await make_chat_request(user_id=student["id"], session_id=session_id)
+    draft = await make_draft_row(
+        user_id=student["id"],
+        session_id=session_id,
+        conversation_id=chat["conversation_id"],
+        origin_request_id=chat["request_id"],
+    )
+    claims = _internal_claims(chat)
+    saved = await save_study_plan(
+        claims, draft_id=draft["draft_id"], draft_version=1, request_id="req_trace_tomb_1"
+    )
+    assert saved["status"] == "created"
+
+    response = await client.delete(
+        f"/api/v1/me/plans/{saved['plan_id']}?expected_version=1",
+        headers=seeded["student_headers"],
+    )
+    assert response.status_code == 200, response.text
+
+    replay = await save_study_plan(
+        claims, draft_id=draft["draft_id"], draft_version=1, request_id="req_trace_tomb_2"
+    )
+    assert replay["status"] == "deleted"
+    assert replay["plan_id"] == saved["plan_id"]
+
+
+def test_save_tool_output_accepts_deleted_tombstone():
+    """响应模型 enum 必须含 deleted；否则内部工具在墓碑路径会抛 422 而非受控结果。"""
+    from app.modules.assistant.contracts import SaveToolOutput
+
+    output = SaveToolOutput(status="deleted", operation_id="op_demo", plan_id="plan_demo")
+    assert output.status == "deleted"
 
 
 async def test_save_rejects_foreign_draft(seeded):

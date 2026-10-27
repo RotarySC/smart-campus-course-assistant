@@ -154,7 +154,8 @@ class SaveToolInput(_Model):
 
 
 class SaveToolOutput(_Model):
-    status: Literal["created", "existing"]
+    # deleted：计划已被删除，重放保存必须回报墓碑（§7.3），不能伪装成 existing
+    status: Literal["created", "existing", "deleted"]
     operation_id: OPERATION_ID
     plan_id: ID
 
