@@ -2,12 +2,14 @@
 
 - ``gateway``：``ModelGateway`` 契约与动作/上下文数据结构；
 - ``deterministic``：默认的确定性 Provider（测试/演示，非生产）；
-- ``real``：真实供应商 Adapter 占位（TBD-04 未冻结，未配置时返回 ``MODEL_UNAVAILABLE``）。
+- ``real``：真实供应商 Adapter 占位（TBD-04 未冻结，未配置时返回 ``MODEL_UNAVAILABLE``）；
+- ``factory``：按 ``CCA_MODEL_*`` 配置装配 Provider（默认确定性）。
 """
 
 from __future__ import annotations
 
 from app.adapters.model.deterministic import DeterministicProvider
+from app.adapters.model.factory import build_model_provider
 from app.adapters.model.gateway import (
     Answer,
     DraftIntent,
@@ -39,4 +41,5 @@ __all__ = [
     "RealProviderAdapter",
     "ToolCall",
     "ToolExecutionRecord",
+    "build_model_provider",
 ]

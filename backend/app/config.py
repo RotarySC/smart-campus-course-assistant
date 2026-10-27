@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from app.shared.timezones import resolve_timezone
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -63,6 +63,23 @@ class Settings(BaseSettings):
         default="dev-delegation-key-not-for-production", alias="CCA_DELEGATION_SIGNING_KEY"
     )
 
+    # ---- 助手模型（TBD-04 骨架：真实供应商尚未冻结，默认走确定性 Provider）----
+    # 供应商协议名，不是厂商名：openai-compatible 覆盖一切兼容 chat/completions 的服务。
+    model_provider: Literal["deterministic", "openai-compatible"] = Field(
+        default="deterministic", alias="CCA_MODEL_PROVIDER"
+    )
+    model_base_url: str = Field(default="", alias="CCA_MODEL_BASE_URL")
+    model_api_key: str = Field(default="", alias="CCA_MODEL_API_KEY")
+    model_name: str = Field(default="", alias="CCA_MODEL_NAME")
+    model_temperature: float = Field(
+        default=0.3, ge=0.0, le=2.0, alias="CCA_MODEL_TEMPERATURE"
+    )
+    model_max_tokens: int = Field(default=2048, ge=1, le=32768, alias="CCA_MODEL_MAX_TOKENS")
+    model_timeout_seconds: float = Field(
+        default=30.0, ge=1.0, le=600.0, alias="CCA_MODEL_TIMEOUT_SECONDS"
+    )
+    model_max_retries: int = Field(default=1, ge=0, le=3, alias="CCA_MODEL_MAX_RETRIES")
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -86,6 +103,34 @@ class Settings(BaseSettings):
         if not value.startswith(("mysql+aiomysql://", "mysql+asyncmy://", "mysql+pymysql://")):
             raise ValueError("DATABASE_URL 必须是 MySQL 连接串（mysql+aiomysql://…）")
         return value
+
+    @model_validator(mode="after")
+    def _validate_model_config(self) -> "Settings":
+        """真实供应商必须三件套齐全，且地址是 http(s)；缺一项就启动失败。"""
+        if self.model_provider == "deterministic":
+            return self
+        missing = [
+            key
+            for key, value in (
+                ("CCA_MODEL_BASE_URL", self.model_base_url),
+                ("CCA_MODEL_API_KEY", self.model_api_key),
+                ("CCA_MODEL_NAME", self.model_name),
+            )
+            if not value.strip()
+        ]
+        if missing:
+            raise ValueError(
+                f"CCA_MODEL_PROVIDER={self.model_provider} 时必须同时配置："
+                + "、".join(missing)
+            )
+        if not self.model_base_url.startswith(("http://", "https://")):
+            raise ValueError("CCA_MODEL_BASE_URL 必须是 http:// 或 https:// 开头的地址")
+        return self
+
+    @property
+    def model_configured(self) -> bool:
+        """是否配置了真实供应商（deterministic 恒为 False）。"""
+        return self.model_provider != "deterministic"
 
     @property
     def database_name(self) -> str:

@@ -48,6 +48,30 @@ cd backend
 | MCP server | 8102 | `/mcp`，私有 Streamable HTTP，三工具 |
 | MySQL | 33061 | 容器 `cca-mysql`，演示库 `cca` |
 
+## 配置项
+
+后端配置集中在 `backend/.env`（复制 `backend/.env.example` 后修改；进程环境变量优先于 `.env`），
+完整键集、默认值与注释都在该文件内。
+
+### 助手模型
+
+默认不接大模型：`CCA_MODEL_PROVIDER=deterministic` 走关键词规则 Provider —— 离线、可复现，**不是**生产 AI 能力。
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `CCA_MODEL_PROVIDER` | `deterministic` | `deterministic` 或 `openai-compatible`（兼容 `chat/completions` 的任意厂商） |
+| `CCA_MODEL_BASE_URL` | 空 | 供应商地址，只接受 `http(s)://` 开头 |
+| `CCA_MODEL_API_KEY` | 空 | 供应商密钥，只放本机 `.env` 或部署环境变量 |
+| `CCA_MODEL_NAME` | 空 | 模型名，原样透传（如 `deepseek-chat`） |
+| `CCA_MODEL_TEMPERATURE` | `0.3` | 采样温度 0–2 |
+| `CCA_MODEL_MAX_TOKENS` | `2048` | 单次回复上限 1–32768 |
+| `CCA_MODEL_TIMEOUT_SECONDS` | `30` | 单次请求超时 1–600 |
+| `CCA_MODEL_MAX_RETRIES` | `1` | 网络/5xx 重试 0–3 |
+
+切 `openai-compatible` 时 `BASE_URL`、`API_KEY`、`NAME` 缺一项**服务启动即失败**；真实调用尚未实现，
+每个助手请求以 `503 MODEL_UNAVAILABLE`（「模型服务暂不可用」）显式失败，不会静默回退到确定性 Provider。
+`CCA_ASSISTANT_*` 那组预算键由进程环境变量读取，写进 `.env` 不生效。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -59,7 +83,7 @@ cd backend
 
 ## 验证状态
 
-- 后端 **194 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。
+- 后端 **205 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。
 - 契约 `contracts/openapi_v0.1.json`：**39 个操作（公共 35）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）。
 - 前端门禁全过：类型检查、SFC 编译（56 个 `.vue`）、10 项不变量、stylelint 分层纯度、OpenAPI 类型漂移、契约漂移、生产构建。
 - 端到端（真实四进程：公共/内部 API + MCP + worker）：接口链路 **32/32 步**（登录 → 课表 → 计划幂等/版本冲突 → SSE 三工具 → 引用展开 → 草稿保存 → 管理端增删改查）；

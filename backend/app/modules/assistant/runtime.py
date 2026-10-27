@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.adapters.mcp.client import McpToolClient, ToolExecutor
-from app.adapters.model.deterministic import DeterministicProvider
+from app.adapters.model.factory import build_model_provider
 from app.adapters.model.gateway import ModelGateway
 from app.modules.assistant.accept import AcceptResult, recover_stale_requests
 from app.modules.assistant.runner import Runner, RunnerDeps
@@ -28,7 +28,8 @@ logger = logging.getLogger("cca.assistant.runtime")
 @dataclass
 class Runtime:
     settings: AssistantSettings = field(default_factory=get_assistant_settings)
-    provider: ModelGateway = field(default_factory=DeterministicProvider)
+    # 按 CCA_MODEL_* 装配：默认确定性 Provider；配置了真实供应商则为占位 Adapter（显式失败）。
+    provider: ModelGateway = field(default_factory=build_model_provider)
     executor: ToolExecutor | None = None
 
     def __post_init__(self) -> None:
