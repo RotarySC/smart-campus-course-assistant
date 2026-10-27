@@ -1303,7 +1303,29 @@ async def handle_doc_cleanup(lease: TaskLease) -> None:
         version_ids = [v.id for v in versions]
         original_key = document.original_storage_key
 
-    # 先撤销引用并删除外部产物，再清空正文；失败则保留 cleanup 未完成并可重试。
+    # 1) 标记执行中：崩溃/失败会停在 running，而不是伪装成 succeeded。
+    async with uow() as tx:
+        row = (
+            await tx.session.execute(
+                select(Document).where(Document.id == document_id).with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is not None and row.cleanup_state != "succeeded":
+            row.cleanup_state = "running"
+            row.updated_at = to_db(now_utc())
+        await tx.commit()
+
+    # 2) 先删外部产物：失败直接抛出（任务按 STORAGE_UNAVAILABLE / 重试预算处理），
+    #    **不**在删除成功之前提交 succeeded（SRS FR-DOC-006「清理成功才报告完成」）。
+    #    删除本身幂等（缺文件 / 缺前缀 / 缺命名空间都按 0 处理），重试安全。
+    for attempt_row in attempts:
+        fs.delete_prefix(attempt_row.file_prefix)
+        await vs.barrier(attempt_row.vector_namespace, 2**31 - 1)
+        await vs.delete_namespace(attempt_row.vector_namespace)
+    if original_key:
+        fs.delete(original_key)
+
+    # 3) 再在单个事务里提交「已清理」与元数据收尾。
     now = to_db(now_utc())
     async with uow() as tx:
         await tx.session.execute(
@@ -1359,22 +1381,6 @@ async def handle_doc_cleanup(lease: TaskLease) -> None:
         )
         await tx.commit()
 
-    for attempt in attempts:
-        try:
-            fs.delete_prefix(attempt.file_prefix)
-        except StorageError:
-            logger.warning("cleanup file prefix failed prefix=%s", attempt.file_prefix)
-        try:
-            await vs.barrier(attempt.vector_namespace, 2**31 - 1)
-            await vs.delete_namespace(attempt.vector_namespace)
-        except VectorStoreError:
-            logger.warning("cleanup vector namespace failed namespace=%s", attempt.vector_namespace)
-    if original_key:
-        try:
-            fs.delete(original_key)
-        except StorageError:
-            logger.warning("cleanup original failed key=%s", original_key)
-
 
 async def handle_batch_cleanup(lease: TaskLease) -> None:
     batch_id = lease.claimed.object_id
@@ -1417,6 +1423,14 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
             .scalars()
             .all()
         ) if versions else []
+
+    # 先删外部产物：失败直接抛出（任务重试），不在删除成功之前把批次标成已补偿。
+    for attempt_row in attempts:
+        fs.delete_prefix(attempt_row.file_prefix)
+        await vs.barrier(attempt_row.vector_namespace, 2**31 - 1)
+        await vs.delete_namespace(attempt_row.vector_namespace)
+    for document_row in documents:
+        fs.delete(document_key(document_row.id))
 
     now = to_db(now_utc())
     async with uow() as tx:
@@ -1474,26 +1488,6 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
             request_id="worker",
         )
         await tx.commit()
-
-    if batch is not None:
-        for attempt in attempts:
-            try:
-                fs.delete_prefix(attempt.file_prefix)
-            except StorageError:
-                logger.warning("batch cleanup file prefix failed prefix=%s", attempt.file_prefix)
-            try:
-                await vs.barrier(attempt.vector_namespace, 2**31 - 1)
-                await vs.delete_namespace(attempt.vector_namespace)
-            except VectorStoreError:
-                logger.warning(
-                    "batch cleanup vector namespace failed namespace=%s",
-                    attempt.vector_namespace,
-                )
-        for document in documents:
-            try:
-                fs.delete(document_key(document.id))
-            except StorageError:
-                logger.warning("batch cleanup original failed document=%s", document.id)
 
 
 HANDLERS = {

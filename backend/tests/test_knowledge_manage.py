@@ -410,3 +410,55 @@ async def test_delete_validation(client, seeded):
         headers=seeded["admin_headers"],
     )
     assert missing.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# 清理失败不得先报成功（FR-DOC-006 / SRS §7.2「清理成功才报告完成」）
+# --------------------------------------------------------------------------- #
+async def test_cleanup_failure_is_not_reported_as_success(client, seeded, db, monkeypatch):
+    from app.adapters.filestore.local import FileStore, StorageError
+    from app.modules.knowledge.adapters import document_key
+
+    document_id, _ = await _publish_document(
+        client, seeded, "清理失败.txt", "清理失败的资料内容。"
+    )
+    document = await get_document_row(document_id)
+    original_key = document_key(document_id)
+    assert FileStore().exists(original_key)
+
+    deleted = await client.delete(
+        f"{API}/admin/documents/{document_id}?expected_version={int(document.version)}",
+        headers=seeded["admin_headers"],
+    )
+    assert deleted.status_code == 202
+
+    # 故障注入：外部产物删不掉（原文件 = 最后一步，前缀删除成功也会被它挡住）
+    def boom(self, prefix: str) -> int:
+        raise StorageError("injected cleanup failure")
+
+    monkeypatch.setattr(FileStore, "delete_prefix", boom)
+    await worker_drain()
+
+    document = await get_document_row(document_id)
+    assert document.visibility == "removed"  # 已不可见（不可见标记先行，不受清理失败影响）
+    assert document.cleanup_state != "succeeded"  # 核心：不得先报成功
+    assert document.processing_state != "deleted"
+    assert FileStore().exists(original_key)  # 产物确实还在，状态与事实一致
+
+    # 依赖恢复 + 退避到期 → 才允许报 succeeded
+    async with db() as session:
+        await session.execute(
+            text(
+                "UPDATE background_tasks SET next_run_at = UTC_TIMESTAMP(6) "
+                "WHERE object_id = :id AND state = 'retry_wait'"
+            ),
+            {"id": document_id},
+        )
+        await session.commit()
+    monkeypatch.undo()
+    await worker_drain()
+
+    document = await get_document_row(document_id)
+    assert document.cleanup_state == "succeeded"
+    assert document.processing_state == "deleted"
+    assert not FileStore().exists(original_key)
