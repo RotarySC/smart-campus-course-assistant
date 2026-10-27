@@ -113,6 +113,7 @@ async def make_chat_request(
     lease_seconds: int = 30,
     cancel_requested: bool = False,
     message: str = "明天有课吗",
+    instruction_class: str | None = "explicit",
 ) -> dict[str, Any]:
     """直接造一条 ChatRequest（模拟已被 accept 的轮次）。"""
     now = now_utc()
@@ -151,6 +152,8 @@ async def make_chat_request(
                 fence=fence,
                 lease_until=to_db(now + timedelta(seconds=lease_seconds)),
                 terminal_reason=None,
+                # 默认模拟"服务端已判为明确保存指令"；负向用例显式传 denied/ambiguous/none
+                instruction_class=instruction_class,
                 plan_id=None,
                 operation_id=None,
             )

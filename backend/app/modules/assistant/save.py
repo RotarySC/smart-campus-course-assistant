@@ -347,6 +347,10 @@ async def _validate_execution_requests(
         raise ApiError("SAVE_NOT_AUTHORIZED")
     if current.deadline_at is not None and current.deadline_at <= now:
         raise ApiError("EXECUTION_TIMEOUT")
+    # 保存许可的语义前置（SRS FR-PLAN-003 / 详细设计 §7.1）：
+    # 只有服务端对本轮用户原文明确定为 explicit 才允许写入；模型/调用方都不能声明。
+    if str(getattr(current, "instruction_class", "") or "") != "explicit":
+        raise ApiError("SAVE_NOT_AUTHORIZED", message="保存许可不成立：缺少本轮明确保存指令")
 
 
 async def _lock_save_slots(

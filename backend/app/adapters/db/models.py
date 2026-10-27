@@ -129,6 +129,10 @@ class ChatRequest(Base):
     fence = Column(BigInteger, nullable=False, default=1)
     lease_until = Column(DateTime, nullable=True)
     terminal_reason = Column(String(64), nullable=True)
+    # 服务端对「用户这条消息是否构成明确保存指令」的分类（none/explicit/ambiguous/denied）。
+    # 由 accept 依据用户原文写入，runner 在判定可保存时升级为 explicit；
+    # 保存事务据此复核（fail-closed），模型与调用方都不能自行声明。
+    instruction_class = Column(String(16), nullable=True)
     plan_id = Column(String(64), nullable=True)
     operation_id = Column(String(64), nullable=True)
 

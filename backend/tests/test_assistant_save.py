@@ -261,6 +261,34 @@ async def test_denied_instruction_keeps_draft_unsaved(client, seeded, internal_u
 # --------------------------------------------------------------------------- #
 # 竞态与上限（直接调用服务端保存事务）
 # --------------------------------------------------------------------------- #
+async def test_save_rejected_when_instruction_not_explicit(seeded):
+    """审计 P0-①：只凭 plan:save 委派不足以落库，本轮必须被判为 explicit。"""
+    student = seeded["student"]
+    session_id = await session_id_for_token(seeded["student_token"])
+    for instruction_class in ("denied", "ambiguous", "none", None):
+        chat = await make_chat_request(
+            user_id=student["id"],
+            session_id=session_id,
+            instruction_class=instruction_class,
+        )
+        draft = await make_draft_row(
+            user_id=student["id"],
+            session_id=session_id,
+            conversation_id=chat["conversation_id"],
+            origin_request_id=chat["request_id"],
+        )
+        claims = _internal_claims(chat)
+        with pytest.raises(ApiError) as excinfo:
+            await save_study_plan(
+                claims,
+                draft_id=draft["draft_id"],
+                draft_version=1,
+                request_id="req_trace_gate",
+            )
+        assert excinfo.value.code == "SAVE_NOT_AUTHORIZED"
+        assert await _count_plans(student["id"]) == 0
+
+
 async def test_cancelled_authorization_fails_with_zero_new(seeded):
     student = seeded["student"]
     session_id = await session_id_for_token(seeded["student_token"])

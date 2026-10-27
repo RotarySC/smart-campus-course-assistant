@@ -26,6 +26,7 @@ from app.adapters.db.models import AICapacitySlot, ChatRequest, ConversationStat
 from app.adapters.db.uow import uow
 from app.config import get_settings
 from app.modules.assistant.contracts import ChatInput, ChatState
+from app.modules.assistant.drafts import classify_direct_instruction
 from app.modules.assistant.settings import get_assistant_settings
 from app.modules.operations.service import append_outbox
 from app.shared.clock import isoformat, now_utc, to_db
@@ -192,6 +193,8 @@ async def accept_request(
             fence=1,
             lease_until=to_db(now + timedelta(seconds=settings.lease_seconds)),
             terminal_reason=None,
+            # 服务端对用户原文的保存意图分类（模型意见只作候选，不能写这一列）
+            instruction_class=classify_direct_instruction(command.message, draft_ready=False),
             plan_id=None,
             operation_id=None,
         )

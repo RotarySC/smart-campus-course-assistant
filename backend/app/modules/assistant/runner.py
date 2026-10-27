@@ -342,6 +342,16 @@ class Runner:
             return ("failed", revoked, revoked)
         return None
 
+    async def _mark_instruction_class(self, value: str) -> None:
+        """把服务端保存意图判定写回本轮请求（eb 保存事务的 fail-closed 依据）。"""
+        async with uow() as tx:
+            await tx.session.execute(
+                update(ChatRequest)
+                .where(ChatRequest.id == self.request_id)
+                .values(instruction_class=value[:16])
+            )
+            await tx.commit()
+
     async def _session_invalid(self) -> str | None:
         """复检会话/账号是否仍可用（FR-AUTH-002：发送后续业务事件前复查）。
 
@@ -479,6 +489,9 @@ class Runner:
         )
         # 保存：模型候选 + 服务端按 §7.1 规则判定 + 必需依据全部 satisfied
         decision = classify_direct_instruction(self.accept.message, draft_ready=True)
+        # 把判定结果持久化到本轮请求（审计 P0-①）：保存事务据此 fail-closed 复核，
+        # 调用方无法凭"我有 plan:save 委派"就落库。
+        await self._mark_instruction_class(decision)
         if not intent.save_candidate or decision != "explicit":
             if decision in ("ambiguous", "denied"):
                 await self.channel.publish(
