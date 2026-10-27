@@ -83,7 +83,7 @@ cd backend
 
 ## 验证状态
 
-- 后端 **211 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。
+- 后端 **215 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。
 - 契约 `contracts/openapi_v0.1.json`：**39 个操作（公共 35）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）。
 - 前端门禁全过：类型检查、SFC 编译（56 个 `.vue`）、10 项不变量、stylelint 分层纯度、OpenAPI 类型漂移、契约漂移、生产构建。
 - 端到端（真实四进程：公共/内部 API + MCP + worker）：接口链路 **32/32 步**（登录 → 课表 → 计划幂等/版本冲突 → SSE 三工具 → 引用展开 → 草稿保存 → 管理端增删改查）；
