@@ -136,3 +136,13 @@ async def test_cleanup_over_target_is_recorded(client, seeded, db):
     assert audit.result == "success"
     assert audit.metadata_json["slow_cleanup"] is True
     assert audit.metadata_json["cleanup_seconds"] >= 600
+
+
+def test_worker_cli_exposes_orphan_sweep_flag():
+    """巡检必须能从 worker CLI 触发（运维入口存在性）。"""
+    from app.entrypoints.worker import build_parser
+
+    parser = build_parser()
+    dests = {action.dest for action in parser._actions}
+    assert "sweep_orphans" in dests
+    assert "sweep_min_age" in dests
