@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -22,6 +23,14 @@ import pytest_asyncio
 from sqlalchemy import text
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+# 与本文件同目录的辅助模块（tests/ 不是包，显式把目录放进 sys.path）。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from db_retry import (  # noqa: E402 - 需在固定环境变量前完成 sys.path 调整
+    run_with_retry,
+    subprocess_error_is_retryable,
+    wait_for_database,
+)
 
 # 必须在导入 app 之前固定环境变量（设置模块缓存）。
 os.environ.setdefault(
@@ -63,47 +72,72 @@ TABLES = [
 ]
 
 
+def _alembic_upgrade_head() -> None:
+    """执行 alembic upgrade head；连接层失败按文本判定后重试（见 tests/db_retry.py）。"""
+    import time
+
+    env = dict(os.environ)
+    attempts = 4
+    delay = 0.5
+    last = ""
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            cwd=str(BACKEND_DIR),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        last = f"alembic upgrade 失败:\n{result.stdout}\n{result.stderr}"
+        if attempt >= attempts or not subprocess_error_is_retryable(result.stderr):
+            raise RuntimeError(last)
+        time.sleep(delay)
+        delay *= 2
+    raise RuntimeError(last)  # pragma: no cover
+
+
 @pytest.fixture(scope="session", autouse=True)
 def migrated_database() -> Any:
-    """会话级：空库执行 alembic upgrade head（真实 MySQL）。"""
-    env = dict(os.environ)
-    result = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"],
-        cwd=str(BACKEND_DIR),
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"alembic upgrade 失败:\n{result.stdout}\n{result.stderr}")
+    """会话级：确认库可连接，然后执行 alembic upgrade head（真实 MySQL）。"""
+    asyncio.run(wait_for_database(what="migrated_database"))
+    _alembic_upgrade_head()
     yield
     from app.adapters.db.engine import dispose_engine
-
-    import asyncio
 
     asyncio.run(dispose_engine())
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_database(migrated_database: Any):
-    """每个用例前清表并恢复控制记录（23 表，FK 检查关闭）。"""
+    """每个用例前清表并恢复控制记录（23 表，FK 检查关闭）。
+
+    连接层瞬时错误（2003/2013/1040 等）会重试；TRUNCATE 是 DDL，重跑幂等，故整段
+    可以安全重放。业务错误与断言错误不重试，照常抛出。
+    """
     from app.adapters.db.engine import get_engine
 
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
-        for table in TABLES:
-            await conn.execute(text(f"TRUNCATE TABLE `{table}`"))
-        await conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
-        await conn.execute(
-            text(
-                "INSERT INTO corpus_control (singleton_id, revision, publish_frozen, updated_at) "
-                "VALUES (1, 0, TRUE, UTC_TIMESTAMP(6))"
+
+    async def _prepare() -> None:
+        async with engine.begin() as conn:
+            await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+            for table in TABLES:
+                await conn.execute(text(f"TRUNCATE TABLE `{table}`"))
+            await conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO corpus_control (singleton_id, revision, publish_frozen, updated_at) "
+                    "VALUES (1, 0, TRUE, UTC_TIMESTAMP(6))"
+                )
             )
-        )
-        await conn.execute(
-            text("INSERT INTO ai_capacity_slots (slot_no) VALUES (1),(2),(3),(4),(5)")
-        )
+            await conn.execute(
+                text("INSERT INTO ai_capacity_slots (slot_no) VALUES (1),(2),(3),(4),(5)")
+            )
+
+    await run_with_retry(_prepare, what="clean_database")
     yield
 
 
