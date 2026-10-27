@@ -104,7 +104,10 @@ async def _validate_execution(
     if int(chat.fence) != int(claims.fence):
         raise ApiError("FORBIDDEN", message="执行代次已失效")
     if chat.cancel_requested:
-        raise ApiError("CANCELLED", message="本轮已取消", status_code=409)
+        # 用已登记码（IF-010 同码同义）：本轮已取消 → 工具调用无权继续。
+        # 原实现抛的 "CANCELLED" 不在 ERROR_STATUS / 契约 enum，message 会回落
+        # 成「服务内部错误」，且经 MCP 直通出去（审计 P1）。
+        raise ApiError("FORBIDDEN", message="本轮已取消")
     if chat.state not in ACTIVE_STATES:
         raise ApiError("FORBIDDEN", message="本轮已结束")
     if chat.deadline_at is not None and chat.deadline_at <= now:
