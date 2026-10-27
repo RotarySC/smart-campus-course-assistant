@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="只跑一次孤立文件巡检（设计 §10.1）后退出，不处理任务队列",
     )
     parser.add_argument(
+        "--no-startup-sweep",
+        action="store_true",
+        help="常驻模式启动时不跑孤立文件巡检（默认启动即扫，FR-DOC-007）",
+    )
+    parser.add_argument(
         "--sweep-min-age",
         type=float,
         default=0.0,
@@ -65,6 +70,16 @@ async def _main(args: argparse.Namespace) -> int:
             logger.info("worker round finished: %s", result)
             print(json.dumps(result, ensure_ascii=False))
             return 0
+        # FR-DOC-007 / 设计 §10.1：常驻 worker 启动时先做一次孤立文件巡检。
+        # 阈值 1 小时，不会碰到正在上传/写入的文件。
+        if not args.no_startup_sweep:
+            from app.modules.knowledge.sweep import sweep_orphan_objects
+
+            try:
+                swept = await sweep_orphan_objects()
+                logger.info("startup orphan sweep: %s", swept)
+            except Exception:  # noqa: BLE001 - 巡检失败不得阻止 worker 启动
+                logger.exception("startup orphan sweep failed")
         await run_forever(owner, poll_seconds=args.poll_seconds)
         return 0
     finally:

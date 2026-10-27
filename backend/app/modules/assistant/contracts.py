@@ -15,7 +15,7 @@ import re
 from datetime import date
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.shared.errors import ApiError, validation_error
 
@@ -57,6 +57,15 @@ class ChatInput(_Model):
     ] = None  # type: ignore[assignment]
     message: Annotated[str, Field(min_length=1, max_length=2000)]
     history: Annotated[list[HistoryMessageIn], Field(max_length=40)] = None  # type: ignore[assignment]
+
+    @field_validator("message")
+    @classmethod
+    def _reject_blank_after_strip(cls, value: str) -> str:
+        """SRS FR-CHAT-001：问题去空白后非空才接受（全角空格同样算空白）。"""
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("消息不能为空白")
+        return stripped
 
 
 class ChatState(_Model):

@@ -55,6 +55,7 @@ export const S02 = {
   clearConversation: '清空对话', // content-spec S01
   examples: ['查今天的课', '根据资料回答问题', '制定学习计划'], // content-spec S01
   composerLabel: '你的问题', // content-spec S01
+  historyTruncated: '历史对话过长，已只保留最近的若干轮问答（更早的内容不再作为依据）。', // content-spec S01（FR-CHAT-001 截断可见提示）
   composerHint: '最多 2000 字', // content-spec S01
   send: '发送', // content-spec S01
 } as const

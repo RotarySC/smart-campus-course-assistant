@@ -534,3 +534,65 @@ async def test_capacity_slot_retries_are_bounded(monkeypatch):
     assert slot is None
     assert tx.session.calls == accept_module._CAPACITY_SLOT_ATTEMPTS
     assert elapsed < 0.2
+
+
+async def test_blank_and_overlong_message_are_rejected(client, seeded):
+    """SRS FR-CHAT-001：去空白后非空且在长度上限内才接受。"""
+    blank = await client.post(
+        "/api/v1/chat/stream",
+        json={"client_request_id": "creq_blank_1", "message": "   "},
+        headers=AUTH(seeded["student_token"]),
+    )
+    assert blank.status_code == 422, blank.text
+    assert blank.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    full_width_blank = await client.post(
+        "/api/v1/chat/stream",
+        json={"client_request_id": "creq_blank_2", "message": "　　"},
+        headers=AUTH(seeded["student_token"]),
+    )
+    assert full_width_blank.status_code == 422, full_width_blank.text
+
+    too_long = await client.post(
+        "/api/v1/chat/stream",
+        json={"client_request_id": "creq_long_1", "message": "长" * 2001},
+        headers=AUTH(seeded["student_token"]),
+    )
+    assert too_long.status_code == 422, too_long.text
+    assert too_long.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+async def test_history_over_budget_truncates_with_visible_status(client, seeded, runtime_fixture):
+    """SRS FR-CHAT-001 / AT-17：历史超预算只保留最近完整问答对，并发可见状态提示。"""
+    runtime, _executor = runtime_fixture
+    runtime.provider.gate.set()
+
+    # 20 对（契约上限 40 条消息）× 每侧 1000 字 ≈ 40k 字符 > MAX_HISTORY_CHARS(30k)
+    history = []
+    for index in range(20):
+        history.append({"role": "user", "content": "问" * 1000 + str(index)})
+        history.append({"role": "assistant", "content": "答" * 1000 + str(index)})
+
+    status, events, _raw = await read_stream(
+        client,
+        seeded["student_token"],
+        {
+            "client_request_id": "creq_truncated_1",
+            "message": "明天有课吗",
+            "history": history,
+        },
+    )
+    assert status == 200, events
+    validate_sse_events(events)
+    assert_sse_invariants(events)
+
+    codes = [event["data"]["code"] for event in events if event["event"] == "status"]
+    assert "ACCEPTED" in codes
+    assert "CONTEXT_TRUNCATED" in codes
+    truncated = next(
+        event
+        for event in events
+        if event["event"] == "status" and event["data"]["code"] == "CONTEXT_TRUNCATED"
+    )
+    assert "历史" in truncated["data"]["message"]
+    assert events[-1]["event"] == "done"

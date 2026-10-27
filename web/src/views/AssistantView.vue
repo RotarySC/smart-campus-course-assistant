@@ -233,6 +233,12 @@ onMounted(() => {
                 <Btn size="sm" @click="useExample(S02.examples[1] ?? '')">{{ S05.rephrase }}</Btn>
               </template>
             </Notice>
+
+            <!-- 历史被预算截断（status.code=CONTEXT_TRUNCATED）：只做可见提示，
+                 不改变本轮回答；文案取自 S02（FR-CHAT-001）。 -->
+            <Notice v-if="active.contextTruncated" variant="warn" role="note">
+              <p>{{ S02.historyTruncated }}</p>
+            </Notice>
           </template>
         </ChatStream>
 

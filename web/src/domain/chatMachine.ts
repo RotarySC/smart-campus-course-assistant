@@ -58,6 +58,8 @@ export interface ChatTurn {
   draftVersion: number | null
   /** `search_course_docs` 报「全库尚无已发布资料」（S05 第 3 态）；与「依据不足」不同。 */
   corpusEmpty: boolean
+  /** 服务端提示历史被截断（status.code=CONTEXT_TRUNCATED，SRS FR-CHAT-001）。 */
+  contextTruncated: boolean
 }
 
 /**
@@ -95,6 +97,7 @@ export function createTurn(clientRequestId: string): ChatTurn {
     draftId: null,
     draftVersion: null,
     corpusEmpty: false,
+    contextTruncated: false,
   }
 }
 
@@ -180,6 +183,10 @@ export function reduce(prev: ChatTurn, e: SseEvent): { turn: ChatTurn; effects: 
       }
       if (e.data.code === 'CAPACITY_LIMITED' || e.data.code === 'CALL_LIMIT_REACHED') {
         effects.push({ kind: 'capacity-limited', code: e.data.code })
+      }
+      if (e.data.code === 'CONTEXT_TRUNCATED') {
+        // 服务端已按预算保留最近完整问答对：这里只负责让提示"可见"（SRS FR-CHAT-001）。
+        turn.contextTruncated = true
       }
       break
     }
