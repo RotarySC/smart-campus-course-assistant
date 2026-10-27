@@ -11,6 +11,7 @@
  * 用法：
  *   node scripts/cdp-smoke.mjs                 # 默认：守卫 + 登录页渲染检查（不需要后端）
  *   node scripts/cdp-smoke.mjs --full          # 真实链路（需要后端 8100 + 种子账号，F8 后续扩展）
+ *   node scripts/cdp-smoke.mjs --at31          # AT-31：仅键盘登录/发问、脏文本不执行、窄屏核心流程
  *   环境变量：WEB_BASE（默认 http://localhost:5173）、EDGE_PATH（默认自动探测）、
  *             BACKEND_BASE（默认 http://127.0.0.1:8100/api/v1）、E2E_ACCOUNT / E2E_PASSWORD
  *
@@ -32,6 +33,8 @@ const WEB_BASE = (process.env.WEB_BASE ?? 'http://localhost:5173').replace(/\/$/
 const BACKEND_BASE = (process.env.BACKEND_BASE ?? 'http://127.0.0.1:8100/api/v1').replace(/\/$/, '')
 const FULL = process.argv.includes('--full')
 const PAGES = process.argv.includes('--pages')
+// AT-31：键盘遍历 / 危险链接与脚本注入 / 窄屏核心流程（需要后端 8100 + 种子账号）
+const AT31 = process.argv.includes('--at31')
 const LOGIN = process.argv.includes('--login') || FULL || PAGES
 const askArg = process.argv.find((a) => a.startsWith('--ask='))
 const ASK = askArg ? askArg.slice('--ask='.length) : FULL ? '查今天的课' : null
@@ -239,6 +242,8 @@ async function main() {
       await waitFor(() => evaluate("document.readyState === 'complete'"), { label: 'readyState=complete' })
     }
 
+    // AT-31 模式跳过默认守卫流程（它在 9) 里自己做键盘登录与窄屏流程，且不带登录态）
+    if (!AT31) {
     // ---- 1) 未登录访问受保护路由 → 跳 /login（G2）----
     await navigate(`${WEB_BASE}/me/schedules`)
     const pathname = await waitFor(
@@ -280,6 +285,7 @@ async function main() {
     const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
     const file = savePng('smoke-login.png', shot.data)
     check('截图已保存', fs.existsSync(file), path.relative(WEB_ROOT, file))
+    }
 
     // ---- 6) 登录 + 关键页面（--login / --full）----
     // 用 CDP Input.insertText 走**浏览器真实输入事件**（比合成 Event('input') 更接近用户操作，
@@ -341,6 +347,7 @@ async function main() {
     }
 
     // ---- 5.1) 两栏登录页的 Tab 切换：只切面板、不改 URL（§15.2）----
+    if (!AT31) {
     {
       const tabState = () =>
         evaluate(`(() => ({
@@ -365,6 +372,7 @@ async function main() {
       await sleep(120)
       const backTab = await tabState()
       check('§15.2 切回登录：恢复默认面板', backTab.sel === 'true' && backTab.regHidden === true && backTab.loginHidden === false)
+    }
     }
 
     if (LOGIN) {
@@ -636,6 +644,8 @@ async function main() {
     }
 
     // ---- 窄窗口外壳（2026-10-27 用户需求）：右栏直接消失 / 标签栏等宽 / 顶栏两端对齐 ----
+    // AT-31 模式跳过这段（它没有默认流程的登录态，窄屏检查在 9) 里自带）
+    if (!AT31) {
     // 三条都是「窄窗口下布局散掉」的实测缺陷，用几何量测钉住，不靠肉眼看截图。
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 700, deviceScaleFactor: 1, mobile: false })
     await sleep(400)
@@ -723,6 +733,7 @@ async function main() {
     )
     await cdp.send('Emulation.clearDeviceMetricsOverride')
     await sleep(300)
+    }
 
     // ---- 7) 发一条提问，验证流式文本真的进了 DOM（--ask / --full）----
     if (ASK) {
@@ -1129,6 +1140,235 @@ async function main() {
       const real2 = consoleErrors.filter((e) => !ignore2.test(e))
       check('逐屏走查后控制台仍无 error', real2.length === 0, real2.slice(0, 3).join(' | '))
       check('逐屏走查无未捕获异常', exceptions.length === 0, exceptions.slice(0, 2).join(' | '))
+    }
+
+    // ---- 9) AT-31：键盘遍历 / 危险链接与脚本注入 / 窄屏核心流程 ----
+    if (AT31) {
+      // 9.0 独立的键盘事件与焦点工具（真实 keyDown/keyUp，不是合成 Event）
+      // headless 下页面可能不持有系统焦点：先打开焦点模拟并置前，否则 Tab 不会移动 activeElement。
+      try {
+        await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true })
+      } catch {
+        /* 老版本不支持则忽略 */
+      }
+      try {
+        await cdp.send('Page.bringToFront')
+      } catch {
+        /* ignore */
+      }
+      const press = async (name) => {
+        const spec = {
+          Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 },
+          Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: '\r' },
+          Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 },
+        }[name]
+        // Tab 用 rawKeyDown：keyDown 带 text 时浏览器可能不执行默认的焦点移动
+        await cdp.send('Input.dispatchKeyEvent', { type: name === 'Enter' ? 'keyDown' : 'rawKeyDown', ...spec })
+        await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...spec })
+        await sleep(90)
+      }
+      const focusInfo = () =>
+        evaluate(`(() => {
+          const el = document.activeElement;
+          if (!el || el === document.body) return { tag: 'BODY' };
+          const cs = getComputedStyle(el);
+          return {
+            tag: el.tagName,
+            id: el.id || null,
+            cls: typeof el.className === 'string' ? el.className : null,
+            text: (el.textContent || '').trim().slice(0, 24),
+            focusVisible: el.matches(':focus-visible'),
+            outlineStyle: cs.outlineStyle,
+            outlineWidth: cs.outlineWidth,
+          };
+        })()`)
+      const tabUntil = async (predicate, max = 30) => {
+        for (let i = 0; i < max; i++) {
+          await press('Tab')
+          const info = await focusInfo()
+          if (predicate(info)) return info
+        }
+        return null
+      }
+      const loginByClick = async () => {
+        await evaluate(`(() => {
+          const set = (sel, value) => {
+            const el = document.querySelector(sel);
+            if (!el) return false;
+            const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          };
+          set('#login-account', ${JSON.stringify(ACCOUNT)});
+          set('#login-password', ${JSON.stringify(PASSWORD)});
+          document.querySelector('#login-submit')?.click();
+          return true;
+        })()`)
+        await waitFor(
+          async () => (await evaluate('location.pathname')) === '/assistant',
+          { label: '登录后进入 /assistant', timeoutMs: 15_000 },
+        )
+      }
+
+      // 9.1 键盘遍历：Tab 顺序 + 焦点环可见 + 仅用 Tab/Enter 完成登录
+      await navigate(`${WEB_BASE}/login`)
+      await evaluate('document.body.focus()')
+      const focusPath = []
+      for (let i = 0; i < 10; i++) {
+        await press('Tab')
+        focusPath.push(await focusInfo())
+      }
+      const ids = focusPath.map((f) => f.id)
+      check(
+        '键盘 Tab 顺序：账号 → 密码 → 登录按钮',
+        ids.indexOf('login-account') >= 0 &&
+          ids.indexOf('login-password') > ids.indexOf('login-account') &&
+          ids.indexOf('login-submit') > ids.indexOf('login-password'),
+        ids.filter(Boolean).join(' → '),
+      )
+      const rings = focusPath.filter((f) => f.id)
+      check(
+        '键盘焦点有可见焦点环（outline 非 none）',
+        rings.length > 0 && rings.every((f) => f.focusVisible && f.outlineStyle !== 'none' && f.outlineWidth !== '0px'),
+        rings.map((f) => `${f.id}:${f.outlineStyle}/${f.outlineWidth}`).join(', '),
+      )
+
+      await navigate(`${WEB_BASE}/login`)
+      await evaluate('document.body.focus()')
+      const accountFocused = await tabUntil((f) => f.id === 'login-account')
+      check('Tab 可达账号输入框', accountFocused !== null)
+      await cdp.send('Input.insertText', { text: ACCOUNT })
+      await press('Tab')
+      const passwordFocused = await focusInfo()
+      check('Tab 从账号到密码输入框', passwordFocused.id === 'login-password', String(passwordFocused.id))
+      await cdp.send('Input.insertText', { text: PASSWORD })
+      await press('Tab')
+      const submitFocused = await focusInfo()
+      check('Tab 从密码到登录按钮', submitFocused.id === 'login-submit', String(submitFocused.id))
+      await press('Enter')
+      let keyboardLoginLanded = null
+      try {
+        keyboardLoginLanded = await waitFor(
+          async () => {
+            const p = await evaluate('location.pathname')
+            return p === '/assistant' ? p : false
+          },
+          { label: '键盘 Enter 登录 → /assistant', timeoutMs: 15_000 },
+        )
+      } catch {
+        keyboardLoginLanded = await evaluate('location.pathname')
+      }
+      check('仅键盘（Tab/Enter）完成登录', keyboardLoginLanded === '/assistant', `实际 ${keyboardLoginLanded}`)
+      savePng('at31-keyboard-login.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+
+      // 9.2 助手页：Tab 可达输入框并 Enter 提交；脏文本按纯文本渲染、不执行、不弹窗
+      const scriptCountBefore = await evaluate('document.querySelectorAll("script").length')
+      let dialogOpened = false
+      cdp.on('Page.javascriptDialogOpening', () => {
+        dialogOpened = true
+        cdp.send('Page.handleJavaScriptDialog', { accept: false }).catch(() => {})
+      })
+      await evaluate('document.body.focus()')
+      const composerFocused = await tabUntil((f) => f.tag === 'TEXTAREA')
+      const composer = composerFocused ?? (await focusInfo())
+      check('Tab 可达助手输入框', composer.tag === 'TEXTAREA', `${composer.tag}/${composer.cls}`)
+
+      const dirty = '<script>alert(1)</script> [点我](javascript:alert(1)) 你好'
+      await cdp.send('Input.insertText', { text: dirty })
+      await press('Enter')
+      await waitFor(
+        async () => {
+          const text = await evaluate('document.body.innerText')
+          return text.includes('一般学习建议') ? true : false
+        },
+        { label: '回答正文出现', timeoutMs: 45_000 },
+      )
+      await sleep(400)
+      const injection = await evaluate(`(() => {
+        const text = document.body.innerText;
+        return {
+          literalScript: text.includes('<script>alert(1)</script>'),
+          literalJsHref: document.querySelectorAll('a[href^="javascript:"]').length,
+          injectedScripts: document.querySelectorAll('script').length,
+          injectedImgs: document.querySelectorAll('.chat img').length,
+          chatHtmlHasScriptTag: /<script/i.test(document.querySelector('.chat')?.innerHTML ?? ''),
+        };
+      })()`)
+      check('脏消息按纯文本显示（不被解析成 HTML）', injection.literalScript === true, JSON.stringify(injection))
+      check(
+        '未注入 script 元素、无 javascript: 链接、无 onerror 图片',
+        injection.injectedScripts === scriptCountBefore &&
+          injection.literalJsHref === 0 &&
+          injection.injectedImgs === 0 &&
+          injection.chatHtmlHasScriptTag === false,
+        JSON.stringify(injection),
+      )
+      check('未触发任何脚本弹窗（Page.javascriptDialogOpening 未发生）', dialogOpened === false)
+      savePng('at31-injection.png', (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+
+      // 9.3 窄屏：375×667 与 767×1024 下完成「登录 → 助手 → 提问 → 看到回答」且无横向溢出
+      for (const [w, h, label] of [
+        [375, 667, '窄屏 375×667'],
+        [767, 1024, '窄屏 767×1024'],
+      ]) {
+        await cdp.send('Emulation.setDeviceMetricsOverride', {
+          width: w,
+          height: h,
+          deviceScaleFactor: 1,
+          mobile: false,
+        })
+        await navigate(`${WEB_BASE}/login`)
+        await loginByClick()
+        const layout = await evaluate(`(() => {
+          const doc = document.documentElement;
+          const composer = document.querySelector('.composer');
+          const rect = composer ? composer.getBoundingClientRect() : null;
+          return {
+            overflowX: doc.scrollWidth - window.innerWidth,
+            composerVisible: !!rect && rect.width > 0 && rect.height > 0 && rect.right <= window.innerWidth + 1,
+            viewport: window.innerWidth,
+          };
+        })()`)
+        check(
+          `${label}：无横向溢出且输入框在视口内`,
+          layout.overflowX <= 1 && layout.composerVisible === true,
+          JSON.stringify(layout),
+        )
+
+        await evaluate(`(() => {
+          const el = document.querySelector('.composer textarea');
+          if (!el) return false;
+          const proto = HTMLTextAreaElement.prototype;
+          Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, '你好');
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.focus();
+          return true;
+        })()`)
+        // 窄屏下用 Enter 提交（与桌面键盘路径一致；发送按钮在窄屏可能是图标按钮，取到的不一定是它）
+        await press('Enter')
+        let answered = false
+        try {
+          answered = await waitFor(
+            async () => {
+              const text = await evaluate('document.body.innerText')
+              return text.includes('一般学习建议') ? true : false
+            },
+            { label: `${label} 回答出现`, timeoutMs: 45_000 },
+          )
+        } catch {
+          const diag = await evaluate(`(() => ({
+            chatLen: (document.querySelector('.chat')?.innerText ?? '').length,
+            bodySlice: document.body.innerText.replace(/\\s+/g, ' ').slice(0, 160),
+            dangerNotice: !!document.querySelector('.notice--danger'),
+            composerValue: document.querySelector('.composer textarea')?.value ?? null,
+          }))()`)
+          console.log(`DIAG ${label}: ${JSON.stringify(diag)}`)
+        }
+        check(`${label}：提问 → 收到回答`, answered === true)
+        savePng(`at31-${w}x${h}.png`, (await cdp.send('Page.captureScreenshot', { format: 'png' })).data)
+      }
+      await cdp.send('Emulation.clearDeviceMetricsOverride')
     }
 
     if (FULL) {

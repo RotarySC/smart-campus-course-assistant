@@ -145,6 +145,9 @@ async def clean_database(migrated_database: Any):
 async def client() -> Any:
     from app.main import create_app
 
+    # 先润一下连接（Docker Desktop 端口映射偶发瞬时 2003）：应用 lifespan/首个请求
+    # 若正好撞上冷连接，会变成与用例语义无关的 setup error；这里用带重试的 ping 预热。
+    await wait_for_database(what="client fixture 预热连接")
     app = create_app()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
