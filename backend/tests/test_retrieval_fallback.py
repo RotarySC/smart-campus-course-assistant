@@ -98,3 +98,40 @@ async def test_explicit_injection_bypasses_logging_path(monkeypatch):
     monkeypatch.setattr(retrieval, "_real_search", lambda: None)
 
     assert await retrieval.search_course_docs(_actor(), "任意问题") is injected
+
+
+async def test_vector_store_failure_maps_to_retrieval_unavailable(monkeypatch):
+    """SRS §7.3：检索依赖故障必须是 503 RETRIEVAL_UNAVAILABLE，不能漏成 500。
+
+    AT-30 实测：损坏 `vector_store.json` 时 internal API 返回 500 INTERNAL_ERROR，
+    MCP 侧只能报 INTERNAL_ERROR，用户文案退化为"依据不足"。
+    """
+    from app.adapters.vector.local import VectorStoreError
+    from app.modules.assistant import retrieval
+
+    async def _boom(actor, query):
+        raise VectorStoreError("向量存储损坏")
+
+    monkeypatch.setattr(retrieval, "_real_search", lambda: _boom)
+
+    with pytest.raises(ApiError) as exc:
+        await retrieval.search_course_docs(_actor(), "期末成绩怎么算？")
+
+    assert exc.value.code == "RETRIEVAL_UNAVAILABLE"
+    assert exc.value.status_code == 503
+    assert isinstance(exc.value.__cause__, VectorStoreError)
+
+
+async def test_api_error_from_knowledge_is_passed_through(monkeypatch):
+    """知识链路自己给的稳定码（如参数/权限）不得被改写成 RETRIEVAL_UNAVAILABLE。"""
+    from app.modules.assistant import retrieval
+
+    async def _denied(actor, query):
+        raise ApiError("FORBIDDEN")
+
+    monkeypatch.setattr(retrieval, "_real_search", lambda: _denied)
+
+    with pytest.raises(ApiError) as exc:
+        await retrieval.search_course_docs(_actor(), "任意问题")
+
+    assert exc.value.code == "FORBIDDEN"

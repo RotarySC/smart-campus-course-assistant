@@ -104,9 +104,14 @@ async def search_course_docs(actor: ActorContext, query: str) -> EvidenceSet:
             return _normalize(raw)
         except NotImplementedError:
             pass
-        except Exception:  # noqa: BLE001 - 真实实现不可用时以失败语义上抛
-            logger.exception("knowledge.search failed; retrieval unavailable")
+        except ApiError:
+            # 知识链路自己已给出稳定错误码（如参数/权限）：原样上抛。
             raise
+        except Exception as exc:  # noqa: BLE001 - 检索依赖故障统一收敛
+            logger.exception("knowledge.search failed; retrieval unavailable")
+            # SRS §7.3：检索依赖故障必须映射为 503 RETRIEVAL_UNAVAILABLE，
+            # 不能让适配器异常漏成 500 INTERNAL_ERROR（AT-30 实测缺口）。
+            raise ApiError("RETRIEVAL_UNAVAILABLE") from exc
     logger.debug("knowledge module unavailable; checking stub fallback")
     if _stub_override is not None:
         # 显式注入（测试/受控演示）优先；调用方自己承担"这不是真实依据"的责任。

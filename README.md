@@ -84,7 +84,7 @@ cd backend
 
 ## 验证状态
 
-- 后端 **260 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
+- 后端 **262 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
 - 批次发布要么整批可见、要么整批补偿：发布任务终态失败（重试预算耗尽或不可重试，如 `VECTOR_SPACE_MISMATCH`）会把批次推进 `compensating`→`failed` 并清理，不会永久停在 `processing`；发布事务内若发现文档已被并发删除，整批转补偿而绝不把 `removed` 文档改回 `shared`；未发布批次删掉其中一份文档时当场整批补偿（`test_knowledge_publish.py` 3 例守护）。
 - 日志默认脱敏：SQLAlchemy 的 `[parameters: …]` / `[SQL: …]` 参数块与 `password=`、`token=`、`Bearer …`、`Set-Cookie` 等凭据形态在 formatter 之前替换为 `<redacted>`（`backend/app/shared/log_redaction.py`，含异常 traceback，9 例守护）。审计记录带请求级耗时，403/404 权限拒绝写 `access.denied` 审计行。
 - 契约 `contracts/openapi_v0.1.json`：**40 个操作（公共 36）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）与 `GET /api/v1/admin/stats/overview`（运行统计聚合）。
@@ -94,7 +94,8 @@ cd backend
   （课表统计条图标与时间轴导轨 / 学习计划 / 登出菜单 / 管理端 4 页与二级导航可达性 / 文档页拖放区：形态、拖入态、拖入即发出上传请求（拦截后中止，不写库） / 表格 `caption` 视觉隐藏但仍作表格的可访问名 / 助手页一体式输入条：圆形发送按钮、悬停冒泡提示、对话再长也不动、右栏悬浮卡），控制台 0 error。
 - 自助注册闭环另有浏览器级用例 **21/21 项**：空表单不发请求、密码不一致就地报错、注册即登录、`role=student`、重复账号 409 就近回填、退出后可用新账号登录。
 - 检索空结果分两态：`tool_end.data.corpus_empty`（仅 `search_course_docs` 成功时出现）把「全库尚无资料」与「本次没检索到」分开；前者渲染 `inbox` 空态「管理员还没有上传可检索的课程资料。」而非「换个问法」。后端由 pytest 覆盖，前端由 mock 脚本 **9/9 项**覆盖。
-- **未验证**：真实大模型与 Embedding 质量、生产向量库、OCR/扫描件、多机与备份、性能 P95、Firefox/Safari。
+- 固定 AI 评测（50 条主体 + 16 条对抗）已在确定性 Provider 基线上跑过：有依据答案 + 引用联合通过率 **0.60**（门槛 0.90）、未覆盖问题 0/10、课表 9/10、计划 10/10、权限/注入/冲突 13/13；写入正确与隔离通过。**当前结论是「基线不达标」**，归因于检索无相关性阈值、冲突资料未并列、口语路由词表不全——换真实模型（TBD-04）后需复跑。
+- **未验证**：真实大模型与 Embedding 质量、生产向量库、OCR/扫描件、多机部署、生产规模备份与 binlog 时间点恢复（本机单容器恢复演练已实测：46 KB dump 恢复 + 29 项校验 RTO 5.7 s，删除标记不复活、同 Idempotency-Key 重放 0 增量）、性能 P95、Firefox/Safari。
 - **已知限制**：自助注册只收「账号 + 显示名 + 密码」，没有邮箱/手机验证、没有频率限制与验证码、没有找回密码；管理员账号不能自助注册。
   本地模型 / Embedding / 向量库均为确定性实现，**不要**当作生产 AI 能力对外宣称。
 
