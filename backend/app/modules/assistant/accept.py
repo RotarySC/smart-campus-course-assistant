@@ -41,9 +41,10 @@ ACTIVE_STATES = ("accepted", "running")
 TERMINAL_STATES = ("succeeded", "failed", "cancelled")
 MAX_HISTORY_CHARS = 30_000
 # 容量槽选槽的有界重试：SKIP LOCKED 把"瞬时被行锁占着"的空闲槽也跳过，
-# 单次查询为空不等于容量耗尽（AT-30 PERF-005 实测 9/120 误拒）。
-_CAPACITY_SLOT_ATTEMPTS = 4
-_CAPACITY_SLOT_RETRY_DELAY = 0.003
+# 单次查询为空不等于容量耗尽（AT-30 PERF-005 实测零思考连发 9/150 误拒）。
+# 真满时由 _has_free_capacity_slot 提前短路，不会付出这些等待。
+_CAPACITY_SLOT_ATTEMPTS = 6
+_CAPACITY_SLOT_RETRY_DELAY = 0.004
 
 
 @dataclass
@@ -263,13 +264,32 @@ async def _find_active(tx: Any, user_id: str, session_id: str) -> ChatRequest | 
     return result.scalar_one_or_none()
 
 
+async def _has_free_capacity_slot(tx: Any) -> bool:
+    """非加锁地判断是否还有空闲槽（区分「真满」与「瞬时被行锁占住」）。"""
+    result = await tx.session.execute(
+        select(AICapacitySlot.slot_no)
+        .where(
+            (AICapacitySlot.request_id.is_(None))
+            | text(
+                "ai_capacity_slots.lease_until IS NOT NULL "
+                "AND ai_capacity_slots.lease_until <= NOW(6)"
+            )
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 async def _lock_free_capacity_slot(tx: Any) -> AICapacitySlot | None:
     """选一个空闲容量槽；对 SKIP LOCKED 造成的瞬时假满做有界重试。
 
     ``SKIP LOCKED`` 会跳过"被其它 accept 事务瞬时行锁占着"的空闲槽，单次查询
     返回空并不代表容量耗尽——直接判 429 会把额定容量内的请求拒掉（AT-30
-    实测 120 轮里 9 次 429，同时仍有 2–3 个空闲槽）。这里只在毫秒级窗口内重试，
-    真实满容量时仍然快速返回 None（NFR-PERF-004：不得无限排队）。
+    实测：5 并发零思考连发 9/150 被误拒，同时仍有 2–3 个空闲槽存在）。
+
+    重试前先做一次不加锁的空闲判断：真满立即返回 None（毫秒级 429，不排队，
+    满足 NFR-PERF-004）；还有空闲才在毫秒级窗口内重试，避免把瞬时锁竞争
+    当成容量耗尽。
     """
     for attempt in range(_CAPACITY_SLOT_ATTEMPTS):
         result = await tx.session.execute(
@@ -288,8 +308,12 @@ async def _lock_free_capacity_slot(tx: Any) -> AICapacitySlot | None:
         slot = result.scalar_one_or_none()
         if slot is not None:
             return slot
-        if attempt + 1 < _CAPACITY_SLOT_ATTEMPTS:
-            await asyncio.sleep(_CAPACITY_SLOT_RETRY_DELAY * (attempt + 1))
+        if attempt + 1 >= _CAPACITY_SLOT_ATTEMPTS:
+            break
+        if not await _has_free_capacity_slot(tx):
+            # 真满容量：不重试、不排队，直接交给上层 429。
+            return None
+        await asyncio.sleep(_CAPACITY_SLOT_RETRY_DELAY * (attempt + 1))
     return None
 
 

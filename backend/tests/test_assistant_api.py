@@ -429,7 +429,12 @@ async def test_stream_requires_authentication(client):
 
 async def test_capacity_slot_retries_transient_skip_locked(monkeypatch):
     """SKIP LOCKED 瞬时空闲槽被行锁占住时，不能直接判 429（AT-30 PERF-005）。"""
-    from app.modules.assistant.accept import _lock_free_capacity_slot
+    from app.modules.assistant import accept as accept_module
+
+    async def _has_free(tx):  # 还有空闲槽：允许重试
+        return True
+
+    monkeypatch.setattr(accept_module, "_has_free_capacity_slot", _has_free)
 
     class _Result:
         def __init__(self, value):
@@ -451,17 +456,59 @@ async def test_capacity_slot_retries_transient_skip_locked(monkeypatch):
             self.session = _Session()
 
     tx = _Tx()
-    slot = await _lock_free_capacity_slot(tx)
+    slot = await accept_module._lock_free_capacity_slot(tx)
 
     assert slot is not None
     assert tx.session.calls == 3
 
 
-async def test_capacity_slot_429_is_bounded_when_really_full():
-    """真满容量：重试次数有界、耗时有界，不能无限排队（NFR-PERF-004）。"""
+async def test_capacity_slot_429_is_fast_when_really_full(monkeypatch):
+    """真满容量：不重试、不排队，毫秒级返回 None（NFR-PERF-004）。"""
     import time
 
     from app.modules.assistant import accept as accept_module
+
+    async def _no_free(tx):
+        return False
+
+    monkeypatch.setattr(accept_module, "_has_free_capacity_slot", _no_free)
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    class _Session:
+        def __init__(self):
+            self.calls = 0
+
+        async def execute(self, stmt):
+            self.calls += 1
+            return _Result()
+
+    class _Tx:
+        def __init__(self):
+            self.session = _Session()
+
+    tx = _Tx()
+    started = time.perf_counter()
+    slot = await accept_module._lock_free_capacity_slot(tx)
+    elapsed = time.perf_counter() - started
+
+    assert slot is None
+    assert tx.session.calls == 1  # 真满时不重试
+    assert elapsed < 0.2
+
+
+async def test_capacity_slot_retries_are_bounded(monkeypatch):
+    """有空闲但始终被锁：重试次数与耗时有上界，不无限排队。"""
+    import time
+
+    from app.modules.assistant import accept as accept_module
+
+    async def _has_free(tx):
+        return True
+
+    monkeypatch.setattr(accept_module, "_has_free_capacity_slot", _has_free)
 
     class _Result:
         def scalar_one_or_none(self):
