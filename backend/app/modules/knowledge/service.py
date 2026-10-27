@@ -884,7 +884,7 @@ class KnowledgeService:
                 return EvidenceSet.empty(corpus_empty=True, revision=revision)
 
             candidates = await vs.search(
-                vector_space, emb.embed(text), limit=top_k * 8
+                vector_space, await emb.embed(text), limit=top_k * 8
             )
             min_score = retrieval_min_score()
             if min_score > 0 and candidates:

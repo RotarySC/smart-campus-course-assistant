@@ -835,11 +835,11 @@ async def test_batch_compensates_when_vectorization_fails_midway(
     calls = {"n": 0}
 
     class _FlakyEmbedding:
-        def embed_batch(self, texts):
+        async def embed_batch(self, texts):
             calls["n"] += 1
             if calls["n"] >= 2:
                 raise EmbeddingError("模拟第二份文档向量化失败")
-            return real.embed_batch(texts)
+            return await real.embed_batch(texts)
 
     flaky = _FlakyEmbedding()
     monkeypatch.setattr(tasks_mod, "embedding", lambda: flaky)

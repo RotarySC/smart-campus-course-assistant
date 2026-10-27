@@ -10,7 +10,8 @@ import os
 from pathlib import Path
 from typing import Final
 
-from app.adapters.embedding.deterministic import DeterministicEmbedding, embed_text
+from app.adapters.embedding.deterministic import embed_text
+from app.adapters.embedding.registry import build_embedding
 from app.adapters.filestore.local import FileStore
 from app.adapters.parser.document_parser import (
     SUPPORTED_TYPES,
@@ -60,8 +61,9 @@ def vector_store() -> LocalVectorStore:
     return LocalVectorStore()
 
 
-def embedding() -> DeterministicEmbedding:
-    return DeterministicEmbedding()
+def embedding():
+    """按 ``CCA_EMBEDDING_PROVIDER`` 装配（默认确定性；真实语义向量走远端 Adapter）。"""
+    return build_embedding()
 
 
 def corpus_vector_space() -> str:

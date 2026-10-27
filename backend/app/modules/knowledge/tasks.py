@@ -1258,7 +1258,7 @@ async def _run_staging(
     except (StorageError, VectorStoreError) as exc:
         raise TaskFailure("STORAGE_UNAVAILABLE", retryable=True, summary=str(exc)[:200])
 
-    vectors = emb.embed_batch([chunk.text for chunk in chunks])
+    vectors = await emb.embed_batch([chunk.text for chunk in chunks])
 
     # 先登记 active 代次（含 inflight 计数），外部写完成后在业务事务内收敛为 settled。
     attempt_id = new_id(PREFIX_ATTEMPT)

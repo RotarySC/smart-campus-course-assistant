@@ -71,13 +71,13 @@ class DeterministicEmbedding:
     def __init__(self, dim: int | None = None) -> None:
         self.dim = dim or embedding_dim()
 
-    def embed(self, text: str) -> np.ndarray:
+    async def embed(self, text: str) -> np.ndarray:
         return embed_text(text, self.dim)
 
-    def embed_batch(self, texts: list[str]) -> np.ndarray:
+    async def embed_batch(self, texts: list[str]) -> np.ndarray:
         if not texts:
             return np.zeros((0, self.dim), dtype=np.float32)
-        return np.vstack([self.embed(text) for text in texts])
+        return np.vstack([embed_text(text, self.dim) for text in texts])
 
     def describe(self) -> dict:
         return {"provider": self.provider, "dim": self.dim, "production": False}

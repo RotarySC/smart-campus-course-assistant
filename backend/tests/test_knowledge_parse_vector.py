@@ -191,19 +191,19 @@ async def test_four_formats_end_to_end_publish(client, seeded, db):
 # --------------------------------------------------------------------------- #
 # Embedding / VectorStore
 # --------------------------------------------------------------------------- #
-def test_deterministic_embedding_is_stable_and_normalized(monkeypatch):
+async def test_deterministic_embedding_is_stable_and_normalized(monkeypatch):
     from app.adapters.embedding.deterministic import DeterministicEmbedding
 
     monkeypatch.setenv("CCA_EMBEDDING_DIM", "32")
     provider = DeterministicEmbedding(dim=32)
-    first = provider.embed("数据结构 与 算法")
-    second = provider.embed("数据结构 与 算法")
-    other = provider.embed("完全不同的一段英文")
+    first = await provider.embed("数据结构 与 算法")
+    second = await provider.embed("数据结构 与 算法")
+    other = await provider.embed("完全不同的一段英文")
     assert first.shape == (32,)
     assert np.allclose(first, second)
     assert float(np.linalg.norm(first)) == pytest.approx(1.0, abs=1e-5)
     assert not np.allclose(first, other)
-    batch = provider.embed_batch(["a", "b"])
+    batch = await provider.embed_batch(["a", "b"])
     assert batch.shape == (2, 32)
 
 

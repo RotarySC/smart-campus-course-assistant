@@ -82,6 +82,45 @@ worker 常驻模式**启动即做一次**孤立文件巡检（`--no-startup-swee
 每个助手请求以 `503 MODEL_UNAVAILABLE`（「模型服务暂不可用」）显式失败，不会静默回退到确定性 Provider。
 `CCA_ASSISTANT_*` 那组预算键由进程环境变量读取，写进 `.env` 不生效。
 
+### 检索向量（Embedding）
+
+默认 `deterministic`：SHA-256 特征向量（64 维），离线可复现，**只用于测试/演示**。
+接真实语义向量时切 `openai-compatible`，走标准 `POST {BASE_URL}/embeddings`（OpenAI 兼容）。
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `CCA_EMBEDDING_PROVIDER` | `deterministic` | `deterministic` 或 `openai-compatible` |
+| `CCA_EMBEDDING_BASE_URL` | 空 | 以 `/v1` 结尾的服务地址，只接受 `http(s)://` |
+| `CCA_EMBEDDING_MODEL` | `Qwen3-Embedding-0.6B` | 服务端不校验时也必须填：它进冻结摘要与日志 |
+| `CCA_EMBEDDING_API_KEY` | 空 | 非空才发 `Authorization: Bearer` |
+| `CCA_EMBEDDING_DIM` | `1024` | 必须与服务端 `dim` 一致，不一致入库直接失败（不写不同源向量） |
+| `CCA_EMBEDDING_BATCH_SIZE` | `16` | 单次请求条数（服务端上限常见 256） |
+| `CCA_EMBEDDING_TIMEOUT_SECONDS` | `30` | 单次请求超时 |
+| `CCA_EMBEDDING_MAX_RETRIES` | `2` | 连接/超时/5xx 有界重试；4xx 不重试 |
+
+切换 Provider 会改变 `parser_config_digest` 与向量空间：**已发布版本必须重建**（重新入库发布），
+否则检索查询向量与库内向量不同源。生产建议同时换 `CCA_VECTOR_SPACE`（如 `corpus_qwen3_v1`），
+让新旧向量互不可见，而不是等摘要校验在发布时才报错。
+
+示例（远端服务只绑回环时，先用 SSH 隧道把端口映射到本机，再指向隧道）：
+
+```bash
+# 终端 1：保持隧道（8892 → 远端 127.0.0.1:8892）
+ssh -N -L 8892:127.0.0.1:8892 <跳板主机>
+# 终端 2：验证隧道通
+curl -s http://127.0.0.1:8892/health
+```
+
+```dotenv
+CCA_EMBEDDING_PROVIDER=openai-compatible
+CCA_EMBEDDING_BASE_URL=http://127.0.0.1:8892/v1
+CCA_EMBEDDING_MODEL=Qwen3-Embedding-0.6B
+CCA_EMBEDDING_DIM=1024
+CCA_VECTOR_SPACE=corpus_qwen3_v1
+```
+
+> 隧道断开时入库任务会以 `EMBEDDING_FAILED`（可重试）收敛，不会写成半截向量；检索请求则显式报依赖失败，不会假装没找到。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -105,6 +144,7 @@ worker 常驻模式**启动即做一次**孤立文件巡检（`--no-startup-swee
   （课表统计条图标与时间轴导轨 / 学习计划 / 登出菜单 / 管理端 4 页与二级导航可达性 / 文档页拖放区：形态、拖入态、拖入即发出上传请求（拦截后中止，不写库） / 表格 `caption` 视觉隐藏但仍作表格的可访问名 / 助手页一体式输入条：圆形发送按钮、悬停冒泡提示、对话再长也不动、右栏悬浮卡），控制台 0 error。
 - 自助注册闭环另有浏览器级用例 **21/21 项**：空表单不发请求、密码不一致就地报错、注册即登录、`role=student`、重复账号 409 就近回填、退出后可用新账号登录。
 - 验收台账（33 条 AT）：**31 有证据 / 2 部分 / 0 无**。仅剩两条属外部依赖——AT-32 需真实大模型/Embedding（TBD-04，见下条基线不达标）、AT-33 的「满足经批准 RPO/RTO」需业务签署（TBD-02；演练本身已跑通：dump 46,949 B → 恢复 1.267 s → 29/29 校验、RTO 5.704 s）。
+- 真实 Embedding 已接入并冒烟（2026-10-27）：`openai-compatible` 走远端 Qwen3-Embedding-0.6B（1024 维，经 SSH 隧道 `127.0.0.1:8892`），入库 → 发布 → 检索全链路实测通过——同义问法命中正确文档（相关 0.717–0.745，相邻主题 0.22–0.33）；换 Provider 后摘要与向量空间变化，旧版本须重建。**仍待标定**：跨主题的泛问（如「选课系统什么时候开放」）在无依据时仍可能拿到 0.5 左右的相似度，`CCA_RETRIEVAL_MIN_SCORE` 必须用固定评测集在真实向量上重标，不能沿用确定性基线的结论。
 - AT-31 安全与可访问性另有浏览器级用例 **15/15 项**（`node scripts/cdp-smoke.mjs --at31`，输出见 `verification/evidence/at31-cdp.log`）：只用键盘 Tab/Enter 完成登录与提问（焦点环 solid/3px）、`<script>` 与 `javascript:` 文本按纯文本渲染且无弹窗/无注入、375×667 与 767×1024 窄屏核心流程零横向溢出。上传侧的非法扩展名/伪造签名由 `test_knowledge_upload.py` 拒绝。
 - 检索空结果分两态：`tool_end.data.corpus_empty`（仅 `search_course_docs` 成功时出现）把「全库尚无资料」与「本次没检索到」分开；前者渲染 `inbox` 空态「管理员还没有上传可检索的课程资料。」而非「换个问法」。后端由 pytest 覆盖，前端由 mock 脚本 **9/9 项**覆盖。
 - 固定 AI 评测（50 条主体 + 16 条对抗）已在确定性 Provider 基线上跑过：有依据答案 + 引用联合通过率 **0.60**（门槛 0.90）、未覆盖问题 0/10、课表 9/10、计划 10/10、权限/注入/冲突 13/13；写入正确与隔离通过。**当前结论是「基线不达标」**：确定性 Hash Embedding 下「有依据」与「未覆盖」的检索分数区间重叠（实测 top 分 0.21–0.55 vs 0.19–0.36），**靠阈值分不开**，需真实 Embedding（TBD-04）后重标；相关性阈值已做成配置项 `CCA_RETRIEVAL_MIN_SCORE`，但**默认关闭（0）**：实测短查询相似度可低于 0.05，任何非零默认值都会误杀正常命中，须等真实 Embedding（TBD-04）评测标定后再打开。多来源判定类问题现在会并列依据并提示「可能不一致」（FR-QA-004 的冲突半边）。
