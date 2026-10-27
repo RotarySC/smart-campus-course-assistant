@@ -360,7 +360,8 @@
             "type": "string",
             "enum": [
               "created",
-              "existing"
+              "existing",
+              "deleted"
             ]
           },
           "operation_id": {

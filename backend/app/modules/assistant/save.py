@@ -54,9 +54,20 @@ def _now_db():
 
 
 def _final_result(operation: WriteOperation) -> dict[str, Any] | None:
-    if operation.state in ("succeeded", "deleted"):
+    """已终结的操作按原样返回（§7.3）。
+
+    ``deleted`` 必须回报墓碑，不能伪装成 ``existing``：计划已被删除，
+    再报 existing 会让调用方拿到一个已 404 的 plan_id（审计 P1）。
+    """
+    if operation.state == "succeeded":
         return {
             "status": "existing",
+            "operation_id": operation.operation_id,
+            "plan_id": operation.plan_id,
+        }
+    if operation.state == "deleted":
+        return {
+            "status": "deleted",
             "operation_id": operation.operation_id,
             "plan_id": operation.plan_id,
         }
