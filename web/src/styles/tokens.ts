@@ -170,7 +170,6 @@ export const tokens = {
   "--card-suggest-ico-bg": "#E3EDEB",
   "--card-suggest-ico-fg": "#0F4A42",
   "--card-suggest-ico-radius": "10px",
-  "--card-suggest-pad": "18px",
   "--card-timeline-box-bg": "rgba(28,25,23,.04)",
   "--card-timeline-box-border-color": "#14665B",
   "--card-timeline-box-border-w": "3px",

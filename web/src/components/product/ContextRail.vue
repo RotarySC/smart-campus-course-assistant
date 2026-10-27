@@ -48,6 +48,12 @@ function syncCollapse(): void {
   const el = railEl.value
   const body = el?.querySelector<HTMLElement>('.workspace__rail-body')
   if (!el || !body) return
+  // <1200 右栏整体 `display:none`（内容由导航入口承担）：没有盒子可量，直接保持展开态。
+  // 用 getClientRects() 判可见，而不是读 window.innerWidth —— 断点只有 CSS 一处真源。
+  if (el.getClientRects().length === 0) {
+    collapsed.value = false
+    return
+  }
   // 折叠时正文是绝对定位隐藏的，仍是"完整展开"的布局尺寸，所以这个判断在两种状态下都成立。
   const needed = el.getBoundingClientRect().top + body.scrollHeight + RAIL_BOTTOM_GAP
   collapsed.value = needed > window.innerHeight

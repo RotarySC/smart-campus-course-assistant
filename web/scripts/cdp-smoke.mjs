@@ -635,6 +635,71 @@ async function main() {
       savePng('smoke-assistant.png', shot2.data)
     }
 
+    // ---- 窄窗口外壳（2026-10-27 用户需求）：右栏直接消失 / 标签栏等宽 / 顶栏两端对齐 ----
+    // 三条都是「窄窗口下布局散掉」的实测缺陷，用几何量测钉住，不靠肉眼看截图。
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 700, deviceScaleFactor: 1, mobile: false })
+    await sleep(400)
+    const narrow = await evaluate(`(() => {
+      const q = (s) => document.querySelector(s);
+      const rail = q('.workspace__rail');
+      const inner = q('.appbar__inner');
+      const brand = q('.appbar__brand');
+      const user = q('.appbar__user');
+      const main = q('.workspace__main');
+      const ir = inner.getBoundingClientRect();
+      return {
+        vw: innerWidth,
+        railDisplay: rail ? getComputedStyle(rail).display : null,
+        railRects: rail ? rail.getClientRects().length : 0,
+        userGapRight: Math.round(ir.right - user.getBoundingClientRect().right),
+        brandGapLeft: Math.round(brand.getBoundingClientRect().left - ir.left),
+        mainBottom: Math.round(main.getBoundingClientRect().bottom),
+        railStillInFlow: rail ? Math.round(rail.getBoundingClientRect().height) : 0,
+      };
+    })()`)
+    check(
+      '缩到 1024：右栏直接消失（不再堆到对话区下方）',
+      narrow.railDisplay === 'none' && narrow.railRects === 0 && narrow.railStillInFlow === 0,
+      `display=${narrow.railDisplay} 盒子数=${narrow.railRects} 占位高=${narrow.railStillInFlow}`,
+    )
+    check(
+      '顶栏两端对齐：品牌贴左、用户区贴右（同一内边距）',
+      narrow.brandGapLeft === narrow.userGapRight && narrow.brandGapLeft > 0,
+      `左 ${narrow.brandGapLeft}px / 右 ${narrow.userGapRight}px`,
+    )
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 846, deviceScaleFactor: 1, mobile: true })
+    await sleep(400)
+    const phone = await evaluate(`(() => {
+      const tab = document.querySelector('.tabbar');
+      const items = [...document.querySelectorAll('.tabbar__item')];
+      const bar = tab ? Math.round(tab.getBoundingClientRect().width) : 0;
+      const ws = items.map((i) => Math.round(i.getBoundingClientRect().width));
+      const lefts = items.map((i) => Math.round(i.getBoundingClientRect().left));
+      const rail = document.querySelector('.workspace__rail');
+      return {
+        vw: innerWidth,
+        shown: !!tab && getComputedStyle(tab).display !== 'none',
+        count: items.length,
+        bar,
+        widths: ws,
+        lefts,
+        railDisplay: rail ? getComputedStyle(rail).display : null,
+      };
+    })()`)
+    check(
+      '窄屏标签栏：每项等宽且铺满整条（3 项各占 1/3，不再是「4 列里放 3 项」）',
+      phone.shown === true &&
+        phone.count === 3 &&
+        Math.max(...phone.widths) - Math.min(...phone.widths) <= 1 &&
+        phone.widths.every((w) => Math.abs(w - phone.bar / phone.count) <= 1) &&
+        phone.lefts[0] === 0,
+      `项=${phone.count} 宽=${phone.widths.join('/')} 条=${phone.bar} 左=${phone.lefts.join('/')}`,
+    )
+    check('窄屏同样不出现右栏', phone.railDisplay === 'none', `display=${phone.railDisplay}`)
+    await cdp.send('Emulation.clearDeviceMetricsOverride')
+    await sleep(300)
+
     // ---- 7) 发一条提问，验证流式文本真的进了 DOM（--ask / --full）----
     if (ASK) {
       const focused = await evaluate(`(() => {

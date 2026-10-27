@@ -380,7 +380,7 @@
   --tabbar-bg:var(--bg-card);
   --tabbar-border-color:var(--border);
   --tabbar-border-w:var(--p-bw-1);
-  --tabbar-cols:4;                                         /* 一级入口数：助手/课表/计划/管理 */
+  --tabbar-cols:4;                                         /* 一级入口列数的**上限**：管理员的 4 项（助手/课表/计划/管理）。学生账号只有 3 项，TabBar.vue 按实际渲染项数以内联 style 覆盖本值（=3），所以 `:root` 的 4 不是恒定列数 —— 写死 4 会让三项各占 1/4 宽、整体左偏 */
   --tabbar-item-min-h:var(--shell-tabbar-h);
   --tabbar-item-gap:var(--p-space-2px);
   --tabbar-item-fs:var(--p-fs-13);
@@ -400,7 +400,7 @@
   --wrap-inner-pad-x:0;                                    /* 嵌套 .wrap（助手片段自带 wrap）时内层左右内边距归零，避免双重缩进 */
   --wrap-rail-w:var(--layout-rail-w);                      /* ≥lg 两栏栅格的右栏宽（阶段 B 新增） */
   --wrap-gap:var(--p-space-6);                             /* ≥lg 两栏栅格的列间距 36px；1000 − 280 − 36 = 684 主列 */
-  --wrap-rail-top:calc(var(--p-size-appbar) + var(--wrap-pad-y-sm)); /* 右栏悬浮卡距视口顶的偏移 = 顶栏 56 + wrap 上内边距 36：这样右栏顶边与**左列第一张卡的顶边齐平**（2026-10-26 用户要求「左右两边水平位置要齐平」） */
+  --wrap-rail-top:calc(var(--p-size-appbar) + var(--p-space-6)); /* 右栏悬浮卡距视口顶的偏移 = 顶栏 56 + wrap 上内边距 36（同一个 --p-space-6，不引 L3 以免 L3 互引）：这样右栏顶边与**左列第一个块的顶边齐平**（2026-10-26 用户要求「左右两边水平位置要齐平」） */
   --wrap-rail-z:var(--p-z-rail);                           /* 右栏悬浮卡的层叠高度：高于输入条（20）、低于顶栏（40），这样它才是「浮在页面内容上方」而不是被输入条的底色切掉 */
   --wrap-rail-summary-pad:var(--p-space-2);                /* 折叠摘要条的内边距（视口高度放不下两张卡时用它替代） */
   --wrap-rail-summary-gap:var(--p-space-3);                /* 折叠摘要条里两块入口的间距 */
@@ -422,8 +422,7 @@
   --card-foot-pad-b:var(--p-space-3);
   --card-foot-gap:var(--p-space-2);
   --card-row-gap:var(--p-space-3);
-  --card-suggest-gap:var(--p-space-2);                     /* 建议卡之间的间距（阶段 B 新增） */
-  --card-suggest-pad:var(--p-space-3);
+  --card-suggest-gap:var(--p-space-2);                     /* 示例入口（原建议卡）的图标与文案间距；2026-10-27 起由 .hero__action 消费 */
   --card-suggest-ico:var(--p-size-suggest-ico);
   --card-suggest-ico-bg:var(--accent-tint);
   --card-suggest-ico-fg:var(--accent-strong);              /* 对方标底 8.9:1（≥3:1 图形） */
@@ -612,7 +611,7 @@
   --composer-tip-offset-y:var(--p-space-2);                /* 发送按钮冒泡提示与按钮的垂直间距 */
   --composer-tip-max-w:var(--p-size-tip-max);              /* 冒泡提示最大宽 */
   --composer-fade-h:var(--p-space-6);                      /* 输入条上方的淡出带高度：内容滑到胶囊下面时柔和消失。表单本身不再有整块底色与横贯全宽的分隔线（2026-10-26 用户反馈「有个容器把页面分割了」） */
-  --composer-reserve:calc(var(--composer-pad-y) + var(--composer-box-border-w) * 2 + var(--composer-box-pad) * 2 + var(--composer-input-min-h) + var(--composer-gap) + var(--btn-icon-size) + var(--composer-float-gap)); /* 页面底部为固定输入条预留的高度（空态实高 182px）：整页只有一个滚动条，滚到底时最后一行不被胶囊盖住 */
+  --composer-reserve:calc(var(--p-space-1) + var(--p-bw-1) * 2 + var(--p-space-3) * 2 + var(--p-size-composer-min-h) + var(--p-space-2) + var(--p-size-tap) + var(--p-space-4)); /* 页面底部为固定输入条预留的高度（空态实高 176px）：整页只有一个滚动条，滚到底时最后一行不被胶囊盖住。7 个加数逐项等于 pad-y / 外框×2 / 内边距×2 / 输入框最小高 / 行间距 / 圆按钮直径 / 浮起间距；这里直取尺度原语而不是引用 `--composer-*` / `--btn-icon-size`，因为 L3 之间禁止互引（verify-system B 项） */
 }
 /* ---- cite ---- */
 :root{

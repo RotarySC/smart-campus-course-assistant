@@ -84,8 +84,10 @@
 /* 用户区不再是「撑到最右」的那一个：右对齐由导航的 auto 外边距完成（§5.3）。
    与 Tab 组的间距直接取 `.appbar__inner` 的 flex gap（`--appbar-gap`），
    不再叠加第二层外边距 —— 否则 18 + 12 = 30px，比设计稿宽一半。 */
+/* 用户区：<768 时导航隐藏，右对齐改由这里承担（否则品牌与用户区会挤在左边）。
+   ≥768 由 `.appbar__nav` 的 `margin-left:auto` 接管，这里必须归零，不能两边都 auto。 */
 .appbar__user {
-  margin-left: 0;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: var(--appbar-user-gap);
@@ -94,6 +96,10 @@
 @media (min-width: 768px) {
   .appbar__nav {
     display: flex;
+  }
+
+  .appbar__user {
+    margin-left: 0;
   }
 }
 
@@ -233,7 +239,8 @@
   bottom: 0;
   z-index: var(--tabbar-z);
   display: grid;
-  grid-template-columns: repeat(var(--tabbar-cols), 1fr);
+  /* 列数由 TabBar 按**实际渲染项数**写入（学生 3 / 管理员 4）；minmax(0,1fr) 保证等宽不溢出。 */
+  grid-template-columns: repeat(var(--tabbar-cols), minmax(0, 1fr));
   background: var(--tabbar-bg);
   border-top: var(--tabbar-border-w) solid var(--tabbar-border-color);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -315,8 +322,12 @@
   min-width: 0;
 }
 
+/* 右栏（今日课表 + 学习计划）：**只在 ≥1200 存在**。
+   2026-10-27 用户需求：窄窗口下它原本会堆到对话区下方，要滚到页面底部才看得见，
+   而它的作用与「我的课表 / 学习计划」两个导航入口完全重复（顶部导航 ≥768 有、底部标签栏 <768 有），
+   所以 <1200 直接不显示，而不是退化成「主列下面的两张卡」。 */
 .workspace__rail {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: var(--card-row-gap);
 }
@@ -355,6 +366,7 @@
      余量只有 3px，一滚就被容器推走（用户实测「只吸一下就跟着页面走」）。
      `z-index` 高于输入条（20），所以不会被输入条的整幅底色切掉。 */
   .workspace__rail {
+    display: flex;
     position: fixed;
     top: var(--wrap-rail-top);
     right: calc(50% - var(--wrap-max) / 2);
