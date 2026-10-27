@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.adapters.db.models import AICapacitySlot, ChatRequest
 from app.adapters.model.deterministic import DeterministicProvider
-from app.adapters.model.gateway import ToolCall
+from app.adapters.model.gateway import Answer, ToolCall
 from app.modules.assistant.accept import recover_stale_requests
 from app.modules.assistant.runtime import Runtime, set_runtime
 from app.modules.assistant.settings import reset_assistant_settings
@@ -294,3 +294,56 @@ async def test_tool_end_omits_corpus_empty_for_other_tools(client, seeded, sched
     tool_end = next(event for event in events if event["event"] == "tool_end")
     # 非检索工具不得凭空带 corpus_empty（缺省即「不适用」，前端据此区分两种状态）
     assert "corpus_empty" not in tool_end["data"]
+
+
+# --------------------------------------------------------------------------- #
+# FR-AUTH-002：禁用/登出后，即使本轮不再调工具，也必须停止下发私有正文
+# --------------------------------------------------------------------------- #
+async def _disable_user(user_id: str) -> None:
+    from app.adapters.db.engine import get_session_factory
+    from app.adapters.db.models import User
+
+    async with get_session_factory()() as session:
+        await session.execute(
+            __import__("sqlalchemy").update(User).where(User.id == user_id).values(enabled=False)
+        )
+        await session.commit()
+
+
+class DisableMidStreamProvider:
+    """流式过程中把用户禁用：本轮的"停止"只能由 runner 的会话复检做到。"""
+
+    name = "disable-mid-stream"
+
+    def __init__(self, user_id: str) -> None:
+        self.user_id = user_id
+
+    async def next_action(self, context, budget):
+        return Answer(text="每段正文" * 40)
+
+    async def stream_answer(self, answer, emit):
+        for index in range(8):
+            await emit("每段正文" * 16)  # 64 字符 → 每次 emit 触发一次 flush
+            if index == 1:
+                await _disable_user(self.user_id)
+
+
+async def test_disabled_user_stops_receiving_tokens_mid_stream(client, seeded):
+    provider = DisableMidStreamProvider(seeded["student"]["id"])
+    set_runtime(Runtime(provider=provider, executor=StubToolExecutor()))
+    try:
+        status, events = await read_stream(
+            client,
+            seeded["student_token"],
+            {"client_request_id": "creq_disable_mid_stream", "message": "帮我总结今天的学习重点"},
+        )
+    finally:
+        set_runtime(None)
+
+    assert status == 200, events
+    validate_sse_events(events)
+    terminal = events[-1]
+    assert terminal["event"] == "error"
+    assert terminal["data"]["code"] == "SESSION_EXPIRED"
+    tokens = [event for event in events if event["event"] == "token"]
+    assert 0 < len(tokens) < 8, "已发出的停在那里，后面的正文不应继续下发"

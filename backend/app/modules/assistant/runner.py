@@ -21,7 +21,7 @@ from typing import Any
 
 from sqlalchemy import select, text, update
 
-from app.adapters.db.models import ChatRequest
+from app.adapters.db.models import AuthSession, ChatRequest, User
 from app.adapters.db.uow import uow
 from app.adapters.mcp.client import ToolExecutor
 from app.adapters.model.gateway import (
@@ -67,6 +67,14 @@ PROVIDER_TOOL_WHITELIST = frozenset({"get_my_schedule", "search_course_docs"})
 AUTH_ERROR_CODES = frozenset({"AUTH_REQUIRED", "SESSION_EXPIRED"})
 MODEL_TOOL_NAME = "save_study_plan"
 SEARCH_TOOL_NAME = "search_course_docs"
+
+
+class _SessionRevoked(Exception):
+    """流式过程中发现会话/账号失效：用异常打断 provider 的 emit 循环。"""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
 
 
 @dataclass
@@ -312,7 +320,7 @@ class Runner:
         return result.rowcount == 1
 
     async def _check_boundary(self) -> tuple[str, str, str] | None:
-        """可中止边界：丢失执行权 / 取消 / 截止 / 预算。返回 (state, reason, code)。"""
+        """可中止边界：丢失执行权 / 取消 / 截止 / 会话失效 / 预算。返回 (state, reason, code)。"""
         if self._lost:
             return ("failed", "EXECUTION_LOST", "INTERNAL_ERROR")
         row = await self._read_request()
@@ -329,6 +337,35 @@ class Runner:
             return ("cancelled", "USER_CANCELLED", "")
         if now_utc() >= self.deadline_at:
             return ("failed", "EXECUTION_TIMEOUT", "EXECUTION_TIMEOUT")
+        revoked = await self._session_invalid()
+        if revoked is not None:
+            return ("failed", revoked, revoked)
+        return None
+
+    async def _session_invalid(self) -> str | None:
+        """复检会话/账号是否仍可用（FR-AUTH-002：发送后续业务事件前复查）。
+
+        返回 ``SESSION_EXPIRED``：会话被登出 / 过期 / 版本变动，或账号被禁用
+        （SSE 契约的 error.code 里没有 FORBIDDEN，禁用态对用户的可执行动作同样是"重新登录"）。
+        本轮不再调工具时，这条检查是"禁用后停止下发私有内容"的唯一闸门。
+        """
+        async with uow() as tx:
+            session_row = await tx.session.get(AuthSession, self.actor.session_id)
+            if (
+                session_row is None
+                or session_row.user_id != self.actor.user_id
+                or session_row.revoked_at is not None
+                or session_row.expires_at <= to_db(now_utc())
+                or int(session_row.auth_version) != int(self.actor.auth_version)
+            ):
+                return "SESSION_EXPIRED"
+            user = await tx.session.get(User, self.actor.user_id)
+            if (
+                user is None
+                or not user.enabled
+                or int(user.auth_version) != int(self.actor.auth_version)
+            ):
+                return "SESSION_EXPIRED"
         return None
 
     async def _read_request(self) -> ChatRequest | None:
@@ -526,11 +563,24 @@ class Runner:
         block_id = new_id(PREFIX_REQUEST)
         emitted = False
         pending: list[str] = []
+        flush_count = 0
+
+        # FR-AUTH-002：开始下发正文前复查会话；之后每 4 次落盘复检一次（≈每 256 字），
+        # 禁用/登出发生在"本轮不再调工具"的情况下也能及时收口。
+        revoked = await self._session_invalid()
+        if revoked is not None:
+            await self._terminal("failed", reason=revoked, code=revoked, publish_error=True)
+            return
 
         async def _flush() -> None:
-            nonlocal emitted
+            nonlocal emitted, flush_count
             if not pending:
                 return
+            flush_count += 1
+            if flush_count % 4 == 0:
+                code = await self._session_invalid()
+                if code is not None:
+                    raise _SessionRevoked(code)
             delta = "".join(pending)
             pending.clear()
             if not delta:
@@ -554,8 +604,13 @@ class Runner:
             if sum(len(item) for item in pending) >= 64:
                 await _flush()
 
-        await self.deps.provider.stream_answer(Answer(text=text_value), emit)
-        await _flush()
+        try:
+            await self.deps.provider.stream_answer(Answer(text=text_value), emit)
+            await _flush()
+        except _SessionRevoked as exc:
+            # 会话在流式过程中失效：不再补发剩余正文，直接以错误终态收口。
+            await self._terminal("failed", reason=exc.code, code=exc.code, publish_error=True)
+            return
         if not emitted:
             # 空答案也要有一条可见正文，避免前端空白
             await self.channel.publish(
