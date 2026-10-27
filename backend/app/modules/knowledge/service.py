@@ -148,6 +148,17 @@ async def _ensure_corpus_control(tx: UoW) -> CorpusControl:
     return corpus
 
 
+def _preview_unavailable_reason(document: Document, version: DocumentVersion) -> str:
+    """预览不可用的原因（FR-DOC-004）：解析失败 / 仍处理中。
+
+    "已清理"的文档在 `preview_document` 入口就按 removed 返回 404，不会走到这里；
+    "在排队"与"正在处理"对用户是同一种等待，合并为 processing。
+    """
+    if document.processing_state == "failed" or version.state == "failed":
+        return "parse_failed"
+    return "processing"
+
+
 class KnowledgeService:
     # ------------------------------------------------------------------ 上传接受
     async def accept_batch(
@@ -518,7 +529,17 @@ class KnowledgeService:
         key = version.extracted_text_key
         fs = file_store()
         if not key or not fs.exists(key):
-            raise ApiError("RESOURCE_NOT_FOUND")
+            # FR-DOC-004：预览不可用必须给原因，不能只说"资源不存在"。
+            # 已删除文档仍走 404（删除后本就不该再被预览）。
+            reason = _preview_unavailable_reason(document, version)
+            return {
+                "document_id": document_id,
+                "version_id": version.id,
+                "offset": offset,
+                "next_offset": None,
+                "text": "",
+                "state": reason,
+            }
         text = fs.read_text(key)
         piece = text[offset : offset + limit]
         next_offset = offset + len(piece) if offset + len(piece) < len(text) else None
@@ -528,6 +549,7 @@ class KnowledgeService:
             "offset": offset,
             "next_offset": next_offset,
             "text": piece,
+            "state": "available",
         }
 
     # ------------------------------------------------------------------ 重建 / 删除 / 清理重试

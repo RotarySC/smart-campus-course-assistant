@@ -6069,6 +6069,14 @@
             "type": "string",
             "minLength": 0,
             "maxLength": 20000
+          },
+          "state": {
+            "enum": [
+              "available",
+              "processing",
+              "parse_failed"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -6076,7 +6084,8 @@
           "version_id",
           "offset",
           "next_offset",
-          "text"
+          "text",
+          "state"
         ],
         "additionalProperties": false
       },

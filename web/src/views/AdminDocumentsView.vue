@@ -117,7 +117,16 @@ onMounted(() => void load())
       />
 
       <Notice v-if="store.documentText" variant="evidence" role="note">
-        <p class="small">{{ store.documentText.text }}</p>
+        <p v-if="store.documentText.state === 'available'" class="small">
+          {{ store.documentText.text }}
+        </p>
+        <p v-else class="small">
+          {{
+            store.documentText.state === 'processing'
+              ? S11.previewUnavailableProcessing
+              : S11.previewUnavailableFailed
+          }}
+        </p>
       </Notice>
 
       <Notice v-if="store.error" variant="danger" role="alert">

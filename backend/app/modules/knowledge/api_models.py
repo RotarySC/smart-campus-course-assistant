@@ -73,6 +73,8 @@ class DocumentText(_Strict):
     offset: int = Field(ge=0)
     next_offset: int | None = Field(ge=0)
     text: str = Field(max_length=20000)
+    # FR-DOC-004：预览不可用时要有原因，而不是一律 404
+    state: Literal["available", "processing", "parse_failed"]
 
 
 class DocumentMutation(_Strict):

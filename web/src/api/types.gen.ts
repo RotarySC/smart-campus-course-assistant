@@ -581,6 +581,8 @@ export interface components {
             document_id: string;
             next_offset: number | null;
             offset: number;
+            /** @enum {string} */
+            state: "available" | "processing" | "parse_failed";
             text: string;
             version_id: string;
         };

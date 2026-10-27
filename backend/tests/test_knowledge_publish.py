@@ -153,7 +153,9 @@ async def test_worker_publishes_batch_and_chunks_are_searchable(client, seeded, 
         "offset",
         "next_offset",
         "text",
+        "state",
     }
+    assert text_payload["state"] == "available"
     assert len(text_payload["text"]) <= 10
 
 

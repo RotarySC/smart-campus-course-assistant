@@ -208,6 +208,8 @@ export const S11 = {
   noTextExtracted: '未提取到文字，可能是扫描件；本期不支持 OCR。', // content-spec S10（失败原因）
   batchRollback: '本批 1 个文件失败，整批未发布；其他批次不受影响。', // content-spec S10
   previewText: '预览抽取文本', // content-spec S11
+  previewUnavailableProcessing: '抽取文本预览暂不可用：文件仍在处理中，请稍后再试。', // content-spec S11（FR-DOC-004 原因）
+  previewUnavailableFailed: '抽取文本预览不可用：未提取到文字（可能是扫描件，本期不支持 OCR）。', // content-spec S11（FR-DOC-004 原因）
 } as const
 
 /* ===================== S12 管理中心 · 课表维护（content-spec S11） ===================== */

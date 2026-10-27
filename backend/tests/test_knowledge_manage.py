@@ -574,3 +574,46 @@ async def test_rebuild_failure_keeps_old_version_active(client, seeded, db, monk
     for attempt in failed_attempts:
         assert store.list_keys(attempt.file_prefix) == []
         assert await vs.namespace_chunk_ids(attempt.vector_namespace) == []
+
+
+async def test_preview_reports_unavailable_reason(client, seeded):
+    """FR-DOC-004：预览不可用要给原因（处理中 / 解析失败），不是一律 404。"""
+    # 1) 已接受但还没跑 worker → 处理中
+    pending = await upload(
+        client, seeded["admin_headers"], [("待处理.txt", txt_bytes("待处理内容。"))]
+    )
+    assert pending.status_code == 202, pending.text
+    pending_id = pending.json()["data"]["documents"][0]["id"]
+
+    first = await client.get(
+        f"{API}/admin/documents/{pending_id}/text", headers=seeded["admin_headers"]
+    )
+    assert first.status_code == 200, first.text
+    payload = first.json()["data"]
+    assert payload["state"] == "processing"
+    assert payload["text"] == ""
+    assert payload["next_offset"] is None
+
+    # 2) 整批补偿（空白文本 → NO_TEXT_EXTRACTED）→ 解析失败
+    failed = await upload(
+        client, seeded["admin_headers"], [("空白.txt", txt_bytes("   \n\t\n  "))]
+    )
+    assert failed.status_code == 202, failed.text
+    failed_id = failed.json()["data"]["documents"][0]["id"]
+    await worker_drain(rounds=8)
+
+    second = await client.get(
+        f"{API}/admin/documents/{failed_id}/text", headers=seeded["admin_headers"]
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["data"]["state"] == "parse_failed"
+    assert second.json()["data"]["text"] == ""
+
+    # 3) 已发布 → available（对照组）
+    published_id, _ = await _publish_document(client, seeded, "可预览.txt", "可预览内容。")
+    third = await client.get(
+        f"{API}/admin/documents/{published_id}/text", headers=seeded["admin_headers"]
+    )
+    assert third.status_code == 200
+    assert third.json()["data"]["state"] == "available"
+    assert third.json()["data"]["text"].strip()
