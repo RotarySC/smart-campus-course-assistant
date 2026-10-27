@@ -406,6 +406,66 @@ async function main() {
       check('导航外壳存在（nav）', page.nav === true)
       check('助手页 document.title', /· 校园课程智能助手$/.test(page.title ?? ''), page.title)
 
+      // ---- 助手页英雄区（2026-10-27：左侧卡片 → 英雄区布局）----
+      const hero = await evaluate(`(() => {
+        const h1s = [...document.querySelectorAll('h1')];
+        const title = document.querySelector('.hero__title');
+        const tiles = [...document.querySelectorAll('.hero__action')];
+        const note = document.querySelector('.hero__note');
+        const form = document.querySelector('.composer');
+        const formTop = form ? Math.round(form.getBoundingClientRect().top) : 0;
+        const cs = title ? getComputedStyle(title) : null;
+        return {
+          h1: h1s.length,
+          titleText: title ? title.textContent.trim() : '',
+          fs: cs && cs.fontSize,
+          tiles: tiles.length,
+          labels: tiles.map((t) => t.textContent.trim()).join('|'),
+          allButtons: tiles.every((t) => t.tagName === 'BUTTON' && !t.disabled),
+          cols: new Set(tiles.map((t) => Math.round(t.getBoundingClientRect().left))).size,
+          aboveComposer: tiles.every((t) => Math.round(t.getBoundingClientRect().bottom) <= formTop),
+          noteText: note ? note.textContent.trim() : '',
+          noteRole: note ? note.getAttribute('role') : null,
+        };
+      })()`)
+      check('英雄区：整页只有一个 h1', hero.h1 === 1, `h1=${hero.h1}`)
+      check(
+        '英雄区大标题 32px 且仍是 S02.title 原文',
+        hero.fs === '32px' && hero.titleText === '你好，我是校园课程助手',
+        `${hero.fs} / ${hero.titleText}`,
+      )
+      check(
+        '英雄区三个示例入口：≥md 三列、都是可点 button',
+        hero.tiles === 3 && hero.allButtons && hero.cols === 3,
+        `${hero.tiles} 个 / ${hero.cols} 列 / ${hero.labels}`,
+      )
+      check('示例入口在首屏输入条上方（不被输入条整幅底色盖住）', hero.aboveComposer === true)
+      check(
+        '边界提示降为说明行但仍带 role=note 且文案逐字',
+        hero.noteRole === 'note' && hero.noteText.includes('已保存的计划不受影响'),
+        hero.noteText.slice(0, 48),
+      )
+
+      // PRD：示例入口点击**只填入输入框，不自动提交**。
+      await evaluate(`document.querySelector('.hero__action')?.click()`)
+      await sleep(200)
+      const exState = await evaluate(`(() => ({
+        value: document.querySelector('#composer-input')?.value ?? '',
+        chat: !!document.querySelector('.chat'),
+      }))()`)
+      check(
+        '点示例只填入输入框、不自动提交（PRD）',
+        exState.value === '查今天的课' && exState.chat === false,
+        `value=${exState.value} / chat=${exState.chat}`,
+      )
+      // 清空：后续步骤要自己往输入框里填字，不能带残留。
+      await evaluate(`(() => {
+        const el = document.querySelector('#composer-input');
+        if (!el) return;
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, '');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+
       // ---- 输入条改版（2026-10-26）：一体式 / 圆形发送按钮 / 冒泡提示 / 贴底 ----
       const composerShape = await evaluate(`(() => {
         const form = document.querySelector('.composer');
@@ -521,10 +581,12 @@ async function main() {
       )
 
       // 折叠摘要（2026-10-26 用户需求）：右栏是 fixed 的，视口矮了会被底边切掉且滚不到，
-      // 所以放不下时折成一行摘要；折叠前后右栏顶边都必须与左列第一张卡的顶边齐平。
+      // 所以放不下时折成一行摘要；折叠前后右栏顶边都必须与左列第一个块的顶边齐平。
+      // 左列的「顶边参照物」取 `.workspace__main` 的第一个子元素（2026-10-27 起空闲态是英雄区
+      // `.hero`，不再是 `.card`，所以不能写死 `.card`）。
       const railAlign = await evaluate(`(() => {
         const rail = document.querySelector('.workspace__rail');
-        const card = document.querySelector('.workspace__main .card');
+        const card = document.querySelector('.workspace__main > :first-child');
         if (!rail || !card) return null;
         return {
           vw: innerWidth,
@@ -544,7 +606,7 @@ async function main() {
         const rail = document.querySelector('.workspace__rail');
         const sum = document.querySelector('.workspace__rail-summary');
         const body = document.querySelector('.workspace__rail-body');
-        const card = document.querySelector('.workspace__main .card');
+        const card = document.querySelector('.workspace__main > :first-child');
         const sr = sum.getBoundingClientRect();
         return {
           vw: innerWidth, vh: innerHeight,

@@ -154,7 +154,7 @@ export function runInvariants() {
 
 /* ============ 2. L3-only 分层纯度 ============ */
 const L3_PREFIXES = [
-  '--root-', '--wrap-', '--card-', '--btn-', '--pill-', '--notice-', '--chat-', '--msg-', '--bubble-',
+  '--root-', '--wrap-', '--card-', '--hero-', '--btn-', '--pill-', '--notice-', '--chat-', '--msg-', '--bubble-',
   '--steps-', '--step-', '--composer-', '--cite-', '--draft-', '--empty-', '--field-', '--control-',
   '--errorsummary-', '--table-', '--kv-', '--chip-', '--chips-', '--prose-', '--login-', '--stack-',
   '--row-', '--muted-', '--small-', '--appbar-', '--brand-', '--navlink-', '--tabbar-', '--skiplink-',

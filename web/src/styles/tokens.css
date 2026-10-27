@@ -457,6 +457,22 @@
   --card-progress-bg:var(--bg-muted);
   --card-progress-bar-bg:var(--accent);
 }
+/* ---- hero ---- */
+:root{
+  --hero-gap:var(--p-space-4);                             /* 英雄区三个大块（标题组 / 示例入口 / 说明行）之间的纵向节奏 */
+  --hero-intro-gap:var(--p-space-2);                       /* 大标题与副标题的间距 */
+  --hero-title-fs:var(--p-fs-32);                          /* 首屏大标题：32 是既有字号最高档（登录页品牌名同档），整站只此一处 */
+  --hero-title-sm-fs:var(--p-fs-20);                       /* 对话已开始后的紧凑标题：同一语义降两档，不再抢正文 */
+  --hero-title-fw:var(--p-fw-semibold);
+  --hero-title-lh:var(--p-lh-tight);
+  --hero-lede-fs:var(--p-fs-17);
+  --hero-lede-fg:var(--text-secondary);                    /* 副标题是正文级信息而不是弱化文字：用次级正文，不用 muted */
+  --hero-actions-gap:var(--p-space-2);
+  --hero-action-pad:var(--p-space-3);                      /* 示例入口内边距：比普通建议条更松，撑成首屏主目标 */
+  --hero-foot-gap:var(--p-space-3);
+  --hero-note-fs:var(--p-fs-13);
+  --hero-note-fg:var(--text-muted);
+}
 /* ---- btn ---- */
 :root{
   --btn-bg:var(--bg-card);

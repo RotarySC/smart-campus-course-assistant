@@ -13,7 +13,6 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Wrap from '@/components/base/Wrap.vue'
-import Card from '@/components/base/Card.vue'
 import Btn from '@/components/base/Btn.vue'
 import Notice from '@/components/base/Notice.vue'
 import Composer from '@/components/base/Composer.vue'
@@ -142,30 +141,25 @@ onMounted(() => {
   <Wrap>
     <div class="workspace">
       <div class="workspace__main">
-        <Card :title="S02.title">
-          <p>{{ S02.capability }}</p>
+        <!-- 英雄区（2026-10-27：左侧卡片改成英雄区布局）。
+             空闲态：一句话说清「我是谁 + 能做什么」+ 三个示例入口（全页唯一可点目标）；
+             对话开始后收成一行标题 + 清空对话，首屏让给正文。
+             边界提示文案**逐字保留**（content-spec S01），只是从提示块降为一行说明文字。 -->
+        <section v-if="showIdle" class="hero" aria-labelledby="assistant-hero-title">
+          <div class="hero__intro">
+            <h1 id="assistant-hero-title" class="hero__title">{{ S02.title }}</h1>
+            <p class="hero__lede">{{ S02.capability }}</p>
+          </div>
 
-          <Notice variant="info" role="note">
-            <template #icon>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                <path v-for="(d, i) in ICONS.info" :key="i" :d="d" />
-              </svg>
-            </template>
-            <p>{{ S02.boundaryNotice }}</p>
-            <template #actions>
-              <Btn size="sm" @click="clearConversation">{{ S02.clearConversation }}</Btn>
-            </template>
-          </Notice>
-
-          <div v-if="showIdle" class="suggest">
+          <div class="hero__actions">
             <button
               v-for="(ex, i) in S02.examples"
               :key="ex"
               type="button"
-              class="suggest__item"
+              class="hero__action"
               @click="useExample(ex)"
             >
-              <span class="suggest__ico" aria-hidden="true">
+              <span class="hero__action-ico" aria-hidden="true">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
                   <path v-for="(d, j) in ICONS[EXAMPLE_ICON[i] ?? 'messageCircle']" :key="j" :d="d" />
                 </svg>
@@ -173,24 +167,33 @@ onMounted(() => {
               <span>{{ ex }}</span>
             </button>
           </div>
-          <EmptyState v-else-if="!active" variant="empty" icon="messageCircle" :title="S02.title">
-            <template #actions>
-              <Btn size="sm" @click="clearConversation">{{ S02.clearConversation }}</Btn>
-            </template>
-          </EmptyState>
 
-          <p v-if="active && chat.isStreaming" class="row">
-            <Pill variant="info">
-              <template #icon>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-                  <path v-for="(d, i) in ICONS.loader" :key="i" :d="d" />
-                </svg>
-              </template>
-              {{ S03.processing }}
-            </Pill>
-            <Btn size="sm" @click="chat.cancel(active.requestId ?? '')">{{ S03.stop }}</Btn>
-          </p>
-        </Card>
+          <div class="hero__foot">
+            <p class="hero__note" role="note">{{ S02.boundaryNotice }}</p>
+            <Btn size="sm" @click="clearConversation">{{ S02.clearConversation }}</Btn>
+          </div>
+        </section>
+
+        <!-- 对话已开始：同一语义的紧凑形态（h1 仍在，标题降档），不是另一套文案。 -->
+        <section v-else class="hero hero--compact">
+          <div class="hero__bar">
+            <h1 class="hero__title">{{ S02.title }}</h1>
+            <Btn size="sm" @click="clearConversation">{{ S02.clearConversation }}</Btn>
+          </div>
+          <p class="hero__note" role="note">{{ S02.boundaryNotice }}</p>
+        </section>
+
+        <p v-if="active && chat.isStreaming" class="row">
+          <Pill variant="info">
+            <template #icon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+                <path v-for="(d, i) in ICONS.loader" :key="i" :d="d" />
+              </svg>
+            </template>
+            {{ S03.processing }}
+          </Pill>
+          <Btn size="sm" @click="chat.cancel(active.requestId ?? '')">{{ S03.stop }}</Btn>
+        </p>
 
         <ChatStream v-if="active" :round="active">
           <template #terminal>

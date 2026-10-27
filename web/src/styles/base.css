@@ -385,43 +385,9 @@
   }
 }
 
-/* ==== suggest（助手页建议卡；rb.css 阶段 B 新增块）==== */
-.suggest {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--card-suggest-gap);
-}
-
-.suggest__item {
-  display: flex;
-  align-items: center;
-  gap: var(--card-suggest-gap);
-  flex: 1 1 auto;
-  padding: var(--card-suggest-pad);
-  background: var(--card-bg);
-  border: var(--card-border-w) solid var(--card-border-color);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.suggest__item:hover {
-  border-color: var(--card-suggest-hover-border-color);
-}
-
-.suggest__ico {
-  width: var(--card-suggest-ico);
-  height: var(--card-suggest-ico);
-  border-radius: var(--card-suggest-ico-radius);
-  background: var(--card-suggest-ico-bg);
-  color: var(--card-suggest-ico-fg);
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-}
+/* note（2026-10-27）：原「建议卡」`.suggest / .suggest__item / .suggest__ico` 已由助手页
+   英雄区的 `.hero__action` 取代（示例入口从卡片内的一行小条升为首屏三格）。三者已无任何
+   视图引用，随改版一并删除；`--card-suggest-*` 这组尺度/色 token 仍被 `.hero__action` 消费。 */
 
 /* ==== split（主列 + 右栏；rb.css 阶段 B 新增块）
    与 `.workspace` 同栅格参数，差别只在用途：workspace 是助手页，split 是表格/详情页。 */
@@ -1097,6 +1063,124 @@ a.chip:hover {
 }
 
 /* ============ 03-conversation.md ============ */
+
+/* ==== hero（助手页英雄区；2026-10-27 改版，替换原 S02 卡片）
+   首屏只放一件事：一句话说清「我是谁 + 能做什么」，三个示例入口是全页**唯一**的
+   可点目标，边界提示降为一行 muted 小字（文案逐字不动，只是不再套提示块）。
+   刻意**不加**卡片外壳：英雄区就是页面本身，再加一层边框就成了「卡片里放卡片」。
+   尺寸/颜色全部走 L3；示例入口与建议条同一套卡面 token，保证与右栏视觉同源。 */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hero-gap);
+}
+
+.hero__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hero-intro-gap);
+}
+
+.hero__title {
+  margin: 0;
+  font-size: var(--hero-title-fs);
+  font-weight: var(--hero-title-fw);
+  line-height: var(--hero-title-lh);
+}
+
+/* 对话已开始：同一个 h1 降档 + 与「清空对话」同排，首屏让给正文。 */
+.hero--compact {
+  gap: var(--hero-intro-gap);
+}
+
+.hero--compact .hero__title {
+  font-size: var(--hero-title-sm-fs);
+}
+
+.hero__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hero-foot-gap);
+  flex-wrap: wrap;
+}
+
+.hero__lede {
+  margin: 0;
+  font-size: var(--hero-lede-fs);
+  color: var(--hero-lede-fg);
+}
+
+.hero__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--hero-actions-gap);
+}
+
+/* 入口默认「图标 + 文案」横排（<md）：窄屏纵向排三格要占 342px，
+   会把边界提示行和「清空对话」推到输入条底下（首屏看不到 → 等于没有）。
+   ≥md 才三列并排 + 竖排成首屏主目标（此时内容列 ≥ 640，每格 ≥ 200，
+   示例文字最长的 8 个字不会折行）。 */
+.hero__action {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--card-suggest-gap);
+  padding: var(--hero-action-pad);
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border-color);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hero__action:hover {
+  border-color: var(--card-suggest-hover-border-color);
+}
+
+@media (min-width: 768px) {
+  .hero__actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero__action {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.hero__action-ico {
+  width: var(--card-suggest-ico);
+  height: var(--card-suggest-ico);
+  border-radius: var(--card-suggest-ico-radius);
+  background: var(--card-suggest-ico-bg);
+  color: var(--card-suggest-ico-fg);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.hero__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hero-foot-gap);
+  flex-wrap: wrap;
+}
+
+.hero__note {
+  margin: 0;
+  font-size: var(--hero-note-fs);
+  color: var(--hero-note-fg);
+}
+
+/* 说明行与「清空对话」同排时占满剩余宽（.hero 是纵向 flex，不能给全局 flex）。 */
+.hero__foot > .hero__note {
+  flex: 1 1 auto;
+}
 
 /* ==== card（03 §Card；rb.css:185–190）==== */
 .card {
