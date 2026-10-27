@@ -382,6 +382,9 @@
   --tabbar-border-w:var(--p-bw-1);
   --tabbar-cols:4;                                         /* 一级入口列数的**上限**：管理员的 4 项（助手/课表/计划/管理）。学生账号只有 3 项，TabBar.vue 按实际渲染项数以内联 style 覆盖本值（=3），所以 `:root` 的 4 不是恒定列数 —— 写死 4 会让三项各占 1/4 宽、整体左偏 */
   --tabbar-item-min-h:var(--shell-tabbar-h);
+  --tabbar-item-pad-y:var(--p-space-1);                    /* 条目内的上下呼吸位（2026-10-27 用户实测「图标离上边太近」后新增）：只在条目内加内边距，条高仍由 --tabbar-item-min-h 锁定，否则吸底输入条的 --composer-bottom 会与真实条高错位 */
+  --tabbar-ico-lh:1;                                       /* 图标行盒压到 1 倍行高：图标外层的 span 原本继承 17px 正文的 1.75 行高（29px），比图标本身还高，把图标顶到了上边缘 */
+  --tabbar-label-lh:var(--p-lh-tight);                     /* 文案行高收到标题档（1.35）：13px 正文行高 23px 会把整条顶满；收紧后图标与文案在 56px 条高里各留 6px */
   --tabbar-item-gap:var(--p-space-2px);
   --tabbar-item-fs:var(--p-fs-13);
   --tabbar-item-fg:var(--text-secondary);

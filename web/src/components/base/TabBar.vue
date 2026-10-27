@@ -36,8 +36,8 @@ const items = computed(() => NAV_ITEMS.filter((i) => i.key !== 'admin' || props.
       <!-- 注意：插槽名固定为 `icon`，条目 key 必须走**另一个** prop。
            写成 name="icon" :name="item.key" 会被编译器判成「插槽名被绑定值覆盖」，
            插槽实际变成 item.key（'assistant'），传内容的地方永远拿不到。 -->
-      <span aria-hidden="true"><slot name="icon" :item="item.key" /></span>
-      <span>{{ item.tabbar }}</span>
+      <span class="tabbar__ico" aria-hidden="true"><slot name="icon" :item="item.key" /></span>
+      <span class="tabbar__label">{{ item.tabbar }}</span>
     </RouterLink>
   </nav>
 </template>

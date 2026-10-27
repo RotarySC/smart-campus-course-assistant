@@ -253,9 +253,23 @@
   align-items: center;
   justify-content: center;
   gap: var(--tabbar-item-gap);
+  /* 上下各 6px 呼吸位。只在条目内加内边距、不动 `--tabbar-item-min-h`：
+     条高一变，吸底输入条的 `--composer-bottom` 就与真实条高错位。 */
+  padding: var(--tabbar-item-pad-y) 0;
   color: var(--tabbar-item-fg);
   text-decoration: none;
   font-size: var(--tabbar-item-fs);
+}
+
+/* 图标与文案各自的行盒压紧（2026-10-27 用户实测「图标离上边太近」）：
+   span 原本继承 17px 正文的 1.75 行高 —— 图标行盒 29px、文案 23px，
+   两者加起来 54px，在 56px 的条高里只留下 1px，图标几乎贴着上边框。 */
+.tabbar__ico {
+  line-height: var(--tabbar-ico-lh);
+}
+
+.tabbar__label {
+  line-height: var(--tabbar-label-lh);
 }
 
 /* 标签栏占位（<768）：跟着 TabBar 一起渲染，所以登录页（没有标签栏）不会多出这块空白。

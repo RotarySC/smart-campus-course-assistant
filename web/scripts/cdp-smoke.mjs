@@ -677,6 +677,20 @@ async function main() {
       const ws = items.map((i) => Math.round(i.getBoundingClientRect().width));
       const lefts = items.map((i) => Math.round(i.getBoundingClientRect().left));
       const rail = document.querySelector('.workspace__rail');
+      const first = items[0];
+      let iconGap = null;
+      let labelGap = null;
+      let barH = null;
+      if (first) {
+        const ib = first.getBoundingClientRect();
+        const ico = first.querySelector('.tabbar__ico');
+        const lab = first.querySelector('.tabbar__label');
+        if (ico && lab) {
+          iconGap = Math.round(ico.getBoundingClientRect().top - ib.top);
+          labelGap = Math.round(ib.bottom - lab.getBoundingClientRect().bottom);
+        }
+        barH = Math.round(first.getBoundingClientRect().height);
+      }
       return {
         vw: innerWidth,
         shown: !!tab && getComputedStyle(tab).display !== 'none',
@@ -685,6 +699,9 @@ async function main() {
         widths: ws,
         lefts,
         railDisplay: rail ? getComputedStyle(rail).display : null,
+        iconGap,
+        labelGap,
+        barH,
       };
     })()`)
     check(
@@ -697,6 +714,13 @@ async function main() {
       `项=${phone.count} 宽=${phone.widths.join('/')} 条=${phone.bar} 左=${phone.lefts.join('/')}`,
     )
     check('窄屏同样不出现右栏', phone.railDisplay === 'none', `display=${phone.railDisplay}`)
+    // 2026-10-27 用户实测「图标离上边太近」：图标与文案的行盒必须被压紧，
+    // 否则 17px 正文的 1.75 行高会把图标顶到 1px 处。条高必须保持 56，不能靠长高解决。
+    check(
+      '窄屏标签栏：图标/文案上下各有呼吸位（≥4px）且条目仍是 56px',
+      phone.iconGap >= 4 && phone.labelGap >= 4 && phone.barH === 56,
+      `图标上=${phone.iconGap}px 文案下=${phone.labelGap}px 条目高=${phone.barH}px`,
+    )
     await cdp.send('Emulation.clearDeviceMetricsOverride')
     await sleep(300)
 
