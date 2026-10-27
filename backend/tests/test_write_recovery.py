@@ -93,6 +93,20 @@ async def test_pending_with_plan_is_marked_succeeded(seeded):
     assert operation.state == "succeeded"
     assert operation.plan_id == plan_id
     assert operation.retryable is False
+    # 核实结果要留事件（FR-OPS-001/002：写入 unknown 已核实可见）
+    from app.adapters.db.models import OutboxEvent
+
+    async with uow() as tx:
+        events = (
+            await tx.session.execute(
+                select(OutboxEvent).where(
+                    OutboxEvent.event_type == "write_operation.recovered"
+                )
+            )
+        ).scalars().all()
+    assert events
+    assert events[-1].metadata_json["state"] in ("succeeded", "failed")
+
 
 
 async def test_fresh_pending_operation_is_not_touched(seeded):

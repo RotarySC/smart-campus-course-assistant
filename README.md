@@ -15,7 +15,7 @@ Vue 3 + TypeScript 前端，FastAPI + SQLAlchemy(async) + MySQL 8.4 后端。助
 | 资料问答 | 上传（拖拽或选择文件）→ 解析 → 分块 → 向量 → 整批发布 → 检索；回答带可展开引用，文档删除后引用返回 410；「全库尚无资料」与「本次没检索到」是两个不同状态 |
 | 助手对话 | `POST /api/v1/chat/stream`：六类 SSE 事件、工具调用与回执、对话内保存 |
 | 管理端 | 课程、学生、课表、资料批次与发布的增删改查；四个管理页经二级导航互相直达 |
-| 运行统计 | `GET /api/v1/admin/stats/overview`（管理员）：按学校时区自然日窗口统计回答终止分类（succeeded／empty／failed／cancelled／timeout／limit_reached／auth_expired／pending）与计划、草稿、引用、工具、批次计数；只读聚合，不含正文 |
+| 运行统计 | `GET /api/v1/admin/stats/overview`（管理员）：按学校时区自然日窗口统计回答终止分类（succeeded／empty／failed／cancelled／timeout／limit_reached／auth_expired／pending）与计划、草稿、引用、工具、批次、幂等命中、写入核实计数；另给 worker 任务积压快照（pending/running/retry_wait/failed）与清理达标情况（succeeded/failed/超 5 分钟目标数）；只读聚合，不含正文 |
 
 ## 快速开始
 
@@ -93,7 +93,7 @@ cd backend
 
 ## 验证状态
 
-- 后端 **273 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed；本次全量一次跑出 264 passed + 1 例在 fixture 建连时撞 Docker 端口映射瞬时断连 `2003`，单例重跑通过）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。AI 容量槽选槽对 `SKIP LOCKED` 的瞬时假满做毫秒级有界重试：先在无锁查询里判断是否真满（真满立即 429、不排队），仍有空闲才重试最多 6 次（`test_assistant_api.py` 3 例守护）。资料链路的解析/向量参数摘要（分块 + Embedding Provider/维度）与向量空间都按版本行冻结：改 `CCA_CHUNK_SIZE`/`CCA_CHUNK_OVERLAP`/`CCA_EMBEDDING_DIM` 后，旧参数构建的版本会在发布/切版时以 `PROCESSING_FAILED` 拒绝（需重建），`CCA_VECTOR_SPACE` 在入库中途变化也不会把向量写进别的空间（`test_knowledge_publish.py` 3 例守护）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
+- 后端 **275 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed；本次全量一次跑出 264 passed + 1 例在 fixture 建连时撞 Docker 端口映射瞬时断连 `2003`，单例重跑通过）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。AI 容量槽选槽对 `SKIP LOCKED` 的瞬时假满做毫秒级有界重试：先在无锁查询里判断是否真满（真满立即 429、不排队），仍有空闲才重试最多 6 次（`test_assistant_api.py` 3 例守护）。资料链路的解析/向量参数摘要（分块 + Embedding Provider/维度）与向量空间都按版本行冻结：改 `CCA_CHUNK_SIZE`/`CCA_CHUNK_OVERLAP`/`CCA_EMBEDDING_DIM` 后，旧参数构建的版本会在发布/切版时以 `PROCESSING_FAILED` 拒绝（需重建），`CCA_VECTOR_SPACE` 在入库中途变化也不会把向量写进别的空间（`test_knowledge_publish.py` 3 例守护）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
 - 批次发布要么整批可见、要么整批补偿：发布任务终态失败（重试预算耗尽或不可重试，如 `VECTOR_SPACE_MISMATCH`）会把批次推进 `compensating`→`failed` 并清理，不会永久停在 `processing`；发布事务内若发现文档已被并发删除，整批转补偿而绝不把 `removed` 文档改回 `shared`；未发布批次删掉其中一份文档时当场整批补偿（`test_knowledge_publish.py` 3 例守护）。
 - 日志默认脱敏：SQLAlchemy 的 `[parameters: …]` / `[SQL: …]` 参数块与 `password=`、`token=`、`Bearer …`、`Set-Cookie` 等凭据形态在 formatter 之前替换为 `<redacted>`（`backend/app/shared/log_redaction.py`，含异常 traceback，9 例守护）。审计记录带请求级耗时，403/404 权限拒绝写 `access.denied` 审计行。
 - 契约 `contracts/openapi_v0.1.json`：**40 个操作（公共 36）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）与 `GET /api/v1/admin/stats/overview`（运行统计聚合）。

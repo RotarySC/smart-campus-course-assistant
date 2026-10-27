@@ -22,6 +22,7 @@ from sqlalchemy import func, select
 from app.adapters.db.engine import session_scope
 from app.adapters.db.models import (
     AuditEvent,
+    BackgroundTask,
     ChatRequest,
     DocumentBatch,
     OutboxEvent,
@@ -164,6 +165,63 @@ async def overview(*, from_date: date, to_date: date) -> dict[str, object]:
         )
         batches = {str(state): int(count) for state, count in batch_rows.all()}
 
+        idempotent_hits = await session.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(
+                OutboxEvent.created_at >= start,
+                OutboxEvent.created_at < end,
+                OutboxEvent.event_type == "write_operation.idempotent_hit",
+            )
+        )
+        writes_recovered = await session.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(
+                OutboxEvent.created_at >= start,
+                OutboxEvent.created_at < end,
+                OutboxEvent.event_type == "write_operation.recovered",
+            )
+        )
+
+        # 任务积压是快照：反映查询时刻队列里的任务，不随窗口过滤。
+        task_rows = await session.execute(
+            select(BackgroundTask.state, func.count()).group_by(BackgroundTask.state)
+        )
+        task_states = {str(state): int(count) for state, count in task_rows.all()}
+
+        cleanup_rows = await session.execute(
+            select(AuditEvent.action, AuditEvent.result, func.count())
+            .where(
+                AuditEvent.created_at >= start,
+                AuditEvent.created_at < end,
+                AuditEvent.action.in_(
+                    ("document.cleanup", "document.batch.compensated")
+                ),
+            )
+            .group_by(AuditEvent.action, AuditEvent.result)
+        )
+        cleanup_succeeded = 0
+        cleanup_failed = 0
+        for _action, result, count in cleanup_rows.all():
+            amount = int(count)
+            if str(result or "") == "success":
+                cleanup_succeeded += amount
+            else:
+                cleanup_failed += amount
+        slow_cleanups = await session.scalar(
+            select(func.count())
+            .select_from(AuditEvent)
+            .where(
+                AuditEvent.created_at >= start,
+                AuditEvent.created_at < end,
+                AuditEvent.action.in_(
+                    ("document.cleanup", "document.batch.compensated")
+                ),
+                AuditEvent.metadata_json["slow_cleanup"].as_boolean().is_(True),
+            )
+        )
+
     return {
         "window": {
             "from_date": from_date.isoformat(),
@@ -181,6 +239,19 @@ async def overview(*, from_date: date, to_date: date) -> dict[str, object]:
             "tool_failures": tool_failures,
             "batches_published": batches.get("published", 0),
             "batches_failed": batches.get("failed", 0),
+            "idempotent_hits": int(idempotent_hits or 0),
+            "writes_recovered": int(writes_recovered or 0),
+        },
+        "tasks": {
+            "pending": task_states.get("pending", 0),
+            "running": task_states.get("running", 0),
+            "retry_wait": task_states.get("retry_wait", 0),
+            "failed": task_states.get("failed", 0),
+        },
+        "cleanup": {
+            "succeeded": cleanup_succeeded,
+            "failed": cleanup_failed,
+            "slow": int(slow_cleanups or 0),
         },
     }
 

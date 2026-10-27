@@ -4190,6 +4190,14 @@
           "batches_failed": {
             "type": "integer",
             "minimum": 0.0
+          },
+          "idempotent_hits": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "writes_recovered": {
+            "type": "integer",
+            "minimum": 0.0
           }
         },
         "additionalProperties": false,
@@ -4203,7 +4211,9 @@
           "tool_calls",
           "tool_failures",
           "batches_published",
-          "batches_failed"
+          "batches_failed",
+          "idempotent_hits",
+          "writes_recovered"
         ]
       },
       "StatsOverview": {
@@ -4216,6 +4226,12 @@
           },
           "operations": {
             "$ref": "#/components/schemas/StatsOperations"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/StatsTasks"
+          },
+          "cleanup": {
+            "$ref": "#/components/schemas/StatsCleanup"
           }
         },
         "additionalProperties": false,
@@ -4223,7 +4239,60 @@
         "required": [
           "window",
           "requests",
-          "operations"
+          "operations",
+          "tasks",
+          "cleanup"
+        ]
+      },
+      "StatsTasks": {
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "running": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "retry_wait": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pending",
+          "running",
+          "retry_wait",
+          "failed"
+        ]
+      },
+      "StatsCleanup": {
+        "properties": {
+          "succeeded": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "slow": {
+            "type": "integer",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "succeeded",
+          "failed",
+          "slow"
         ]
       },
       "FieldError": {

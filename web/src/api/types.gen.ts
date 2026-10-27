@@ -836,20 +836,29 @@ export interface components {
             /** @enum {string} */
             status: "ok" | "empty";
         } & unknown;
+        StatsCleanup: {
+            failed: number;
+            slow: number;
+            succeeded: number;
+        };
         StatsOperations: {
             batches_failed: number;
             batches_published: number;
             citations_expanded: number;
             drafts_formed: number;
+            idempotent_hits: number;
             plans_created: number;
             plans_deleted: number;
             plans_retryable_failed: number;
             tool_calls: number;
             tool_failures: number;
+            writes_recovered: number;
         };
         StatsOverview: {
+            cleanup: components["schemas"]["StatsCleanup"];
             operations: components["schemas"]["StatsOperations"];
             requests: components["schemas"]["StatsRequests"];
+            tasks: components["schemas"]["StatsTasks"];
             window: components["schemas"]["StatsWindow"];
         };
         StatsRequests: {
@@ -863,6 +872,12 @@ export interface components {
             succeeded_with_evidence: number;
             timeout: number;
             total: number;
+        };
+        StatsTasks: {
+            failed: number;
+            pending: number;
+            retry_wait: number;
+            running: number;
         };
         StatsWindow: {
             /** Format: date */

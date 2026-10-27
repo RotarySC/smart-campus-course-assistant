@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import asyncio
 
+from sqlalchemy import select
+
+from app.adapters.db.uow import uow
+
 import pytest
 
 
@@ -71,6 +75,21 @@ async def test_manual_plan_lifecycle(client, seeded):
     assert again.status_code == 200
     assert again.json()["data"]["status"] == "existing"
     assert again.json()["data"]["plan_id"] == plan_id
+
+    # 幂等重放命中要留统计事件（FR-OPS-002）
+    from app.adapters.db.models import OutboxEvent
+
+    async with uow() as tx:
+        hits = (
+            await tx.session.execute(
+                select(OutboxEvent).where(
+                    OutboxEvent.event_type == "write_operation.idempotent_hit",
+                    OutboxEvent.aggregate_id == "op-manual-0001",
+                )
+            )
+        ).scalars().all()
+    assert len(hits) == 1
+    assert hits[0].metadata_json["status"] == "existing"
 
     # 同键异内容 → 409
     conflict = await client.post(

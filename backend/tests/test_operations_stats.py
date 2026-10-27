@@ -311,3 +311,94 @@ async def test_stats_rejects_bad_window(client, seeded, params):
     response = await client.get(API, params=params, headers=seeded["admin_headers"])
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_FAILED"
+
+
+async def test_stats_counts_idempotent_hits_and_recovered_writes(client, seeded, db):
+    """FR-OPS-002：幂等命中和"写入 unknown 已核实"要能查数量。"""
+    from app.shared.ids import PREFIX_OUTBOX
+
+    now = to_db(now_utc())
+    async with db() as session:
+        session.add(
+            OutboxEvent(
+                id=new_id(PREFIX_OUTBOX),
+                event_type="write_operation.idempotent_hit",
+                aggregate_id="op_stats_hit",
+                request_id="req_stats",
+                metadata_json={"status": "existing", "plan_id": None},
+                state="pending",
+                attempts=0,
+                next_run_at=now,
+                created_at=now,
+            )
+        )
+        session.add(
+            OutboxEvent(
+                id=new_id(PREFIX_OUTBOX),
+                event_type="write_operation.recovered",
+                aggregate_id="op_stats_recovered",
+                request_id="worker",
+                metadata_json={"state": "failed", "error_code": "INTERNAL_ERROR"},
+                state="pending",
+                attempts=0,
+                next_run_at=now,
+                created_at=now,
+            )
+        )
+        await session.commit()
+
+    response = await client.get(API, headers=seeded["admin_headers"])
+    assert response.status_code == 200, response.text
+    operations = response.json()["data"]["operations"]
+    assert operations["idempotent_hits"] == 1
+    assert operations["writes_recovered"] == 1
+
+
+async def test_stats_reports_task_backlog_and_slow_cleanup(client, seeded, db):
+    """任务积压快照与清理目标达成情况（FR-OPS-002 / FR-DOC-007）。"""
+    from app.adapters.db.models import BackgroundTask
+    from app.shared.ids import PREFIX_AUDIT, PREFIX_TASK
+
+    now = to_db(now_utc())
+    async with db() as session:
+        for state in ("pending", "running", "retry_wait", "failed"):
+            session.add(
+                BackgroundTask(
+                    id=new_id(PREFIX_TASK),
+                    kind="doc_persist",
+                    object_id=f"obj_{state}",
+                    dedupe_key=f"dedupe_{state}",
+                    state=state,
+                    priority=0,
+                    attempt=0,
+                    max_attempts=5,
+                    fence=0,
+                    next_run_at=now,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        for result, metadata in (
+            ("success", {"slow_cleanup": True, "cleanup_seconds": 900.0}),
+            ("success", None),
+            ("failure", None),
+        ):
+            session.add(
+                AuditEvent(
+                    id=new_id(PREFIX_AUDIT),
+                    action="document.cleanup",
+                    object_type="document",
+                    object_id=f"doc_{result}",
+                    result=result,
+                    request_id="worker",
+                    metadata_json=metadata,
+                    created_at=now,
+                )
+            )
+        await session.commit()
+
+    response = await client.get(API, headers=seeded["admin_headers"])
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["tasks"] == {"pending": 1, "running": 1, "retry_wait": 1, "failed": 1}
+    assert data["cleanup"] == {"succeeded": 2, "failed": 1, "slow": 1}

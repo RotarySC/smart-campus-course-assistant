@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from app.adapters.db.models import StudyPlan, WriteOperation
 from app.adapters.db.uow import uow
+from app.modules.operations.service import append_outbox
 from app.shared.clock import now_utc, to_db
 
 logger = logging.getLogger("cca.planning.recovery")
@@ -88,6 +89,19 @@ async def recover_pending_write_operations(
                 operation.error_code = "INTERNAL_ERROR"
                 counters["recovered_failed"] += 1
             operation.updated_at = to_db(now)
+            # 写入结果原先未知（pending/recovering），这里核实后发一条事件，
+            # 让"unknown -> 已核实"在统计与排障里可见（FR-OPS-001/002）。
+            append_outbox(
+                tx,
+                event_type="write_operation.recovered",
+                aggregate_id=operation_id,
+                request_id="worker",
+                metadata={
+                    "state": operation.state,
+                    "plan_id": operation.plan_id,
+                    "error_code": operation.error_code,
+                },
+            )
             await tx.commit()
             logger.warning(
                 "write operation recovered user=%s operation=%s state=%s",

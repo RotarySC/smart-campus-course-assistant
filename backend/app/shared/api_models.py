@@ -248,12 +248,33 @@ class StatsOperations(_Strict):
     tool_failures: int = Field(ge=0)
     batches_published: int = Field(ge=0)
     batches_failed: int = Field(ge=0)
+    idempotent_hits: int = Field(ge=0)
+    writes_recovered: int = Field(ge=0)
+
+
+class StatsTasks(_Strict):
+    """Worker 任务积压快照（不受窗口限制，反映调用时刻的队列状态）。"""
+
+    pending: int = Field(ge=0)
+    running: int = Field(ge=0)
+    retry_wait: int = Field(ge=0)
+    failed: int = Field(ge=0)
+
+
+class StatsCleanup(_Strict):
+    """清理项目标达成情况（FR-DOC-007：超过 5 分钟目标要可观测）。"""
+
+    succeeded: int = Field(ge=0)
+    failed: int = Field(ge=0)
+    slow: int = Field(ge=0)
 
 
 class StatsOverview(_Strict):
     window: StatsWindow
     requests: StatsRequests
     operations: StatsOperations
+    tasks: StatsTasks
+    cleanup: StatsCleanup
 
 
 # 标准错误响应（与设计包每个 operation 的 400–504 声明一致）
@@ -304,6 +325,8 @@ __all__ = [
     "ScheduleDelete",
     "SchedulePage",
     "StatsOperations",
+    "StatsTasks",
+    "StatsCleanup",
     "StatsOverview",
     "StatsRequests",
     "StatsWindow",

@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from datetime import date, timedelta
 from typing import Any, Mapping
 
@@ -48,6 +50,8 @@ from app.shared.payload import (
     payload_from_row,
     plan_payload_digest,
 )
+
+logger = logging.getLogger("cca.planning")
 
 
 # --------------------------------------------------------------------------- #
@@ -171,6 +175,25 @@ def _result_payload(operation: WriteOperation) -> dict[str, Any]:
     }
 
 
+IDEMPOTENT_HIT_EVENT = "write_operation.idempotent_hit"
+
+
+def append_idempotent_hit(
+    tx: UoW, operation: WriteOperation, *, request_id: str
+) -> None:
+    """幂等重放命中记一条 Outbox 事件（FR-OPS-002 统计用；与业务同事务）。"""
+    append_outbox(
+        tx,
+        event_type=IDEMPOTENT_HIT_EVENT,
+        aggregate_id=operation.operation_id,
+        request_id=request_id,
+        metadata={
+            "status": _result_payload(operation)["status"],
+            "plan_id": operation.plan_id,
+        },
+    )
+
+
 # --------------------------------------------------------------------------- #
 # 计划：手动创建 / 查询 / 更新 / 删除
 # --------------------------------------------------------------------------- #
@@ -239,6 +262,13 @@ async def create_plan_manual(
         actor, operation_id=idempotency_key, digest=digest, source="manual"
     )
     if final is not None:
+        # 幂等重放命中（FR-OPS-002 事件）：独立短事务，失败不影响本次返回
+        try:
+            async with uow() as hit_tx:
+                append_idempotent_hit(hit_tx, final, request_id=request_id)
+                await hit_tx.commit()
+        except Exception:  # noqa: BLE001 - 统计事件失败不改变业务结果
+            logger.warning("idempotent hit event failed operation=%s", final.operation_id)
         return 200, _result_payload(final)
 
     try:
@@ -248,6 +278,8 @@ async def create_plan_manual(
             if operation is None:
                 raise ApiError("INTERNAL_ERROR")
             if _operation_final_result(operation) is not None:
+                append_idempotent_hit(tx, operation, request_id=request_id)
+                await tx.commit()
                 return 200, _result_payload(operation)
             if operation.content_digest != digest:
                 raise ApiError("IDEMPOTENCY_CONFLICT")
@@ -291,6 +323,14 @@ async def create_plan_manual(
                     WriteOperation, (actor.user_id, idempotency_key)
                 )
             if operation is not None and _operation_final_result(operation):
+                try:
+                    async with uow() as hit_tx:
+                        append_idempotent_hit(hit_tx, operation, request_id="")
+                        await hit_tx.commit()
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "idempotent hit event failed operation=%s", operation.operation_id
+                    )
                 return 200, _result_payload(operation)
         raise (mapped or ApiError("INTERNAL_ERROR")) from None
 
@@ -553,6 +593,13 @@ async def save_draft(
         origin_chat_request_id=origin_request_id,
     )
     if final is not None:
+        # 幂等重放命中（FR-OPS-002 事件）：独立短事务，失败不影响本次返回
+        try:
+            async with uow() as hit_tx:
+                append_idempotent_hit(hit_tx, final, request_id=request_id)
+                await hit_tx.commit()
+        except Exception:  # noqa: BLE001 - 统计事件失败不改变业务结果
+            logger.warning("idempotent hit event failed operation=%s", final.operation_id)
         return 200, _result_payload(final)
 
     try:
@@ -565,6 +612,8 @@ async def save_draft(
             if operation is None:
                 raise ApiError("INTERNAL_ERROR")
             if _operation_final_result(operation) is not None:
+                append_idempotent_hit(tx, operation, request_id=request_id)
+                await tx.commit()
                 return 200, _result_payload(operation)
             if operation.content_digest != digest:
                 raise ApiError("IDEMPOTENCY_CONFLICT")
