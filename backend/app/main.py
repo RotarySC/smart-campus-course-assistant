@@ -19,6 +19,7 @@ from app.modules.academics.router import router as academics_router
 from app.modules.assistant.router import router as assistant_router
 from app.modules.identity.router import router as identity_router
 from app.modules.knowledge.router import router as knowledge_router
+from app.modules.operations.router import router as operations_router
 from app.modules.planning.router import router as planning_router
 from app.shared.api_models import Envelope, Health
 from app.shared.http import (
@@ -27,6 +28,7 @@ from app.shared.http import (
     envelope,
     setup_exception_handlers,
 )
+from app.shared.log_redaction import install_redaction
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,12 +69,15 @@ def build_api_router() -> APIRouter:
     # Phase 2 / Phase 3：路由在 Phase 1 冻结并挂载，未实现端点返回 501 信封。
     router.include_router(knowledge_router)
     router.include_router(assistant_router)
+    router.include_router(operations_router)
     return router
 
 
 def _configure_app(app: FastAPI, *, cors: bool) -> FastAPI:
     settings = get_settings()
     setup_exception_handlers(app)
+    # NFR-PRIV-001：日志默认不落正文/凭据（含 logger.exception 的 SQLAlchemy 参数块）
+    install_redaction()
 
     # 注意顺序：后添加的中间件在最外层；CORS 需包住 request_id 中间件。
     app.add_middleware(RequestContextMiddleware)

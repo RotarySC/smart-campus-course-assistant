@@ -942,7 +942,29 @@ class KnowledgeService:
         )
         if not valid:
             raise ApiError("CITATION_UNAVAILABLE")
+        await self._record_citation_expanded(ctx, reference_id, reference)
         return citation_view(reference, chunk, document)
+
+    async def _record_citation_expanded(
+        self, ctx: ActorContext, reference_id: str, reference: CitationReference
+    ) -> None:
+        """FR-OPS-002「引用展开」事件：读路径上的统计事件，写失败不影响展开本身。"""
+        try:
+            async with uow() as tx:
+                append_outbox(
+                    tx,
+                    event_type="citation.expanded",
+                    aggregate_id=reference_id,
+                    request_id=ctx.trace_request_id,
+                    metadata={
+                        "reference_id": reference_id,
+                        "document_id": reference.document_id,
+                        "version_id": reference.version_id,
+                    },
+                )
+                await tx.commit()
+        except Exception:  # noqa: BLE001 - 统计事件不得让引用展开失败
+            logger.warning("citation.expanded 事件写入失败 reference_id=%s", reference_id)
 
 
 knowledge = KnowledgeService()

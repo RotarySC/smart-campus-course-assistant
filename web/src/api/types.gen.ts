@@ -196,6 +196,22 @@ export interface paths {
         patch: operations["patchSchedule"];
         trace?: never;
     };
+    "/api/v1/admin/stats/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStatsOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/students": {
         parameters: {
             query?: never;
@@ -820,6 +836,41 @@ export interface components {
             /** @enum {string} */
             status: "ok" | "empty";
         } & unknown;
+        StatsOperations: {
+            batches_failed: number;
+            batches_published: number;
+            citations_expanded: number;
+            drafts_formed: number;
+            plans_created: number;
+            plans_deleted: number;
+            plans_retryable_failed: number;
+            tool_calls: number;
+            tool_failures: number;
+        };
+        StatsOverview: {
+            operations: components["schemas"]["StatsOperations"];
+            requests: components["schemas"]["StatsRequests"];
+            window: components["schemas"]["StatsWindow"];
+        };
+        StatsRequests: {
+            auth_expired: number;
+            cancelled: number;
+            empty: number;
+            failed: number;
+            limit_reached: number;
+            pending: number;
+            succeeded: number;
+            succeeded_with_evidence: number;
+            timeout: number;
+            total: number;
+        };
+        StatsWindow: {
+            /** Format: date */
+            from_date: string;
+            school_timezone: string;
+            /** Format: date */
+            to_date: string;
+        };
         StudentCreate: {
             account: string;
             display_name: string;
@@ -1446,6 +1497,135 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
             504: components["responses"]["ErrorResponse"];
+        };
+    };
+    getStatsOverview: {
+        parameters: {
+            query?: {
+                from_date?: string | null;
+                to_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["StatsOverview"];
+                        request_id: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listStudents: {

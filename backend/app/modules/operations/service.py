@@ -34,7 +34,14 @@ def append_audit(
     duration_ms: int | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> str:
-    """插入审计事件（与业务同事务）。metadata 只放白名单元数据。"""
+    """插入审计事件（与业务同事务）。metadata 只放白名单元数据。
+
+    ``duration_ms`` 未显式给出时取请求级耗时（FR-OPS-001）；worker/CLI 无请求上下文
+    时保持 NULL，不臆造数字。
+    """
+    from app.shared.audit_timing import current_duration_ms
+
+    measured = duration_ms if duration_ms is not None else current_duration_ms()
     event = AuditEvent(
         id=new_id(PREFIX_AUDIT),
         actor_id=actor_id,
@@ -43,7 +50,7 @@ def append_audit(
         object_id=object_id,
         result=result[:32],
         request_id=request_id[:64],
-        duration_ms=duration_ms,
+        duration_ms=measured,
         metadata_json=metadata,
         created_at=to_db(now_utc()),
     )

@@ -17,6 +17,205 @@
     }
   ],
   "paths": {
+    "/api/v1/admin/stats/overview": {
+      "get": {
+        "summary": "Stats Overview",
+        "description": "回答终止、工具、计划、批次与草稿/引用计数（管理员）。",
+        "operationId": "getStatsOverview",
+        "parameters": [
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StatsOverview"
+                    }
+                  },
+                  "required": [
+                    "request_id",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证或会话失效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "角色无权操作",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "唯一键/版本/重叠/幂等冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "临时内容或引用失效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "上传超过限额",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "不支持的文件类型",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "字段校验失败或许可不成立",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "达到并发保护上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "未预期系统错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖服务暂不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "执行预算耗尽",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login",
@@ -3871,6 +4070,162 @@
       }
     },
     "schemas": {
+      "StatsWindow": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "school_timezone": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "school_timezone"
+        ]
+      },
+      "StatsRequests": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "succeeded": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "succeeded_with_evidence": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "empty": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "cancelled": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "timeout": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "limit_reached": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "auth_expired": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "pending": {
+            "type": "integer",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "succeeded",
+          "succeeded_with_evidence",
+          "empty",
+          "failed",
+          "cancelled",
+          "timeout",
+          "limit_reached",
+          "auth_expired",
+          "pending"
+        ],
+        "description": "回答终止分类：SRS 要求区分空结果/服务失败/取消/限额/认证失效。"
+      },
+      "StatsOperations": {
+        "properties": {
+          "plans_created": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "plans_deleted": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "plans_retryable_failed": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "drafts_formed": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "citations_expanded": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "tool_calls": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "tool_failures": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "batches_published": {
+            "type": "integer",
+            "minimum": 0.0
+          },
+          "batches_failed": {
+            "type": "integer",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plans_created",
+          "plans_deleted",
+          "plans_retryable_failed",
+          "drafts_formed",
+          "citations_expanded",
+          "tool_calls",
+          "tool_failures",
+          "batches_published",
+          "batches_failed"
+        ]
+      },
+      "StatsOverview": {
+        "properties": {
+          "window": {
+            "$ref": "#/components/schemas/StatsWindow"
+          },
+          "requests": {
+            "$ref": "#/components/schemas/StatsRequests"
+          },
+          "operations": {
+            "$ref": "#/components/schemas/StatsOperations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "window",
+          "requests",
+          "operations"
+        ]
+      },
       "FieldError": {
         "type": "object",
         "properties": {

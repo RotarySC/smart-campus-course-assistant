@@ -23,6 +23,7 @@ from app.adapters.db.uow import uow
 from app.adapters.model.gateway import DraftIntent, DraftRecord
 from app.config import get_settings
 from app.modules.planning.schemas import validate_plan_payload
+from app.modules.operations.service import append_outbox
 from app.shared.clock import now_utc, to_db
 from app.shared.context import ExecutionContext
 from app.shared.errors import ApiError
@@ -183,6 +184,14 @@ async def create_turn_draft(
         )
         tx.session.add(draft)
         tx.session.add(version)
+        # FR-OPS-002「草稿形成」事件：与草稿同事务，避免统计漏记或与事实不符
+        append_outbox(
+            tx,
+            event_type="draft.formed",
+            aggregate_id=draft_id,
+            request_id=context.chat_request_id,
+            metadata={"draft_id": draft_id, "draft_version": 1},
+        )
         try:
             await tx.session.flush()
             await tx.commit()

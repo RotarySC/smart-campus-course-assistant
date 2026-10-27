@@ -23,6 +23,7 @@ from starlette.types import ASGIApp
 
 from app.config import get_settings
 from app.shared import ids
+from app.shared.audit_timing import mark_request_start, reset_request_timing
 from app.shared.errors import ApiError, field_error, validation_error
 
 logger = logging.getLogger("cca.http")
@@ -101,11 +102,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         rid = incoming if REQUEST_ID_PATTERN.match(incoming) else ids.new_id(ids.PREFIX_REQUEST)
         request.state.request_id = rid
         started = time.perf_counter()
+        mark_request_start()
         response: Response | None = None
         try:
             response = await call_next(request)
             return response
         finally:
+            reset_request_timing()
             duration_ms = int((time.perf_counter() - started) * 1000)
             status_code = response.status_code if response is not None else 500
             logger.info(
@@ -183,9 +186,40 @@ def _field_name(location: tuple[Any, ...]) -> str:
     return ".".join(parts) or "request"
 
 
+async def _record_access_denied(request: Request, *, code: str, status_code: int) -> None:
+    """FR-OPS-001：权限拒绝/越权访问必须可追踪；审计写失败不得改变响应。"""
+    try:
+        from app.adapters.db.uow import uow
+        from app.modules.operations.service import append_audit
+
+        async with uow() as tx:
+            append_audit(
+                tx,
+                action="access.denied",
+                object_type="endpoint",
+                object_id=f"{request.method} {request.url.path}"[:64],
+                result=code,
+                request_id=request_id_of(request),
+                actor_id=getattr(request.state, "actor_id", None),
+                metadata={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": status_code,
+                    "code": code,
+                },
+            )
+            await tx.commit()
+    except Exception:  # noqa: BLE001 - 审计失败不能影响拒绝响应
+        logger.warning("access.denied 审计写入失败 request_id=%s", request_id_of(request))
+
+
 def setup_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, exc: ApiError) -> JSONResponse:
+        if exc.status_code in (403, 404):
+            await _record_access_denied(
+                request, code=exc.code, status_code=exc.status_code
+            )
         return JSONResponse(
             error_body(request_id_of(request), exc),
             status_code=exc.status_code,
@@ -238,6 +272,10 @@ def setup_exception_handlers(app: FastAPI) -> None:
             code, message = "INTERNAL_ERROR", None
         error = ApiError(code, message=message)
         error.status_code = exc.status_code
+        if exc.status_code in (403, 404):
+            await _record_access_denied(
+                request, code=code, status_code=exc.status_code
+            )
         return JSONResponse(
             error_body(request_id_of(request), error),
             status_code=exc.status_code,

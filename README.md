@@ -15,6 +15,7 @@ Vue 3 + TypeScript 前端，FastAPI + SQLAlchemy(async) + MySQL 8.4 后端。助
 | 资料问答 | 上传（拖拽或选择文件）→ 解析 → 分块 → 向量 → 整批发布 → 检索；回答带可展开引用，文档删除后引用返回 410；「全库尚无资料」与「本次没检索到」是两个不同状态 |
 | 助手对话 | `POST /api/v1/chat/stream`：六类 SSE 事件、工具调用与回执、对话内保存 |
 | 管理端 | 课程、学生、课表、资料批次与发布的增删改查；四个管理页经二级导航互相直达 |
+| 运行统计 | `GET /api/v1/admin/stats/overview`（管理员）：按学校时区自然日窗口统计回答终止分类（succeeded／empty／failed／cancelled／timeout／limit_reached／auth_expired／pending）与计划、草稿、引用、工具、批次计数；只读聚合，不含正文 |
 
 ## 快速开始
 
@@ -83,8 +84,9 @@ cd backend
 
 ## 验证状态
 
-- 后端 **235 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
-- 契约 `contracts/openapi_v0.1.json`：**39 个操作（公共 35）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）。
+- 后端 **257 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
+- 日志默认脱敏：SQLAlchemy 的 `[parameters: …]` / `[SQL: …]` 参数块与 `password=`、`token=`、`Bearer …`、`Set-Cookie` 等凭据形态在 formatter 之前替换为 `<redacted>`（`backend/app/shared/log_redaction.py`，含异常 traceback，9 例守护）。审计记录带请求级耗时，403/404 权限拒绝写 `access.denied` 审计行。
+- 契约 `contracts/openapi_v0.1.json`：**40 个操作（公共 36）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）与 `GET /api/v1/admin/stats/overview`（运行统计聚合）。
 - 前端门禁全过：类型检查、SFC 编译（56 个 `.vue`）、10 项不变量、stylelint 分层纯度、OpenAPI 类型漂移、契约漂移、生产构建。
 - 端到端（真实四进程：公共/内部 API + MCP + worker）：接口链路 **32/32 步**（登录 → 课表 → 计划幂等/版本冲突 → SSE 三工具 → 引用展开 → 草稿保存 → 管理端增删改查）；
   headless 浏览器冒烟 **40/40 项**（登录页两栏与注册 Tab、SSE 文本流入、引用卡展开、助手输入条改版与整页单滚动）+ 逐屏走查 **69/69 项**

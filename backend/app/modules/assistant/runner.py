@@ -94,6 +94,8 @@ class RunnerState:
     save: SaveRecord | None = None
     answer_text: str = ""
     save_succeeded: bool = False
+    # 最近一次检索的语料态：None=本轮未检索/检索失败，True=全库为空，False=有资料
+    corpus_empty: bool | None = None
 
 
 class Runner:
@@ -744,6 +746,9 @@ class Runner:
                         "reason": terminal_reason,
                         "model_calls": self.state.decisions,
                         "tool_calls": self.state.tools,
+                        # FR-OPS-002：空结果（主体正确结束但无依据）与成功要分得开
+                        "corpus_empty": self.state.corpus_empty,
+                        "citations": len(self._evidence_references_payload()),
                         "plan_id": self.state.save.plan_id if self.state.save else None,
                     },
                 )
@@ -792,6 +797,7 @@ class Runner:
                 corpus_empty = bool(evidence.corpus_empty)
             else:
                 corpus_empty = bool(record.payload.get("corpus_empty", False))
+            self.state.corpus_empty = corpus_empty
         await self.channel.publish(
             "tool_end",
             lambda seq, ts: ToolEndData(

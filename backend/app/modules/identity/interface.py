@@ -20,7 +20,10 @@ async def get_actor(request: Request) -> ActorContext:
     scheme, _, token = header.partition(" ")
     if not header or scheme.lower() != "bearer" or not token.strip():
         raise ApiError("AUTH_REQUIRED")
-    return await authenticate_token(token.strip(), request_id_of(request))
+    actor = await authenticate_token(token.strip(), request_id_of(request))
+    # 供异常处理器在权限拒绝时把操作者写进审计（FR-OPS-001）
+    request.state.actor_id = actor.user_id
+    return actor
 
 
 async def get_admin(actor: ActorContext = Depends(get_actor)) -> ActorContext:

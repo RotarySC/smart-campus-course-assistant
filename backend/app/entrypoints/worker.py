@@ -51,6 +51,10 @@ async def _main(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO)
+    # NFR-PRIV-001：worker 日志同样不落正文/凭据（含异常里的 SQLAlchemy 参数块）
+    from app.shared.log_redaction import install_redaction
+
+    install_redaction()
     args = build_parser().parse_args(argv)
     return asyncio.run(_main(args))
 

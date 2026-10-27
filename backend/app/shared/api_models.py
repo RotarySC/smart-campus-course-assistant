@@ -216,6 +216,46 @@ class Health(_Strict):
     checks: dict[str, Any]
 
 
+# ---- 运行统计（FR-OPS-002 / NFR-OBS-001）----
+class StatsWindow(_Strict):
+    from_date: date
+    to_date: date
+    school_timezone: str = Field(min_length=1, max_length=64)
+
+
+class StatsRequests(_Strict):
+    """回答终止分类：SRS 要求区分空结果/服务失败/取消/限额/认证失效。"""
+
+    total: int = Field(ge=0)
+    succeeded: int = Field(ge=0)
+    succeeded_with_evidence: int = Field(ge=0)
+    empty: int = Field(ge=0)
+    failed: int = Field(ge=0)
+    cancelled: int = Field(ge=0)
+    timeout: int = Field(ge=0)
+    limit_reached: int = Field(ge=0)
+    auth_expired: int = Field(ge=0)
+    pending: int = Field(ge=0)
+
+
+class StatsOperations(_Strict):
+    plans_created: int = Field(ge=0)
+    plans_deleted: int = Field(ge=0)
+    plans_retryable_failed: int = Field(ge=0)
+    drafts_formed: int = Field(ge=0)
+    citations_expanded: int = Field(ge=0)
+    tool_calls: int = Field(ge=0)
+    tool_failures: int = Field(ge=0)
+    batches_published: int = Field(ge=0)
+    batches_failed: int = Field(ge=0)
+
+
+class StatsOverview(_Strict):
+    window: StatsWindow
+    requests: StatsRequests
+    operations: StatsOperations
+
+
 # 标准错误响应（与设计包每个 operation 的 400–504 声明一致）
 _ERROR_DESCRIPTIONS = {
     400: "请求不合法",
@@ -263,6 +303,10 @@ __all__ = [
     "Schedule",
     "ScheduleDelete",
     "SchedulePage",
+    "StatsOperations",
+    "StatsOverview",
+    "StatsRequests",
+    "StatsWindow",
     "StudentPage",
     "User",
     "WriteOperation",
