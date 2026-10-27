@@ -385,6 +385,16 @@ async def recover_stale_requests(*, limit: int = 100) -> int:
             await tx.commit()
     if recovered:
         logger.warning("recovered stale chat requests count=%s", recovered)
+    # 写入操作恢复（§7.3）：确认没有创建结果的 pending 意图收敛为可重试失败，
+    # 已有计划的补齐 succeeded。失败不影响请求恢复本身。
+    try:
+        from app.modules.planning.recovery import recover_pending_write_operations
+
+        counters = await recover_pending_write_operations()
+        if counters["recovered_succeeded"] or counters["recovered_failed"]:
+            logger.warning("recovered write operations %s", counters)
+    except Exception:  # noqa: BLE001 - 恢复失败不应阻断新请求
+        logger.exception("write operation recovery failed")
     return recovered
 
 
