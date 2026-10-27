@@ -78,6 +78,50 @@ async def test_course_crud_and_rules(client, seeded):
     assert extra.status_code == 422
 
 
+async def test_disabled_course_keeps_existing_schedules_readable(client, seeded):
+    """AT-05 的「历史可读」半边：课程停用只影响**新增**排课，既有课表仍可读。"""
+    admin = seeded["admin_headers"]
+    course = seeded["course"]
+
+    created = await _create_schedule(
+        client,
+        admin,
+        student_id=seeded["student"]["id"],
+        course_id=course["id"],
+    )
+    assert created.status_code == 201, created.text
+    schedule = created.json()["data"]
+
+    disabled = await client.patch(
+        f"/api/v1/admin/courses/{course['id']}",
+        json={"enabled": False, "expected_version": 1},
+        headers=admin,
+    )
+    assert disabled.status_code == 200
+    assert disabled.json()["data"]["enabled"] is False
+
+    # 学生视角：既有课表仍可读，且课名照常展开
+    mine = await client.get(
+        "/api/v1/me/schedules?from_date=2026-11-02&to_date=2026-11-02",
+        headers=seeded["student_headers"],
+    )
+    assert mine.status_code == 200
+    data = mine.json()["data"]
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == schedule["id"]
+    assert data["items"][0]["course_name"] == "数据结构"
+
+    # 管理端列表同样可读（不是靠学生视图的旁路）
+    student_id = seeded["student"]["id"]
+    listed = await client.get(
+        f"/api/v1/admin/schedules?student_id={student_id}"
+        "&from_date=2026-11-02&to_date=2026-11-02",
+        headers=admin,
+    )
+    assert listed.status_code == 200
+    assert listed.json()["data"]["total"] == 1
+
+
 async def test_disabled_course_cannot_be_used(client, seeded):
     headers = seeded["admin_headers"]
     course = seeded["course"]

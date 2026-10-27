@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -311,3 +311,100 @@ async def test_conflicting_documents_are_listed_with_caveat():
     assert "高等数学-期中考试说明.md" in action.text
     assert "eval-conflict-math.txt" in action.text
     assert "没有检索到" not in action.text
+
+
+# --------------------------------------------------------------------------- #
+# AT-07：时区午夜边界 / 周日锚点 / 答案展示完整日期
+# --------------------------------------------------------------------------- #
+def test_school_date_midnight_boundary_in_school_timezone():
+    """学校时区午夜切换：UTC 15:59:59 vs 16:00:00 必须落到不同业务日。"""
+    from app.shared.clock import school_date
+
+    assert school_date(datetime(2026, 10, 25, 15, 59, 59, tzinfo=timezone.utc)) == date(2026, 10, 25)
+    assert school_date(datetime(2026, 10, 25, 16, 0, 0, tzinfo=timezone.utc)) == date(2026, 10, 26)
+
+
+@pytest.mark.parametrize(
+    ("today", "message", "expected"),
+    [
+        # 2026-10-25 是周日
+        (date(2026, 10, 25), "明天有什么课", ("2026-10-26", "2026-10-26")),
+        (date(2026, 10, 25), "下周一上什么课", ("2026-10-26", "2026-11-01")),
+        (date(2026, 10, 25), "本周课程安排", ("2026-10-19", "2026-10-25")),
+        # 2026-10-26 是周一：下周一必须是 11-02
+        (date(2026, 10, 26), "下周一上什么课", ("2026-11-02", "2026-11-08")),
+    ],
+)
+def test_schedule_range_sunday_and_weekday_anchors(today, message, expected):
+    context = make_context(message, today=today, tomorrow=today + timedelta(days=1))
+    assert schedule_range(context) == expected
+
+
+async def test_schedule_answer_shows_full_dates():
+    """AT-07：答案要展示完整日期（不是「今天/明天」这种相对说法）。"""
+    from app.adapters.model.gateway import ToolExecutionRecord
+
+    record = ToolExecutionRecord(
+        tool_name="get_my_schedule",
+        arguments={"from_date": "2026-10-26", "to_date": "2026-10-26"},
+        success=True,
+        result_status="ok",
+        dependency_state="available",
+        code=None,
+        payload={
+            "status": "ok",
+            "from_date": "2026-10-26",
+            "to_date": "2026-10-26",
+            "items": [
+                {
+                    "class_date": "2026-10-26",
+                    "start_time": "08:00",
+                    "end_time": "09:40",
+                    "course_name": "数据结构",
+                    "location": "A-201",
+                }
+            ],
+        },
+    )
+    action = await DeterministicProvider().next_action(
+        make_context("明天有什么课", tool_results=[record]), budget()
+    )
+    assert isinstance(action, Answer)
+    assert "2026-10-26" in action.text
+    assert "数据结构" in action.text and "08:00-09:40" in action.text
+
+
+# --------------------------------------------------------------------------- #
+# AT-21：多步任务缺课表/缺资料时要说明缺口，且草稿不虚称已引用
+# --------------------------------------------------------------------------- #
+async def test_draft_states_missing_dependencies_without_claiming_citations():
+    from app.adapters.model.gateway import EvidenceSet, ToolExecutionRecord
+
+    def _record(tool_name: str, status: str, **payload) -> ToolExecutionRecord:
+        return ToolExecutionRecord(
+            tool_name=tool_name,
+            arguments={},
+            success=True,
+            result_status=status,
+            dependency_state="empty" if status == "empty" else "available",
+            code=None,
+            payload={"status": status, "_evidence": EvidenceSet(status="empty", corpus_empty=False, revision=0), **payload},
+        )
+
+    context = make_context(
+        "先看看明天课表和课件要求，再帮我制定复习计划",
+        tool_results=[
+            _record("get_my_schedule", "empty", items=[], from_date="2026-10-24", to_date="2026-10-24"),
+            _record("search_course_docs", "empty"),
+        ],
+    )
+    action = await DeterministicProvider().next_action(context, budget())
+    assert isinstance(action, DraftIntent)
+    # 两处缺口都要明说
+    assert "没有查到课程安排" in action.content
+    assert "未检索到课程资料依据" in action.content
+    # 不虚称已引用：没有任何「依据《…》」或「根据已发布的课程资料」
+    assert "依据《" not in action.content
+    assert "根据已发布的课程资料" not in action.content
+    # 依据类型只有一般建议，不声称 documents/schedule
+    assert action.basis_types == ("general",)

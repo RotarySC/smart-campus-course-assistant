@@ -754,3 +754,140 @@ async def test_staging_rejects_digest_change_midflight(client, seeded, db, monke
     assert document.visibility == "unpublished"
     assert all(v.state == "failed" for v in versions)
     assert await count_rows(DocumentVersion) >= 1
+
+
+def _blank_pdf_bytes() -> bytes:
+    """真「扫描件」形态：合法 PDF，但没有任何文本层（pypdf 空白页）。"""
+    import io
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
+async def test_batch_compensates_with_real_scanned_pdf(client, seeded, db):
+    """AT-11：真扫描件（无文本层 PDF）与正常文本同批 → 整批不发布。"""
+    from app.adapters.db.models import Chunk, Document, DocumentBatch, DocumentVersion
+
+    files = [
+        ("正常说明.txt", txt_bytes("这是一份正常文本，应当可以被解析入库。")),
+        ("扫描件.pdf", _blank_pdf_bytes()),
+    ]
+    response = await upload(client, seeded["admin_headers"], files)
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+    document_ids = [item["id"] for item in response.json()["data"]["documents"]]
+
+    await worker_drain(rounds=8)
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        docs = list(
+            (
+                await session.execute(
+                    select(Document).where(Document.batch_id == batch_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        versions = list(
+            (
+                await session.execute(
+                    select(DocumentVersion).where(
+                        DocumentVersion.document_id.in_(document_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert batch.state == "failed"
+    assert batch.error_code == "NO_TEXT_EXTRACTED"
+    assert all(doc.visibility == "unpublished" for doc in docs)
+    assert all(doc.processing_state == "failed" for doc in docs)
+    assert all(version.state == "failed" for version in versions)
+    assert await count_rows(Chunk) == 0
+
+
+async def test_batch_compensates_when_vectorization_fails_midway(
+    client, seeded, db, monkeypatch
+):
+    """AT-11：同批两份文件，第一份向量化成功、第二份失败 → 不允许半批可见。"""
+    from app.adapters.db.models import Document, DocumentBatch
+    from app.adapters.embedding.deterministic import EmbeddingError
+    from app.modules.knowledge import tasks as tasks_mod
+
+    files = [
+        ("先成功.txt", txt_bytes("第一份文档内容，向量化应当成功。" * 6)),
+        ("后失败.txt", txt_bytes("第二份文档内容，向量化将失败。" * 6)),
+    ]
+    response = await upload(client, seeded["admin_headers"], files)
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+
+    real = tasks_mod.embedding()
+    calls = {"n": 0}
+
+    class _FlakyEmbedding:
+        def embed_batch(self, texts):
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                raise EmbeddingError("模拟第二份文档向量化失败")
+            return real.embed_batch(texts)
+
+    flaky = _FlakyEmbedding()
+    monkeypatch.setattr(tasks_mod, "embedding", lambda: flaky)
+
+    # 第一次排空：第一份成功、第二份 EMBEDDING_FAILED（可重试）
+    await worker_drain(rounds=2)
+    async with db() as session:
+        from app.adapters.db.models import BackgroundTask
+
+        failed = list(
+            (
+                await session.execute(
+                    select(BackgroundTask).where(
+                        BackgroundTask.kind == "doc_persist",
+                        BackgroundTask.error_code == "EMBEDDING_FAILED",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert failed, "向量化失败必须映射为 EMBEDDING_FAILED"
+
+    # 把重试时间提前并继续排空，直到重试预算耗尽 → 整批补偿
+    for _ in range(6):
+        async with db() as session:
+            await session.execute(
+                text(
+                    "UPDATE background_tasks SET next_run_at = UTC_TIMESTAMP(6) "
+                    "WHERE state = 'retry_wait'"
+                )
+            )
+            await session.commit()
+        await worker_drain(rounds=2)
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        docs = list(
+            (
+                await session.execute(
+                    select(Document).where(Document.batch_id == batch_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert batch.state in ("failed", "compensating", "compensated")
+    assert all(doc.visibility != "shared" for doc in docs)
+    # 半批可见是绝对不允许的：任何一份都不应处于已发布态
+    assert all(doc.visibility == "unpublished" for doc in docs)
