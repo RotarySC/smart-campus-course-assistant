@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     )
     model_max_retries: int = Field(default=1, ge=0, le=3, alias="CCA_MODEL_MAX_RETRIES")
 
+    # ---- 助手检索兜底（默认关闭）----
+    # 真实检索不可用时是否允许回落到**固定假证据**（演示/测试专用）。
+    # 生产必须为 false：伪造的文件名/页码会被当成权威引用（INV-04/05）。
+    assistant_allow_stub_evidence: bool = Field(
+        default=False, alias="CCA_ASSISTANT_ALLOW_STUB_EVIDENCE"
+    )
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

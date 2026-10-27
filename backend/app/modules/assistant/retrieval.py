@@ -1,7 +1,9 @@
 """``search_course_docs`` 的服务侧实现（PHASE-03 A3）。
 
 Phase 2 合并后：使用真实 ``knowledge.search``（``KnowledgeService`` 单例 + ``SearchQuery``），
-**不改** knowledge 模块；仅在 knowledge 不可导入的开发/评审环境回退到确定性 stub。
+**不改** knowledge 模块。knowledge 不可导入时**默认显式失败**（``RETRIEVAL_UNAVAILABLE``）；
+只有显式设置 ``CCA_ASSISTANT_ALLOW_STUB_EVIDENCE=true``（演示/测试）或调用方主动
+``set_stub_evidence()`` 注入时，才允许回落到确定性 stub —— 不允许悄悄伪造引用。
 
 无论来源，都强制：单项文本 ≤20,000 码点；只返回已发布/有效片段的权威引用。
 """
@@ -16,8 +18,10 @@ from app.adapters.model.gateway import (
     EvidenceReference,
     EvidenceSet,
 )
+from app.config import get_settings
 from app.modules.assistant.settings import get_assistant_settings
 from app.shared.context import ActorContext
+from app.shared.errors import ApiError
 
 logger = logging.getLogger("cca.assistant.retrieval")
 
@@ -103,9 +107,17 @@ async def search_course_docs(actor: ActorContext, query: str) -> EvidenceSet:
         except Exception:  # noqa: BLE001 - 真实实现不可用时以失败语义上抛
             logger.exception("knowledge.search failed; retrieval unavailable")
             raise
-    logger.debug("knowledge module unavailable; using deterministic stub evidence")
+    logger.debug("knowledge module unavailable; checking stub fallback")
     if _stub_override is not None:
+        # 显式注入（测试/受控演示）优先；调用方自己承担"这不是真实依据"的责任。
         return _stub_override
+    if not get_settings().assistant_allow_stub_evidence:
+        # INV-04/05：宁可显式失败，也不把固定假证据（伪造文件名/页码）当权威引用。
+        raise ApiError("RETRIEVAL_UNAVAILABLE")
+    logger.warning(
+        "knowledge module unavailable; using deterministic stub evidence "
+        "(CCA_ASSISTANT_ALLOW_STUB_EVIDENCE=true)"
+    )
     return _stub_evidence()
 
 
