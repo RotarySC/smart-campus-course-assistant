@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -39,6 +40,10 @@ logger = logging.getLogger("cca.assistant.accept")
 ACTIVE_STATES = ("accepted", "running")
 TERMINAL_STATES = ("succeeded", "failed", "cancelled")
 MAX_HISTORY_CHARS = 30_000
+# 容量槽选槽的有界重试：SKIP LOCKED 把"瞬时被行锁占着"的空闲槽也跳过，
+# 单次查询为空不等于容量耗尽（AT-30 PERF-005 实测 9/120 误拒）。
+_CAPACITY_SLOT_ATTEMPTS = 4
+_CAPACITY_SLOT_RETRY_DELAY = 0.003
 
 
 @dataclass
@@ -259,17 +264,33 @@ async def _find_active(tx: Any, user_id: str, session_id: str) -> ChatRequest | 
 
 
 async def _lock_free_capacity_slot(tx: Any) -> AICapacitySlot | None:
-    result = await tx.session.execute(
-        select(AICapacitySlot)
-        .where(
-            (AICapacitySlot.request_id.is_(None))
-            | text("ai_capacity_slots.lease_until IS NOT NULL AND ai_capacity_slots.lease_until <= NOW(6)")
+    """选一个空闲容量槽；对 SKIP LOCKED 造成的瞬时假满做有界重试。
+
+    ``SKIP LOCKED`` 会跳过"被其它 accept 事务瞬时行锁占着"的空闲槽，单次查询
+    返回空并不代表容量耗尽——直接判 429 会把额定容量内的请求拒掉（AT-30
+    实测 120 轮里 9 次 429，同时仍有 2–3 个空闲槽）。这里只在毫秒级窗口内重试，
+    真实满容量时仍然快速返回 None（NFR-PERF-004：不得无限排队）。
+    """
+    for attempt in range(_CAPACITY_SLOT_ATTEMPTS):
+        result = await tx.session.execute(
+            select(AICapacitySlot)
+            .where(
+                (AICapacitySlot.request_id.is_(None))
+                | text(
+                    "ai_capacity_slots.lease_until IS NOT NULL "
+                    "AND ai_capacity_slots.lease_until <= NOW(6)"
+                )
+            )
+            .order_by(AICapacitySlot.slot_no)
+            .limit(1)
+            .with_for_update(skip_locked=True)
         )
-        .order_by(AICapacitySlot.slot_no)
-        .limit(1)
-        .with_for_update(skip_locked=True)
-    )
-    return result.scalar_one_or_none()
+        slot = result.scalar_one_or_none()
+        if slot is not None:
+            return slot
+        if attempt + 1 < _CAPACITY_SLOT_ATTEMPTS:
+            await asyncio.sleep(_CAPACITY_SLOT_RETRY_DELAY * (attempt + 1))
+    return None
 
 
 # --------------------------------------------------------------------------- #

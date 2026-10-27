@@ -426,3 +426,64 @@ async def test_stream_requires_authentication(client):
     )
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTH_REQUIRED"
+
+async def test_capacity_slot_retries_transient_skip_locked(monkeypatch):
+    """SKIP LOCKED 瞬时空闲槽被行锁占住时，不能直接判 429（AT-30 PERF-005）。"""
+    from app.modules.assistant.accept import _lock_free_capacity_slot
+
+    class _Result:
+        def __init__(self, value):
+            self._value = value
+
+        def scalar_one_or_none(self):
+            return self._value
+
+    class _Session:
+        def __init__(self):
+            self.calls = 0
+
+        async def execute(self, stmt):
+            self.calls += 1
+            return _Result(object() if self.calls >= 3 else None)
+
+    class _Tx:
+        def __init__(self):
+            self.session = _Session()
+
+    tx = _Tx()
+    slot = await _lock_free_capacity_slot(tx)
+
+    assert slot is not None
+    assert tx.session.calls == 3
+
+
+async def test_capacity_slot_429_is_bounded_when_really_full():
+    """真满容量：重试次数有界、耗时有界，不能无限排队（NFR-PERF-004）。"""
+    import time
+
+    from app.modules.assistant import accept as accept_module
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    class _Session:
+        def __init__(self):
+            self.calls = 0
+
+        async def execute(self, stmt):
+            self.calls += 1
+            return _Result()
+
+    class _Tx:
+        def __init__(self):
+            self.session = _Session()
+
+    tx = _Tx()
+    started = time.perf_counter()
+    slot = await accept_module._lock_free_capacity_slot(tx)
+    elapsed = time.perf_counter() - started
+
+    assert slot is None
+    assert tx.session.calls == accept_module._CAPACITY_SLOT_ATTEMPTS
+    assert elapsed < 0.2

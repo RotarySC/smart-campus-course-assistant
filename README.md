@@ -84,7 +84,7 @@ cd backend
 
 ## 验证状态
 
-- 后端 **262 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
+- 后端 **264 个用例**在真实 MySQL 上全绿（0 failed / 0 skipped / 0 xfailed）。检索依赖故障（向量库损坏等）统一映射为 **503 `RETRIEVAL_UNAVAILABLE`**，不再漏成 500 `INTERNAL_ERROR`；知识链路自己给出的稳定错误码原样透传（`test_retrieval_fallback.py` 守护）。AI 容量槽选槽对 `SKIP LOCKED` 的瞬时假满做毫秒级有界重试，额定 5 并发内不再误拒 429、真满时仍在毫秒级返回 `CAPACITY_LIMITED`（`test_assistant_api.py` 守护）。测试环境的 Docker 端口映射偶发瞬时断连（`pymysql 2003`）由 `backend/tests/db_retry.py` 有界重试吸收：只对连接层错误码重试（默认 4 次、指数退避），约束冲突/语法错误/断言失败一律不重试，口径由 `test_db_retry.py` 的 14 例守护。
 - 批次发布要么整批可见、要么整批补偿：发布任务终态失败（重试预算耗尽或不可重试，如 `VECTOR_SPACE_MISMATCH`）会把批次推进 `compensating`→`failed` 并清理，不会永久停在 `processing`；发布事务内若发现文档已被并发删除，整批转补偿而绝不把 `removed` 文档改回 `shared`；未发布批次删掉其中一份文档时当场整批补偿（`test_knowledge_publish.py` 3 例守护）。
 - 日志默认脱敏：SQLAlchemy 的 `[parameters: …]` / `[SQL: …]` 参数块与 `password=`、`token=`、`Bearer …`、`Set-Cookie` 等凭据形态在 formatter 之前替换为 `<redacted>`（`backend/app/shared/log_redaction.py`，含异常 traceback，9 例守护）。审计记录带请求级耗时，403/404 权限拒绝写 `access.denied` 审计行。
 - 契约 `contracts/openapi_v0.1.json`：**40 个操作（公共 36）**，含 `POST /api/v1/auth/register`（201 + 与登录同结构的令牌、`409 DUPLICATE_ACCOUNT`、`422 VALIDATION_FAILED`）与 `GET /api/v1/admin/stats/overview`（运行统计聚合）。
