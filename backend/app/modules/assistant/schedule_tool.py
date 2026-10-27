@@ -23,8 +23,13 @@ from app.shared.errors import validation_error
 MAX_SPAN_DAYS = 31
 
 
+def _max_span_days() -> int:
+    """与 /me/schedules 同口径读配置（不在工具里再硬编码一份 31）。"""
+    return int(get_settings().schedule_max_days)
+
+
 def resolve_range(from_date: date | None, to_date: date | None) -> tuple[date, date]:
-    """单端视为单日；未传按今天；跨度 ≤31 天。"""
+    """单端视为单日；未传按今天；跨度含起止日 ≤ 配置上限。"""
     if from_date is None and to_date is None:
         today = school_date()
         return today, today
@@ -37,8 +42,9 @@ def resolve_range(from_date: date | None, to_date: date | None) -> tuple[date, d
     end = parse_business_date(to_date)
     if end < start:
         raise validation_error(("to_date", "结束日期不能早于开始日期"))
-    if (end - start).days > MAX_SPAN_DAYS:
-        raise validation_error(("to_date", f"查询跨度不能超过 {MAX_SPAN_DAYS} 天"))
+    limit = _max_span_days()
+    if (end - start).days + 1 > limit:
+        raise validation_error(("to_date", f"查询跨度不能超过 {limit} 天"))
     return start, end
 
 

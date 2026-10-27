@@ -442,10 +442,11 @@ async def test_pagination_boundaries(client, seeded):
 
 
 async def test_schedule_range_limit(client, seeded):
+    """SRS §3.2：31 自然日**包含起止日** → 起止相差最多 30 天。"""
     student = seeded["student_headers"]
     start = date(2026, 11, 1)
-    ok_end = start + timedelta(days=31)
-    too_far = start + timedelta(days=32)
+    ok_end = start + timedelta(days=30)  # 含起止 31 天
+    too_far = start + timedelta(days=31)  # 含起止 32 天
 
     response = await client.get(
         f"/api/v1/me/schedules?from_date={start}&to_date={ok_end}", headers=student

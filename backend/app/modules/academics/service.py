@@ -53,7 +53,8 @@ def resolve_date_range(
     assert start is not None and end is not None
     if start > end:
         raise validation_error(("from_date", "开始日期不得晚于结束日期"))
-    if (end - start).days > settings.schedule_max_days:
+    # 口径：SRS §3.2「31 自然日，**包含起止日**」→ 起止相差最多 30 天。
+    if (end - start).days + 1 > settings.schedule_max_days:
         raise validation_error(
             ("to_date", f"单次查询跨度不得超过 {settings.schedule_max_days} 天")
         )
