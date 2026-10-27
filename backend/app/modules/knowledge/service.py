@@ -59,7 +59,7 @@ from app.modules.knowledge.schemas import (
     document_view,
     task_view,
 )
-from app.modules.knowledge.tasks import new_task
+from app.modules.knowledge.tasks import new_task, start_compensation
 from app.modules.operations.service import append_audit, append_outbox
 from app.shared.clock import now_utc, to_db
 from app.shared.context import ActorContext
@@ -656,6 +656,21 @@ class KnowledgeService:
         now = to_db(now_utc())
         async with uow() as tx:
             corpus = await _ensure_corpus_control(tx)
+            batch_id = (
+                await tx.session.execute(
+                    select(Document.batch_id).where(Document.id == command.document_id)
+                )
+            ).scalar_one_or_none()
+            if batch_id is None:
+                raise ApiError("RESOURCE_NOT_FOUND")
+            # 加锁顺序与发布事务保持一致（corpus→batch→document），避免与 batch_publish 互锁。
+            batch = (
+                await tx.session.execute(
+                    select(DocumentBatch)
+                    .where(DocumentBatch.id == batch_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
             document = (
                 await tx.session.execute(
                     select(Document).where(Document.id == command.document_id).with_for_update()
@@ -703,6 +718,13 @@ class KnowledgeService:
             document.error_code = None
             document.version = int(document.version) + 1
             document.updated_at = now
+            if batch is not None and batch.state != "published":
+                # SRS FR-DOC-003：批次内任一文件失败/消失则整批不发布并进入补偿。
+                # 未发布批次删掉其中一份文档后，该批次不可再发布，必须当场转补偿；
+                # 否则发布任务会永远 not_ready 重排或复活已删文档。
+                await start_compensation(
+                    tx, batch, code="BATCH_FAILED", request_id=ctx.trace_request_id
+                )
             corpus.revision = int(corpus.revision) + 1
             corpus.updated_at = now
             await tx.session.execute(

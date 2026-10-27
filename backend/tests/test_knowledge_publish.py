@@ -313,6 +313,242 @@ async def test_publish_frozen_defers_without_failing(client, seeded, db):
     assert document.visibility == "shared"
 
 
+async def test_publish_terminal_failure_compensates_batch(client, seeded, db):
+    """发布任务终态失败（不可重试）必须让批次进入补偿，不能永久停在 processing。"""
+    from app.adapters.db.models import (
+        Chunk,
+        Document,
+        DocumentBatch,
+        DocumentVersion,
+    )
+
+    async with db() as session:
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = TRUE WHERE singleton_id = 1")
+        )
+        await session.commit()
+
+    response = await upload(
+        client, seeded["admin_headers"], [("终态失败.txt", txt_bytes("终态失败补偿内容。"))]
+    )
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+    document_id = response.json()["data"]["documents"][0]["id"]
+
+    # 冻结期间：持久完成、发布停在 retry_wait
+    await worker_drain(rounds=3)
+    async with db() as session:
+        version_space = (
+            await session.execute(
+                text(
+                    "SELECT vector_space FROM document_versions WHERE document_id=:did"
+                ),
+                {"did": document_id},
+            )
+        ).scalar_one()
+
+    # 解开冻结，同时制造向量空间冲突 → 发布不可重试失败（VECTOR_SPACE_MISMATCH）
+    async with db() as session:
+        await session.execute(
+            text(
+                "UPDATE corpus_control SET publish_frozen = FALSE, "
+                "active_vector_space = :space WHERE singleton_id = 1"
+            ),
+            {"space": f"{version_space}_conflict"},
+        )
+        await session.execute(
+            text(
+                "UPDATE background_tasks SET next_run_at = UTC_TIMESTAMP(6) "
+                "WHERE kind='batch_publish' AND object_id=:bid"
+            ),
+            {"bid": batch_id},
+        )
+        await session.commit()
+
+    await worker_drain(rounds=8)
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        document = await session.get(Document, document_id)
+        version = (
+            await session.execute(
+                select(DocumentVersion).where(DocumentVersion.document_id == document_id)
+            )
+        ).scalar_one()
+        publish_state = (
+            await session.execute(
+                text(
+                    "SELECT state, error_code FROM background_tasks "
+                    "WHERE kind='batch_publish' AND object_id=:bid"
+                ),
+                {"bid": batch_id},
+            )
+        ).one()
+        revision = (
+            await session.execute(
+                text("SELECT revision FROM corpus_control WHERE singleton_id = 1")
+            )
+        ).scalar_one()
+        chunks = int(
+            (await session.execute(select(func.count()).select_from(Chunk))).scalar_one()
+        )
+
+    # 批次进入终态，发布任务失败并留下错误码，绝不半发布
+    assert batch.state == "failed"
+    assert batch.error_code == "VECTOR_SPACE_MISMATCH"
+    assert batch.published_at is None
+    assert publish_state.state == "failed"
+    assert publish_state.error_code == "VECTOR_SPACE_MISMATCH"
+    assert int(revision) == 0
+    assert document.visibility == "unpublished"
+    assert document.processing_state == "failed"
+    assert version.state == "failed"
+    assert chunks == 0
+
+
+async def test_delete_unpublished_document_compensates_batch(client, seeded, db):
+    """未发布批次删掉其中一份文档 → 整批转补偿，已删文档走自己的清理终态。"""
+    from app.adapters.db.models import Document, DocumentBatch
+    from app.adapters.filestore.local import FileStore
+    from app.modules.knowledge.adapters import document_key
+
+    from _knowledge_helpers import get_document_row
+
+    async with db() as session:
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = TRUE WHERE singleton_id = 1")
+        )
+        await session.commit()
+
+    response = await upload(
+        client,
+        seeded["admin_headers"],
+        [("先删的.txt", txt_bytes("这份会被删掉。")), ("留下的.txt", txt_bytes("这份随批次补偿。"))],
+    )
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+    first_id = response.json()["data"]["documents"][0]["id"]
+    second_id = response.json()["data"]["documents"][1]["id"]
+
+    await worker_drain(rounds=3)
+    first = await get_document_row(first_id)
+    deleted = await client.delete(
+        f"{API}/admin/documents/{first_id}?expected_version={int(first.version)}",
+        headers=seeded["admin_headers"],
+    )
+    assert deleted.status_code == 202, deleted.text
+
+    # 删除请求当场就把批次推进补偿（不留给发布事务）
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+    assert batch.state == "compensating"
+    assert batch.error_code == "BATCH_FAILED"
+
+    async with db() as session:
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = FALSE WHERE singleton_id = 1")
+        )
+        await session.commit()
+    await worker_drain(rounds=10)
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        first_doc = await session.get(Document, first_id)
+        second_doc = await session.get(Document, second_id)
+        revision = (
+            await session.execute(
+                text("SELECT revision FROM corpus_control WHERE singleton_id = 1")
+            )
+        ).scalar_one()
+
+    # 整批未发布：revision 只因删除而 +1（发布不递增）
+    assert batch.state == "failed"
+    assert int(revision) == 1
+    # 被删文档：自己的清理任务赢下终态，批次补偿不得覆盖
+    assert first_doc.visibility == "removed"
+    assert first_doc.deleted_at is not None
+    assert first_doc.processing_state == "deleted"
+    assert first_doc.cleanup_state == "succeeded"
+    # 同批其他文档：整批补偿为失败、不可见
+    assert second_doc.visibility == "unpublished"
+    assert second_doc.processing_state == "failed"
+    assert second_doc.active_version_id is None
+
+    store = FileStore()
+    for document_id in (first_id, second_id):
+        assert not store.exists(document_key(document_id))
+
+
+async def test_publish_refuses_document_removed_concurrently(client, seeded, db, monkeypatch):
+    """发布事务内发现 removed 文档：不复活、不撞 ck_document_removed，整批转补偿。
+
+    预检与发布事务之间管理员删除了批次内文档的情况无法用 HTTP 请求直接构造，
+    这里直接改行模拟并发提交，并把预检短路为"全部就绪"以进入发布事务。
+    """
+    from app.modules.knowledge import tasks as tasks_mod
+
+    response = await upload(
+        client, seeded["admin_headers"], [("并发移除.txt", txt_bytes("并发移除内容。"))]
+    )
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+    document_id = response.json()["data"]["documents"][0]["id"]
+
+    async with db() as session:
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = TRUE WHERE singleton_id = 1")
+        )
+        await session.commit()
+    await worker_drain(rounds=3)
+
+    # 模拟"预检通过之后、发布事务之前"管理员提交了删除
+    async with db() as session:
+        await session.execute(
+            text(
+                "UPDATE documents SET visibility='removed', deleted_at=UTC_TIMESTAMP(6), "
+                "processing_state='deleting', cleanup_state='pending', version=version+1 "
+                "WHERE id=:id"
+            ),
+            {"id": document_id},
+        )
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = FALSE WHERE singleton_id = 1")
+        )
+        await session.execute(
+            text(
+                "UPDATE background_tasks SET next_run_at = UTC_TIMESTAMP(6) "
+                "WHERE kind='batch_publish' AND object_id=:bid"
+            ),
+            {"bid": batch_id},
+        )
+        await session.commit()
+
+    async def _always_ready(batch_id: str):
+        return tasks_mod.Precheck(True, None, True)
+
+    monkeypatch.setattr(tasks_mod, "batch_precheck", _always_ready)
+    await worker_drain(rounds=6)
+
+    from app.adapters.db.models import Document, DocumentBatch
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        document = await session.get(Document, document_id)
+        revision = (
+            await session.execute(
+                text("SELECT revision FROM corpus_control WHERE singleton_id = 1")
+            )
+        ).scalar_one()
+
+    assert batch.state == "failed"
+    assert batch.error_code == "BATCH_FAILED"
+    assert int(revision) == 0
+    # 已删文档保持 removed + deleted_at（未被改回 shared，也未触发 CHECK 违约）
+    assert document.visibility == "removed"
+    assert document.deleted_at is not None
+    assert document.processing_state != "available"
+
+
 async def test_publish_does_not_mix_partial_batches(client, seeded, db):
     from app.adapters.db.models import DocumentBatch
 

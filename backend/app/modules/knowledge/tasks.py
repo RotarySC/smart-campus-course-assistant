@@ -424,6 +424,18 @@ async def schedule_failure(
             return "lease_lost"
         if claimed.kind in (TASK_KIND_PERSIST, TASK_KIND_DOC_CLEANUP):
             await _apply_failure_scope(tx, claimed, code=code, terminal=not retry, request_id="")
+        if claimed.kind == TASK_KIND_PUBLISH and not retry:
+            # 发布任务终态失败（重试预算耗尽或不可重试）：批次必须进入补偿，
+            # 否则会永久停在 processing —— 不发布、不补偿、无人工重试入口（FR-DOC-003/007）。
+            batch = (
+                await tx.session.execute(
+                    select(DocumentBatch)
+                    .where(DocumentBatch.id == claimed.object_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if batch is not None:
+                await start_compensation(tx, batch, code=code, request_id="")
         if claimed.kind == TASK_KIND_BATCH_CLEANUP and not retry:
             batch = await tx.session.get(DocumentBatch, claimed.object_id)
             if batch is not None and batch.state == "compensating":
@@ -503,7 +515,8 @@ async def start_compensation(
     tx: UoW, batch: DocumentBatch, *, code: str, request_id: str
 ) -> None:
     """批次进入 compensating：阻止发布、取消发布任务、登记清理任务（幂等）。"""
-    if batch.state in ("compensating", "failed"):
+    # published 是已生效的终态，任何失败路径都不得把已发布批次拉回补偿。
+    if batch.state in ("compensating", "failed", "published"):
         return
     now = to_db(now_utc())
     batch.state = "compensating"
@@ -575,6 +588,12 @@ async def batch_precheck(batch_id: str) -> Precheck:
         )
         if len(docs) != int(batch.expected_files):
             return Precheck(False, None, False, "文档数与批次期望不一致")
+        if batch.state != "published":
+            # 设计 §10.3：发布前不允许存在 removed 或并发变更的文档。
+            # 管理员可以在批次未发布时删除其中一份文档（service._delete），
+            # 此时整批已不可发布，必须报终态失败而不是永远 not_ready 重排。
+            if any(d.visibility != "unpublished" for d in docs):
+                return Precheck(False, "BATCH_FAILED", False, "文档已在发布前被移除")
         versions = list(
             (
                 await session.execute(
@@ -756,6 +775,14 @@ async def publish_batch(lease: TaskLease, batch_id: str, *, complete: bool = Tru
                 await finish_success(tx.session, lease)
             await tx.commit()
             return "not_ready"
+        if any(d.visibility != "unpublished" for d in documents):
+            # 预检之后、发布事务之内发生的并发移除：绝不把 removed 文档改回 shared
+            # （否则撞 ck_document_removed 并复活已删文档），整批转补偿。
+            await start_compensation(tx, batch, code="BATCH_FAILED", request_id="worker")
+            if complete:
+                await finish_success(tx.session, lease)
+            await tx.commit()
+            return "blocked"
         if corpus.publish_frozen:
             # 发布冻结（向量空间迁移窗口）：不发布、不失败，稍后重试
             if complete:
@@ -1401,17 +1428,20 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
             .all()
         )
         document_ids = [d.id for d in documents]
+        # 已 removed 的文档由 document.cleanup 任务收尾（processing_state=deleted、
+        # cleanup_state=succeeded、版本 retired），批次补偿不得把它们改回 failed。
+        compensated_ids = [d.id for d in documents if d.visibility != "removed"]
         versions = list(
             (
                 await session.execute(
                     select(DocumentVersion).where(
-                        DocumentVersion.document_id.in_(document_ids)
+                        DocumentVersion.document_id.in_(compensated_ids)
                     )
                 )
             )
             .scalars()
             .all()
-        ) if document_ids else []
+        ) if compensated_ids else []
         attempts = list(
             (
                 await session.execute(
@@ -1443,12 +1473,13 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
                 )
                 .values(revoked_at=now)
             )
+        if compensated_ids:
             await tx.session.execute(
-                delete(Chunk).where(Chunk.document_id.in_(document_ids))
+                delete(Chunk).where(Chunk.document_id.in_(compensated_ids))
             )
             await tx.session.execute(
                 update(Document)
-                .where(Document.id.in_(document_ids))
+                .where(Document.id.in_(compensated_ids))
                 .values(
                     processing_state="failed",
                     visibility="unpublished",
@@ -1461,7 +1492,7 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
             )
             await tx.session.execute(
                 update(DocumentVersion)
-                .where(DocumentVersion.document_id.in_(document_ids))
+                .where(DocumentVersion.document_id.in_(compensated_ids))
                 .values(state="failed", extracted_text_key=None, selected_attempt_id=None)
             )
             await tx.session.execute(
