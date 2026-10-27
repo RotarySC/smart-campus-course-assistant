@@ -735,10 +735,3 @@ __all__ = [
     "save_draft",
 ]
 
-
-# 供 Phase 3 复用的服务端校验基建（direct_instruction 由对话来源写入时调用）
-async def validate_direct_authorization(  # pragma: no cover - Phase 3 接入
-    tx: UoW, *, operation_id: str, digest: bytes
-) -> SaveGrant | None:
-    grants = await tx.lock_grants_for_operation(tx.session.info.get("actor_id", ""), operation_id)
-    return next((g for g in grants if g.content_digest == digest), None)

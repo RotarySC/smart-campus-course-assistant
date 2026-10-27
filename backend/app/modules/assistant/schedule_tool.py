@@ -20,7 +20,6 @@ from app.shared.clock import parse_business_date, school_date
 from app.shared.context import ActorContext
 from app.shared.errors import validation_error
 
-MAX_SPAN_DAYS = 31
 
 
 def _max_span_days() -> int:
@@ -78,4 +77,4 @@ async def get_my_schedule(
     }
 
 
-__all__ = ["MAX_SPAN_DAYS", "get_my_schedule", "resolve_range"]
+__all__ = ["get_my_schedule", "resolve_range"]
