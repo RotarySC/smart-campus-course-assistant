@@ -169,6 +169,32 @@ async def test_general_advice_is_labelled_as_advice():
     assert "一般学习建议" in action.text
 
 
+async def test_retrieval_failure_is_not_reported_as_empty_result():
+    """FR-QA-003：检索失败 ≠ 检索过但没找到，文案必须区分。"""
+    from app.adapters.model.gateway import EvidenceSet, ToolExecutionRecord
+
+    provider = DeterministicProvider()
+    record = ToolExecutionRecord(
+        tool_name="search_course_docs",
+        arguments={"query": "期末成绩怎么算？"},
+        success=False,
+        result_status="failed",
+        dependency_state="failed",
+        code="MCP_UNAVAILABLE",
+        payload={
+            "status": "failed",
+            "corpus_empty": False,
+            "_evidence": EvidenceSet(status="ok", corpus_empty=False, revision=0),
+        },
+    )
+    context = make_context("期末成绩怎么算？", tool_results=[record])
+    action = await provider.next_action(context, budget())
+    assert isinstance(action, Answer)
+    assert "检索服务暂时不可用" in action.text
+    assert "没有检索到可用的课程资料依据" not in action.text
+    assert "还没有已发布的课程资料" not in action.text
+
+
 async def test_stream_answer_chunks_are_bounded_and_lossless():
     provider = DeterministicProvider()
     text = "依据不足：目前没有取得课程资料或课表证据，不能确认这项规定。" * 5

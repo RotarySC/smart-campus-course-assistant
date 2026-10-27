@@ -249,6 +249,12 @@ class DeterministicProvider:
                         f"- 依据《{reference.file_name}》{reference.location_label}："
                         f"{_snippet(evidence, reference.reference_id)}"
                     )
+            elif docs.success is False or docs.result_status == "failed":
+                # FR-QA-003：依赖失败与「检索过但没有」必须分开说，不能把故障说成空结果。
+                parts.append(
+                    "检索服务暂时不可用，这次没能确认课程资料里有没有依据；"
+                    "请稍后重试，或直接查阅资料原文。"
+                )
             elif evidence.corpus_empty:
                 parts.append("当前知识库还没有已发布的课程资料，暂时无法给出资料依据。")
             else:
