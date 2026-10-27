@@ -38,6 +38,7 @@ from app.modules.knowledge.adapters import (
     embedding,
     file_store,
     parser_config_digest,
+    retrieval_min_score,
     sealed_key,
     upload_max_file_bytes,
     upload_max_files,
@@ -885,6 +886,14 @@ class KnowledgeService:
             candidates = await vs.search(
                 vector_space, emb.embed(text), limit=top_k * 8
             )
+            min_score = retrieval_min_score()
+            if min_score > 0 and candidates:
+                # FR-QA-003：低于相关性阈值的候选不算依据，"检索过但没命中"要说没找到。
+                candidates = [
+                    item
+                    for item in candidates
+                    if float(item.get("score", 0.0)) >= min_score
+                ]
             if not candidates:
                 return EvidenceSet.empty(corpus_empty=False, revision=revision)
             score_of = {item["chunk_id"]: item["score"] for item in candidates}

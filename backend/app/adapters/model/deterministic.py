@@ -75,6 +75,8 @@ DOC_WORDS = (
 PLAN_WORDS = ("计划", "制定", "规划", "复习安排", "学习安排", "安排学习", "复习")
 SAVE_WORDS = ("保存", "存下来", "存到", "记录下来", "记到我的计划", "帮我存", "加入计划")
 REGULATION_WORDS = ("规定", "要求", "评分", "考勤", "作业提交", "截止时间", "考试范围")
+# FR-QA-004：多来源 + 判定类问法时提示"可能不一致"，不替用户挑一个来源。
+CONFLICT_MARKERS = ("是否", "有没有", "算不算", "冲突", "不一致", "分别")
 
 TOKEN_CHUNK_SIZE = 24
 
@@ -244,10 +246,21 @@ class DeterministicProvider:
             evidence = _evidence_of(docs)
             if docs.result_status == "ok" and evidence.chunks:
                 parts.append("根据已发布的课程资料：")
-                for reference in evidence.references[:3]:
+                shown = evidence.references[:3]
+                for reference in shown:
                     parts.append(
                         f"- 依据《{reference.file_name}》{reference.location_label}："
                         f"{_snippet(evidence, reference.reference_id)}"
+                    )
+                # FR-QA-004：多来源且问法属于规定/判定类时，并列后明确提示可能不一致，
+                # 而不是默认第一份资料就是权威（确定性 Provider 也遵守这条）。
+                if len({ref.document_id for ref in shown}) >= 2 and (
+                    _has_any(context.message, REGULATION_WORDS)
+                    or _has_any(context.message, CONFLICT_MARKERS)
+                ):
+                    parts.append(
+                        "资料里有多个来源，说法可能不一致；以上依据已并列列出，"
+                        "请以原文为准，必要时向授课教师确认。"
                     )
             elif docs.success is False or docs.result_status == "failed":
                 # FR-QA-003：依赖失败与「检索过但没有」必须分开说，不能把故障说成空结果。

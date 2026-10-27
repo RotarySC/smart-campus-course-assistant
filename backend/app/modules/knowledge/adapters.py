@@ -68,6 +68,20 @@ def corpus_vector_space() -> str:
     return os.environ.get("CCA_VECTOR_SPACE", "corpus_v1").strip() or "corpus_v1"
 
 
+def retrieval_min_score() -> float:
+    """检索候选的最低相关性分（FR-QA-003：依据不足要说没找到，而不是硬凑 top-k）。
+
+    确定性 Hash Embedding 下这只是经验阈值；接真实 Embedding（TBD-04）后需要用
+    评测集重新标定。设 0 / 负数表示不启用阈值。
+    """
+    raw = os.environ.get("CCA_RETRIEVAL_MIN_SCORE", "0.12").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return 0.12
+    return max(0.0, min(value, 1.0))
+
+
 def upload_max_files() -> int:
     return get_settings().upload_max_files
 
@@ -144,6 +158,7 @@ __all__ = [
     "manifest_payload",
     "parse_bytes",
     "parser_config_digest",
+    "retrieval_min_score",
     "sealed_key",
     "upload_max_file_bytes",
     "upload_max_files",

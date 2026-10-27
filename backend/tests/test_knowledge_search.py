@@ -163,3 +163,33 @@ async def test_search_does_not_leak_storage_keys(client, seeded):
     assert "attempts/" not in serialized
     assert "uploads/" not in serialized
     assert "original_storage_key" not in serialized
+
+
+async def test_retrieval_threshold_filters_weak_candidates(client, seeded, monkeypatch):
+    """FR-QA-003：低于相关性阈值不算依据（阈值可配，生产 Embedding 换后再标定）。"""
+    from app.modules.knowledge import SearchQuery, knowledge
+    from app.shared.context import ActorContext
+
+    await publish_batch(
+        client, seeded["admin_headers"], [("阈值资料.txt", txt_bytes("数据结构：数组与链表。"))]
+    )
+    actor = ActorContext(
+        user_id=seeded["student"]["id"],
+        session_id="ses_threshold",
+        auth_version=1,
+        role="student",
+        trace_request_id="req_threshold",
+    )
+
+    # 默认阈值下正常命中
+    monkeypatch.delenv("CCA_RETRIEVAL_MIN_SCORE", raising=False)
+    hit = await knowledge.search(actor, SearchQuery(query="数据结构 数组 链表"))
+    assert hit.status == "ok"
+    assert hit.chunks
+
+    # 把阈值抬到 0.99：同一查询变成"检索过但没命中"，不是"全库为空"
+    monkeypatch.setenv("CCA_RETRIEVAL_MIN_SCORE", "0.99")
+    filtered = await knowledge.search(actor, SearchQuery(query="数据结构 数组 链表"))
+    assert filtered.status == "empty"
+    assert filtered.corpus_empty is False
+    assert not filtered.chunks

@@ -242,3 +242,72 @@ def test_tool_whitelist_normalizes_dates():
         "get_my_schedule", {"from_date": "2026-10-23", "to_date": "2026-10-24"}
     )
     assert normalized == {"from_date": "2026-10-23", "to_date": "2026-10-24"}
+
+
+async def test_conflicting_documents_are_listed_with_caveat():
+    """FR-QA-004：多来源 + 判定类问法时要并列依据并提示可能不一致。"""
+    from app.adapters.model.deterministic import DeterministicProvider
+    from app.adapters.model.gateway import (
+        EvidenceChunk,
+        EvidenceReference,
+        EvidenceSet,
+        ToolExecutionRecord,
+    )
+
+    def _chunk(doc_id: str, ref_id: str, text: str) -> EvidenceChunk:
+        return EvidenceChunk(
+            chunk_id=f"chk_{ref_id}",
+            reference_id=ref_id,
+            document_id=doc_id,
+            version_id=f"dvs_{doc_id}",
+            text=text,
+            location_label="第 1 段",
+        )
+
+    evidence = EvidenceSet(
+        status="ok",
+        corpus_empty=False,
+        revision=3,
+        chunks=(
+            _chunk("doc_math_a", "cit_a", "考试范围包含级数；考试时长 90 分钟。"),
+            _chunk("doc_math_b", "cit_b", "考试范围不包含级数：级数章节不考。"),
+        ),
+        references=(
+            EvidenceReference(
+                reference_id="cit_a",
+                document_id="doc_math_a",
+                version_id="dvs_doc_math_a",
+                file_name="高等数学-期中考试说明.md",
+                location_label="第 1 段",
+            ),
+            EvidenceReference(
+                reference_id="cit_b",
+                document_id="doc_math_b",
+                version_id="dvs_doc_math_b",
+                file_name="eval-conflict-math.txt",
+                location_label="第 1 段",
+            ),
+        ),
+    )
+    record = ToolExecutionRecord(
+        tool_name="search_course_docs",
+        arguments={"query": "高数期中是否含级数"},
+        success=True,
+        result_status="ok",
+        dependency_state="available",
+        code=None,
+        payload={
+            "status": "ok",
+            "corpus_empty": False,
+            "_evidence": evidence,
+        },
+    )
+    context = make_context("高数期中是否含级数", tool_results=[record])
+    action = await DeterministicProvider().next_action(context, budget())
+
+    assert isinstance(action, Answer)
+    assert "可能不一致" in action.text
+    # 两份来源都列出来（并列依据，不替用户挑一个）
+    assert "高等数学-期中考试说明.md" in action.text
+    assert "eval-conflict-math.txt" in action.text
+    assert "没有检索到" not in action.text
