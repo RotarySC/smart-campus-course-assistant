@@ -81,6 +81,27 @@ RETRYABLE_CODES = frozenset(
     {"EMBEDDING_FAILED", "STORAGE_UNAVAILABLE", "RETRIEVAL_UNAVAILABLE", "PROCESSING_FAILED"}
 )
 
+# FR-DOC-007 / NFR-REL-002：正常依赖下清理应在 5 分钟内完成，超过目标要留记录（告警）。
+CLEANUP_TARGET_SECONDS = 300
+
+
+def _slow_cleanup_metadata(queued_at: Any, finished_at: Any) -> dict[str, Any] | None:
+    """清理任务从入队到完成的耗时超目标时返回审计元数据，否则 None。"""
+    if queued_at is None or finished_at is None:
+        return None
+    try:
+        seconds = (finished_at - queued_at).total_seconds()
+    except TypeError:  # pragma: no cover - 时钟类型异常不阻断清理
+        return None
+    if seconds <= CLEANUP_TARGET_SECONDS:
+        return None
+    logger.warning(
+        "cleanup exceeded target: seconds=%.1f target=%d",
+        seconds,
+        CLEANUP_TARGET_SECONDS,
+    )
+    return {"slow_cleanup": True, "cleanup_seconds": round(seconds, 3)}
+
 
 # --------------------------------------------------------------------------- #
 # 租约与异常
@@ -442,7 +463,46 @@ async def schedule_failure(
                 batch.error_code = code[:64]
                 batch.updated_at = now
         await tx.commit()
+    if claimed.kind == TASK_KIND_PERSIST and not retry:
+        # 终态失败版本的 attempt 产物（文件前缀 + 向量命名空间）必须回收：
+        # 重建失败不走批次补偿，否则会永久残留（FR-DOC-007 / 设计 §10.1）。
+        await _reclaim_failed_attempts(claimed.object_id)
     return "retry_wait" if retry else "failed"
+
+
+async def _reclaim_failed_attempts(version_id: str) -> None:
+    """回收终态失败版本的 attempt 产物；best-effort，失败只告警（巡检兜底）。"""
+    fs = file_store()
+    vs = vector_store()
+    async with session_scope() as session:
+        attempts = list(
+            (
+                await session.execute(
+                    select(StorageAttempt).where(
+                        StorageAttempt.version_id == version_id,
+                        StorageAttempt.io_state != "cleaned",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    for attempt_row in attempts:
+        try:
+            fs.delete_prefix(attempt_row.file_prefix)
+            await vs.delete_namespace(attempt_row.vector_namespace)
+        except (StorageError, VectorStoreError) as exc:
+            logger.warning(
+                "reclaim failed attempt artifacts: version=%s err=%s", version_id, exc
+            )
+            continue
+        async with uow() as tx:
+            await tx.session.execute(
+                update(StorageAttempt)
+                .where(StorageAttempt.id == attempt_row.id)
+                .values(io_state="cleaned", updated_at=to_db(now_utc()))
+            )
+            await tx.commit()
 
 
 async def _apply_failure_scope(
@@ -1434,6 +1494,10 @@ async def handle_doc_cleanup(lease: TaskLease) -> None:
         doc_row.version = int(doc_row.version) + 1
         doc_row.updated_at = now
         await finish_success(tx.session, lease)
+        task_row = await tx.session.get(BackgroundTask, lease.claimed.id)
+        slow = _slow_cleanup_metadata(
+            task_row.created_at if task_row is not None else None, to_db(now_utc())
+        )
         append_audit(
             tx,
             action="document.cleanup",
@@ -1441,6 +1505,7 @@ async def handle_doc_cleanup(lease: TaskLease) -> None:
             object_id=document_id,
             result="success",
             request_id="worker",
+            metadata=slow,
         )
         await tx.commit()
 
@@ -1546,6 +1611,10 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
             batch_row.published_at = None
             batch_row.updated_at = now
         await finish_success(tx.session, lease)
+        task_row = await tx.session.get(BackgroundTask, lease.claimed.id)
+        slow = _slow_cleanup_metadata(
+            task_row.created_at if task_row is not None else None, to_db(now_utc())
+        )
         append_audit(
             tx,
             action="document.batch.compensated",
@@ -1553,6 +1622,7 @@ async def handle_batch_cleanup(lease: TaskLease) -> None:
             object_id=batch_id,
             result="success",
             request_id="worker",
+            metadata=slow,
         )
         await tx.commit()
 

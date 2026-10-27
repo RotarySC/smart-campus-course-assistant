@@ -32,12 +32,34 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--poll-seconds", type=float, default=POLL_SECONDS, help="空队列轮询间隔（秒）"
     )
+    parser.add_argument(
+        "--sweep-orphans",
+        action="store_true",
+        help="只跑一次孤立文件巡检（设计 §10.1）后退出，不处理任务队列",
+    )
+    parser.add_argument(
+        "--sweep-min-age",
+        type=float,
+        default=0.0,
+        help="巡检只清理「早于 N 秒未修改」的文件（0 = 用默认 3600 秒）",
+    )
     return parser
 
 
 async def _main(args: argparse.Namespace) -> int:
     owner = args.owner or instance_id()
     try:
+        if args.sweep_orphans:
+            from app.modules.knowledge.sweep import (
+                ORPHAN_MIN_AGE_SECONDS,
+                sweep_orphan_objects,
+            )
+
+            min_age = args.sweep_min_age or ORPHAN_MIN_AGE_SECONDS
+            result = await sweep_orphan_objects(min_age_seconds=min_age)
+            logger.info("orphan sweep finished: %s", result)
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
         if args.once:
             result = await run_once(owner, max_tasks=max(1, args.max_tasks))
             logger.info("worker round finished: %s", result)

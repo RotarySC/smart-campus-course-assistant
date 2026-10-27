@@ -465,10 +465,11 @@ async def test_cleanup_failure_is_not_reported_as_success(client, seeded, db, mo
 
 
 async def test_rebuild_failure_keeps_old_version_active(client, seeded, db, monkeypatch):
-    """AT-13 失败半边：重建解析失败 → 旧版仍 active、旧引用仍 200、互斥解除。"""
-    from app.adapters.db.models import DocumentVersion
-    from app.adapters.parser.document_parser import ParserError
+    """AT-13 失败半边：重建失败 → 旧版仍 active、旧引用仍 200、失败产物被回收。"""
+    from app.adapters.db.models import DocumentVersion, StorageAttempt
+    from app.adapters.vector.local import VectorStoreError
     from app.modules.knowledge import tasks as tasks_mod
+    from app.modules.knowledge.adapters import file_store, vector_store
 
     document_id, _ = await _publish_document(
         client, seeded, "重建失败.txt", "旧内容：数组与链表。"
@@ -485,10 +486,27 @@ async def test_rebuild_failure_keeps_old_version_active(client, seeded, db, monk
     )
     assert rebuilt.status_code == 202, rebuilt.text
 
-    def _boom(data, file_type):
-        raise ParserError("PARSE_FAILED", "模拟重建解析失败")
+    # 把重试预算降到 1 次，让"登记 attempt 之后的失败"一次就走到终态（免去退避等待）
+    async with db() as session:
+        await session.execute(
+            text(
+                "UPDATE background_tasks SET max_attempts = 1 WHERE kind='doc_persist' "
+                "AND object_id IN (SELECT id FROM document_versions WHERE document_id=:did)"
+            ),
+            {"did": document_id},
+        )
+        await session.commit()
 
-    monkeypatch.setattr(tasks_mod, "parse_bytes", _boom)
+    real_vs = vector_store()
+
+    class _BrokenUpsert:
+        async def upsert(self, namespace, items, *, fence):
+            raise VectorStoreError("模拟重建向量写入失败")
+
+        def __getattr__(self, name):
+            return getattr(real_vs, name)
+
+    monkeypatch.setattr(tasks_mod, "vector_store", lambda: _BrokenUpsert())
     await worker_drain(rounds=6)
 
     document = await get_document_row(document_id)
@@ -522,9 +540,9 @@ async def test_rebuild_failure_keeps_old_version_active(client, seeded, db, monk
     assert document.mutation_task_id is None
     new_versions = [v for v in versions if v.id != old_version_id]
     assert new_versions and all(v.state == "failed" for v in new_versions)
-    assert new_versions[-1].error_code == "PARSE_FAILED"
+    assert new_versions[-1].error_code == "STORAGE_UNAVAILABLE"
     assert task_row.state == "failed"
-    assert task_row.error_code == "PARSE_FAILED"
+    assert task_row.error_code == "STORAGE_UNAVAILABLE"
 
     # 旧版仍可检索、旧引用仍可展开（失败不产生半切版）
     mid = await search_evidence(seeded, "数组")
@@ -534,3 +552,25 @@ async def test_rebuild_failure_keeps_old_version_active(client, seeded, db, monk
         f"{API}/citations/{old_ref.reference_id}", headers=seeded["student_headers"]
     )
     assert old_citation.status_code == 200
+
+    # 失败版本的 attempt 产物必须回收（FR-DOC-007 / 设计 §10.1）
+    failed_version_ids = [v.id for v in new_versions]
+    async with db() as session:
+        failed_attempts = list(
+            (
+                await session.execute(
+                    select(StorageAttempt).where(
+                        StorageAttempt.version_id.in_(failed_version_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert failed_attempts
+    assert all(attempt.io_state == "cleaned" for attempt in failed_attempts)
+    store = file_store()
+    vs = vector_store()
+    for attempt in failed_attempts:
+        assert store.list_keys(attempt.file_prefix) == []
+        assert await vs.namespace_chunk_ids(attempt.vector_namespace) == []
