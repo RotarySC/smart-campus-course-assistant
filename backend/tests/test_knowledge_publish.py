@@ -582,3 +582,173 @@ async def test_publish_does_not_mix_partial_batches(client, seeded, db):
     evidence = await knowledge.search(actor, SearchQuery(query="内容"))
     assert evidence.status == "ok"
     assert all("第二批" not in ref.file_name for ref in evidence.references)
+
+
+async def test_publish_rejects_stale_parser_config_digest(client, seeded, db):
+    """冻结参数变更后，旧参数构建的版本不得发布（设计 §10.5/§11.3）。"""
+    from app.adapters.db.models import Document, DocumentBatch, DocumentVersion
+
+    async with db() as session:
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = TRUE WHERE singleton_id = 1")
+        )
+        await session.commit()
+
+    response = await upload(
+        client, seeded["admin_headers"], [("参数变更.txt", txt_bytes("冻结参数内容。"))]
+    )
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+    document_id = response.json()["data"]["documents"][0]["id"]
+
+    # staging 完成（版本 ready、发布停在 retry_wait）
+    await worker_drain(rounds=3)
+
+    # 模拟"入库后解析/向量参数变更"：把版本行的摘要改成与当前配置不一致
+    async with db() as session:
+        await session.execute(
+            text(
+                "UPDATE document_versions SET parser_config_digest = UNHEX(SHA2('stale', 256)) "
+                "WHERE document_id = :did"
+            ),
+            {"did": document_id},
+        )
+        await session.execute(
+            text("UPDATE corpus_control SET publish_frozen = FALSE WHERE singleton_id = 1")
+        )
+        await session.execute(
+            text(
+                "UPDATE background_tasks SET next_run_at = UTC_TIMESTAMP(6) "
+                "WHERE kind='batch_publish' AND object_id=:bid"
+            ),
+            {"bid": batch_id},
+        )
+        await session.commit()
+
+    await worker_drain(rounds=8)
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        document = await session.get(Document, document_id)
+        version = (
+            await session.execute(
+                select(DocumentVersion).where(DocumentVersion.document_id == document_id)
+            )
+        ).scalar_one()
+        revision = (
+            await session.execute(
+                text("SELECT revision FROM corpus_control WHERE singleton_id = 1")
+            )
+        ).scalar_one()
+
+    assert batch.state == "failed"
+    assert batch.error_code == "PROCESSING_FAILED"
+    assert int(revision) == 0
+    assert document.visibility == "unpublished"
+    assert document.processing_state == "failed"
+    assert version.state == "failed"
+
+
+async def test_staging_namespace_uses_frozen_vector_space(client, seeded, db, monkeypatch):
+    """CCA_VECTOR_SPACE 在"接受→staging"之间变化时，向量仍写进版本行冻结的空间。"""
+    from app.adapters.db.models import DocumentVersion, StorageAttempt
+
+    response = await upload(
+        client, seeded["admin_headers"], [("空间冻结.txt", txt_bytes("空间冻结内容。"))]
+    )
+    assert response.status_code == 202, response.text
+    document_id = response.json()["data"]["documents"][0]["id"]
+
+    async with db() as session:
+        frozen_space = (
+            await session.execute(
+                text(
+                    "SELECT vector_space FROM document_versions WHERE document_id = :did"
+                ),
+                {"did": document_id},
+            )
+        ).scalar_one()
+
+    # 在接受之后、worker 之前改环境变量（等价于运维中途切空间）
+    monkeypatch.setenv("CCA_VECTOR_SPACE", "corpus_switched")
+
+    await worker_drain(rounds=6)
+
+    async with db() as session:
+        attempt = (
+            await session.execute(
+                select(StorageAttempt)
+                .join(DocumentVersion, DocumentVersion.id == StorageAttempt.version_id)
+                .where(DocumentVersion.document_id == document_id)
+            )
+        ).scalars().first()
+        revision = (
+            await session.execute(
+                text("SELECT revision FROM corpus_control WHERE singleton_id = 1")
+            )
+        ).scalar_one()
+        active_space = (
+            await session.execute(
+                text("SELECT active_vector_space FROM corpus_control WHERE singleton_id = 1")
+            )
+        ).scalar_one()
+
+    # 向量命名空间必须落在冻结空间下，不能跟着环境变量漂移
+    assert attempt is not None
+    assert attempt.vector_namespace.startswith(f"{frozen_space}/")
+    assert not attempt.vector_namespace.startswith("corpus_switched/")
+    # 发布成功且语料空间仍是冻结值（不是环境变量值）
+    assert int(revision) == 1
+    assert active_space == frozen_space
+
+    # 检索可命中（不是"已发布但检索不到"）
+    from app.modules.knowledge import SearchQuery, knowledge
+    from app.shared.context import ActorContext
+
+    actor = ActorContext(
+        user_id=seeded["student"]["id"],
+        session_id="ses_search",
+        auth_version=1,
+        role="student",
+        trace_request_id="req_search",
+    )
+    evidence = await knowledge.search(actor, SearchQuery(query="空间冻结内容"))
+    assert evidence.status == "ok"
+    assert evidence.revision == 1
+
+
+async def test_staging_rejects_digest_change_midflight(client, seeded, db, monkeypatch):
+    """staging 与当前参数不同源时立即失败，不写入注定检索不到的向量。"""
+    from app.modules.knowledge import tasks as tasks_mod
+
+    response = await upload(
+        client, seeded["admin_headers"], [("中途变更.txt", txt_bytes("中途变更内容。"))]
+    )
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+    document_id = response.json()["data"]["documents"][0]["id"]
+
+    monkeypatch.setattr(tasks_mod, "parser_config_digest", lambda: b"changed-midflight")
+
+    await worker_drain(rounds=6)
+
+    from app.adapters.db.models import Document, DocumentBatch, DocumentVersion
+
+    async with db() as session:
+        batch = await session.get(DocumentBatch, batch_id)
+        document = await session.get(Document, document_id)
+        versions = list(
+            (
+                await session.execute(
+                    select(DocumentVersion).where(DocumentVersion.document_id == document_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert batch.state == "failed"
+    assert batch.error_code == "PROCESSING_FAILED"
+    assert document.visibility == "unpublished"
+    assert all(v.state == "failed" for v in versions)
+    assert await count_rows(DocumentVersion) >= 1

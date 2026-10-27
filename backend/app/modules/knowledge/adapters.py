@@ -100,8 +100,15 @@ def attempt_manifest_key(task_id: str, fence: int, version_id: str) -> str:
     return f"{attempt_file_prefix(task_id, fence, version_id)}/chunk-manifest"
 
 
-def attempt_namespace(task_id: str, fence: int, document_id: str, version_id: str) -> str:
-    return f"{corpus_vector_space()}/{document_id}/{version_id}/{task_id}/{int(fence)}"
+def attempt_namespace(
+    task_id: str, fence: int, document_id: str, version_id: str, *, vector_space: str
+) -> str:
+    """向量命名空间必须由**版本行冻结的** vector_space 派生，不能再读环境变量。
+
+    否则 ``CCA_VECTOR_SPACE`` 在"接受上传→staging"之间变化时，向量会写进新空间，
+    而屏障/发布/检索都按版本行里的旧空间走 —— 结果是"已发布但永久检索不到"。
+    """
+    return f"{vector_space}/{document_id}/{version_id}/{task_id}/{int(fence)}"
 
 
 def vector_space_prefix() -> str:

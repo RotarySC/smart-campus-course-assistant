@@ -67,7 +67,15 @@ def chunk_overlap() -> int:
 
 
 def parser_config_digest() -> bytes:
-    raw = f"parser-v1|chunk={chunk_size()}|overlap={chunk_overlap()}|norm=lf-strip"
+    # 摘要必须覆盖"会让向量不同源"的全部冻结参数：分块参数 + Embedding Provider/维度。
+    # 只写不读时（旧实现），参数变更后旧版本仍能发布，检索查询向量与库内向量不同源，
+    # 表现为"已发布但永久检索不到"。
+    from app.adapters.embedding.deterministic import PROVIDER_NAME, embedding_dim
+
+    raw = (
+        f"parser-v1|chunk={chunk_size()}|overlap={chunk_overlap()}|norm=lf-strip"
+        f"|embed={PROVIDER_NAME}:{embedding_dim()}"
+    )
     return hashlib.sha256(raw.encode("utf-8")).digest()
 
 

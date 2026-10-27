@@ -775,6 +775,19 @@ async def publish_batch(lease: TaskLease, batch_id: str, *, complete: bool = Tru
                 await finish_success(tx.session, lease)
             await tx.commit()
             return "not_ready"
+        # 冻结参数校验（设计 §10.5/§11.3）：分块/Embedding 参数变更后，旧参数构建的版本
+        # 与当前检索配置不同源，发布出去必然"已发布但检索不到"，必须重建再发布。
+        current_digest = parser_config_digest()
+        stale = [v.id for v in versions if v.parser_config_digest and v.parser_config_digest != current_digest]
+        if stale:
+            logger.warning(
+                "publish refused: parser_config_digest mismatch versions=%s", stale[:3]
+            )
+            raise TaskFailure(
+                "PROCESSING_FAILED",
+                retryable=False,
+                summary="解析/向量参数已变更（parser_config_digest 不一致），需重建后再发布",
+            )
         if any(d.visibility != "unpublished" for d in documents):
             # 预检之后、发布事务之内发生的并发移除：绝不把 removed 文档改回 shared
             # （否则撞 ck_document_removed 并复活已删文档），整批转补偿。
@@ -950,6 +963,16 @@ async def switch_version(lease: TaskLease, document_id: str, new_version_id: str
         new_version = next((v for v in versions if v.id == new_version_id), None)
         if new_version is None or new_version.state != "ready":
             raise TaskFailure("RETRIEVAL_UNAVAILABLE", retryable=True)
+        # 同上：切版也必须确认新版本与当前解析/向量参数同源。
+        if (
+            new_version.parser_config_digest
+            and new_version.parser_config_digest != parser_config_digest()
+        ):
+            raise TaskFailure(
+                "PROCESSING_FAILED",
+                retryable=False,
+                summary="解析/向量参数已变更，重建产物与当前配置不一致，需重新重建",
+            )
         if corpus.active_vector_space is None:
             corpus.active_vector_space = new_version.vector_space
         elif corpus.active_vector_space != new_version.vector_space:
@@ -1088,6 +1111,7 @@ async def handle_doc_persist(lease: TaskLease) -> None:
         version_state = version.state
         version_no = int(version.version_no)
         vector_space = version.vector_space
+        version_digest = version.parser_config_digest
 
     if document_batch_state in ("compensating", "failed"):
         await _complete_quietly(lease, claimed.object_id)
@@ -1118,6 +1142,7 @@ async def handle_doc_persist(lease: TaskLease) -> None:
             file_type=file_type,
             original_key=original_key,
             vector_space=vector_space,
+            parser_digest=version_digest,
         )
 
     if version_no == 1:
@@ -1134,6 +1159,7 @@ async def _run_staging(
     file_type: str,
     original_key: str | None,
     vector_space: str,
+    parser_digest: str | None = None,
 ) -> None:
     fs = file_store()
     vs = vector_store()
@@ -1142,6 +1168,14 @@ async def _run_staging(
         raise TaskFailure("STORAGE_UNAVAILABLE", retryable=True, summary="原件键缺失")
     if not fs.exists(original_key):
         raise TaskFailure("STORAGE_UNAVAILABLE", retryable=True, summary="原件不存在")
+    # 冻结参数校验（设计 §10.5/§11.3）：版本行记下的解析/向量参数摘要必须等于当前配置，
+    # 否则这次 staging 写进去的向量与"查询时用的 Embedding 配置"不同源，发布出去也检索不到。
+    if parser_digest and parser_digest != parser_config_digest():
+        raise TaskFailure(
+            "PROCESSING_FAILED",
+            retryable=False,
+            summary="解析/向量参数已变更（parser_config_digest 与入库时不一致），需重新上传或在重建后发布",
+        )
     data = fs.read_bytes(original_key)
     parsed = parse_bytes(data, file_type)
     chunks = build_chunks(parsed)
@@ -1151,7 +1185,9 @@ async def _run_staging(
     file_prefix = attempt_file_prefix(task_id, fence, version_id)
     text_key = attempt_text_key(task_id, fence, version_id)
     manifest_key = attempt_manifest_key(task_id, fence, version_id)
-    namespace = attempt_namespace(task_id, fence, document_id, version_id)
+    namespace = attempt_namespace(
+        task_id, fence, document_id, version_id, vector_space=vector_space
+    )
 
     # 收敛屏障：拒绝旧代次迟到写入，并清理旧产物（同一任务此前失败重试的代次）。
     version_prefix = f"{vector_space}/{document_id}/{version_id}"
@@ -1553,7 +1589,17 @@ async def execute_claimed(claimed: ClaimedTask, owner: str) -> str:
             claimed, owner, code=code, retryable=retryable, summary=summary
         )
         return result
-    except (StorageError, VectorStoreError, EmbeddingError, LateWriteRejected) as exc:
+    except EmbeddingError as exc:
+        # SRS FR-DOC-002：Embedding 故障必须与存储/向量库故障分开报告（可有限重试）。
+        result = await schedule_failure(
+            claimed,
+            owner,
+            code="EMBEDDING_FAILED",
+            retryable=True,
+            summary=str(exc)[:500],
+        )
+        return result
+    except (StorageError, VectorStoreError, LateWriteRejected) as exc:
         result = await schedule_failure(
             claimed,
             owner,

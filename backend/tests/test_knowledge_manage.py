@@ -462,3 +462,75 @@ async def test_cleanup_failure_is_not_reported_as_success(client, seeded, db, mo
     assert document.cleanup_state == "succeeded"
     assert document.processing_state == "deleted"
     assert not FileStore().exists(original_key)
+
+
+async def test_rebuild_failure_keeps_old_version_active(client, seeded, db, monkeypatch):
+    """AT-13 失败半边：重建解析失败 → 旧版仍 active、旧引用仍 200、互斥解除。"""
+    from app.adapters.db.models import DocumentVersion
+    from app.adapters.parser.document_parser import ParserError
+    from app.modules.knowledge import tasks as tasks_mod
+
+    document_id, _ = await _publish_document(
+        client, seeded, "重建失败.txt", "旧内容：数组与链表。"
+    )
+    document = await get_document_row(document_id)
+    old_version_id = document.active_version_id
+    old_evidence = await search_evidence(seeded, "数组")
+    old_ref = next(ref for ref in old_evidence.references if ref.document_id == document_id)
+
+    rebuilt = await client.post(
+        f"{API}/admin/documents/{document_id}/rebuild",
+        json={"expected_version": int(document.version)},
+        headers={**seeded["admin_headers"], "Idempotency-Key": "rebuild-fail-1"},
+    )
+    assert rebuilt.status_code == 202, rebuilt.text
+
+    def _boom(data, file_type):
+        raise ParserError("PARSE_FAILED", "模拟重建解析失败")
+
+    monkeypatch.setattr(tasks_mod, "parse_bytes", _boom)
+    await worker_drain(rounds=6)
+
+    document = await get_document_row(document_id)
+    async with db() as session:
+        versions = list(
+            (
+                await session.execute(
+                    select(DocumentVersion)
+                    .where(DocumentVersion.document_id == document_id)
+                    .order_by(DocumentVersion.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        task_row = (
+            await session.execute(
+                text(
+                    "SELECT state, error_code FROM background_tasks "
+                    "WHERE kind='doc_persist' AND object_id IN "
+                    "(SELECT id FROM document_versions WHERE document_id=:did) "
+                    "ORDER BY created_at DESC LIMIT 1"
+                ),
+                {"did": document_id},
+            )
+        ).first()
+
+    # 旧版不动、文档恢复可改、互斥解除
+    assert document.active_version_id == old_version_id
+    assert document.processing_state == "available"
+    assert document.mutation_task_id is None
+    new_versions = [v for v in versions if v.id != old_version_id]
+    assert new_versions and all(v.state == "failed" for v in new_versions)
+    assert new_versions[-1].error_code == "PARSE_FAILED"
+    assert task_row.state == "failed"
+    assert task_row.error_code == "PARSE_FAILED"
+
+    # 旧版仍可检索、旧引用仍可展开（失败不产生半切版）
+    mid = await search_evidence(seeded, "数组")
+    assert mid.status == "ok"
+    assert all(ref.version_id == old_version_id for ref in mid.references)
+    old_citation = await client.get(
+        f"{API}/citations/{old_ref.reference_id}", headers=seeded["student_headers"]
+    )
+    assert old_citation.status_code == 200

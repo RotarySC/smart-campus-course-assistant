@@ -248,3 +248,44 @@ async def test_vector_store_isolates_namespaces(tmp_path):
     assert await store.delete_namespace("corpus_v1/doc_a/v1/t1/1") == 1
     assert await store.list_chunk_ids("corpus_v1/doc_a") == []
     assert await store.list_chunk_ids("corpus_v1/doc_b") == ["chk_b"]
+
+
+async def test_embedding_failure_maps_to_embedding_failed(client, seeded, db, monkeypatch):
+    """SRS FR-DOC-002：Embedding 故障必须与存储故障分开（EMBEDDING_FAILED，可有限重试）。"""
+    from sqlalchemy import select
+
+    from app.adapters.embedding.deterministic import EmbeddingError
+    from app.modules.knowledge import tasks as tasks_mod
+
+    response = await upload(
+        client, seeded["admin_headers"], [("向量失败.txt", txt_bytes("向量失败内容。"))]
+    )
+    assert response.status_code == 202, response.text
+    batch_id = response.json()["data"]["batch_id"]
+
+    class _BrokenEmbedding:
+        def embed_batch(self, texts):
+            raise EmbeddingError("模拟向量化失败")
+
+    monkeypatch.setattr(tasks_mod, "embedding", lambda: _BrokenEmbedding())
+
+    await run_worker_once()
+
+    from app.adapters.db.models import BackgroundTask, DocumentBatch
+
+    async with db() as session:
+        tasks = list(
+            (
+                await session.execute(
+                    select(BackgroundTask).where(BackgroundTask.kind == "doc_persist")
+                )
+            )
+            .scalars()
+            .all()
+        )
+        batch = await session.get(DocumentBatch, batch_id)
+
+    assert tasks and all(task.error_code == "EMBEDDING_FAILED" for task in tasks)
+    # 可重试：停在 retry_wait，不直接判死
+    assert all(task.state == "retry_wait" for task in tasks)
+    assert batch.state in ("accepted", "processing")
