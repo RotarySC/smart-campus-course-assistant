@@ -25,6 +25,7 @@ from app.adapters.db.models import AuthSession, ChatRequest, User
 from app.adapters.db.uow import uow
 from app.adapters.mcp.client import ToolExecutor
 from app.adapters.model.gateway import (
+    AmbiguousCourse,
     Answer,
     DraftIntent,
     DraftRecord,
@@ -38,6 +39,7 @@ from app.adapters.model.gateway import (
     ToolExecutionRecord,
 )
 from app.config import get_settings
+from app.modules.assistant.clarify import lookup_ambiguous_courses
 from app.modules.assistant.contracts import (
     TOOL_DISPLAY_NAMES,
     DoneData,
@@ -131,6 +133,8 @@ class Runner:
         self._renew_task: asyncio.Task[None] | None = None
         self._state_machine_started = False
         self._terminal_done = False
+        # FR-QA-004：本轮同名课程候选（每轮查一次，provider 只决定是否先补问）
+        self._ambiguous_courses: tuple[AmbiguousCourse, ...] = ()
 
     # ------------------------------------------------------------------ #
     # 入口
@@ -194,6 +198,7 @@ class Runner:
             ),
         )
         self._renew_task = asyncio.create_task(self._renew_loop())
+        self._ambiguous_courses = await self._turn_ambiguous_courses()
 
         while True:
             context = self._build_context()
@@ -257,6 +262,19 @@ class Runner:
     # ------------------------------------------------------------------ #
     # 上下文 / 状态机
     # ------------------------------------------------------------------ #
+    async def _turn_ambiguous_courses(self) -> tuple[AmbiguousCourse, ...]:
+        """FR-QA-004：本轮问题里的同名课程候选。
+
+        消歧是增强项：目录查询失败时降级为「不补问」，不能让整轮回答失败。
+        """
+        try:
+            return await lookup_ambiguous_courses(self.accept.message)
+        except Exception:  # noqa: BLE001 - 降级，不影响回答
+            logger.warning(
+                "course ambiguity lookup failed request_id=%s", self.request_id, exc_info=True
+            )
+            return ()
+
     def _build_context(self) -> ModelContext:
         today = school_date(self.accepted_at)
         return ModelContext(
@@ -271,6 +289,7 @@ class Runner:
             tool_results=self.state.records,
             draft=self.state.draft,
             save=self.state.save,
+            ambiguous_courses=self._ambiguous_courses,
         )
 
     async def _claim(self) -> bool:

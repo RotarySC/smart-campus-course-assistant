@@ -145,6 +145,17 @@ class SaveRecord:
     status: Literal["created", "existing"]
 
 
+@dataclass(frozen=True)
+class AmbiguousCourse:
+    """无法仅凭课程名区分的候选（FR-QA-004：先补问，不擅自挑一门）。
+
+    ``code`` 是用户可见的课程代码；``name`` 是同名课程名，用于把候选分组补问。
+    """
+
+    code: str
+    name: str
+
+
 @dataclass
 class ModelContext:
     """provider 可见的上下文（无身份字段）。"""
@@ -160,6 +171,8 @@ class ModelContext:
     tool_results: list[ToolExecutionRecord] = field(default_factory=list)
     draft: DraftRecord | None = None
     save: SaveRecord | None = None
+    # FR-QA-004：本轮问题里的同名课程候选（由服务端按课程目录判定，provider 只决定是否先补问）
+    ambiguous_courses: tuple[AmbiguousCourse, ...] = ()
 
     def result_of(self, tool_name: str) -> ToolExecutionRecord | None:
         for record in reversed(self.tool_results):
@@ -187,6 +200,7 @@ class ModelGateway(Protocol):
 
 
 __all__ = [
+    "AmbiguousCourse",
     "Answer",
     "DraftIntent",
     "DraftRecord",

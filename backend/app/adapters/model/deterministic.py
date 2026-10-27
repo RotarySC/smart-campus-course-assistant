@@ -147,8 +147,13 @@ class DeterministicProvider:
                 arguments={"from_date": start, "to_date": end},
             )
 
-        # 2) 资料检索
+        # 2) 资料检索（FR-QA-004：同名课程先补问，不做注定混淆的检索）
         if wants_documents(message) and docs_done is None:
+            if context.ambiguous_courses:
+                return Answer(
+                    text=self._clarification_text(context),
+                    basis_types=("general",),
+                )
             return ToolCall(tool_name="search_course_docs", arguments={"query": message})
 
         # 3) 草稿 / 保存候选
@@ -217,6 +222,25 @@ class DeterministicProvider:
             save_candidate=mentions_save(context.message),
         )
 
+    # ---- 内部：同名课程补问 ----
+    @staticmethod
+    def _clarification_text(context: ModelContext) -> str:
+        groups: dict[str, list[str]] = {}
+        for item in context.ambiguous_courses:
+            groups.setdefault(item.name, []).append(item.code)
+        lines: list[str] = []
+        for name, codes in groups.items():
+            joined = "、".join(sorted(set(codes)))
+            lines.append(
+                f"你问的「{name}」在系统里对应多门同名课程（{joined}）。"
+                "请先告诉我要看哪一门，回复课程代码即可，我再按那门课回答。"
+            )
+        lines.append(
+            "说明：资料目前没有按课程打标签，我无法只凭课程名判断该引用哪一份，"
+            "所以先确认课程再回答。"
+        )
+        return "\n".join(lines)
+
     # ---- 内部：答案 ----
     def _answer_text(
         self,
@@ -269,7 +293,10 @@ class DeterministicProvider:
                     "请稍后重试，或直接查阅资料原文。"
                 )
             elif evidence.corpus_empty:
-                parts.append("当前知识库还没有已发布的课程资料，暂时无法给出资料依据。")
+                parts.append(
+                    "当前知识库还没有已发布的课程资料，请联系管理员提供课程材料，"
+                    "暂时无法给出资料依据。"
+                )
             else:
                 parts.append("没有检索到可用的课程资料依据，暂时无法回答这项资料类问题。")
 
