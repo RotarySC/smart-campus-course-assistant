@@ -76,7 +76,7 @@ $env:DATABASE_URL = "mysql+aiomysql://root:cca_dev_root@127.0.0.1:33061/cca?char
 
 ## 4. 配置
 
-- `.env.example` 是**完整键集合**（37 个：`DATABASE_URL` + 36 个 `CCA_*`），复制为 `backend/.env`
+- `.env.example` 是**完整键集合**（54 个：`DATABASE_URL` + 53 个 `CCA_*`），复制为 `backend/.env`
   （不入库）；`start.ps1` 在缺失时自动由示例生成并把 `DATABASE_URL` 指向演示库 `cca`。
 - **优先级**：进程环境变量 > `backend/.env` > 代码默认值（pydantic-settings）。
 - 生产必须覆盖的键在 `.env.example` 内有标注（数据库口令、`CCA_SERVICE_TOKEN`、
@@ -123,6 +123,8 @@ DDL 的唯一入库表达是 `migrations/versions/0001_initial_schema.py`（23 �
 
 ## 8. 测试
 
+> 下表里的 `$py` 即 §3 定义的 `..\.venv\Scripts\python.exe`；在 `backend/` 下执行。
+
 | 层 | 命令 | 何时跑 |
 | --- | --- | --- |
 | T0 定向 | `& $py -m pytest tests/test_identity.py -q` 等单文件 | 改完一个模块 |
@@ -150,13 +152,14 @@ backend/
       knowledge                                   # 上传、发布、引用、Worker 任务
       assistant                                   # SSE runner、预算、草稿保存、内部工具、MCP 入口
     entrypoints/{public_api,internal_api,worker,mcp_server}.py
-    cli/seed.py
+    cli/{seed,sample}.py        # seed：最小演示数据；sample：8 学生 / 8 课 / 两周课表 / 5 份资料
   migrations/                  # Alembic（0001 初始迁移，23 表）
   tests/                       # 真实 MySQL 用例
 ```
 
 ## 10. 已知限制
 
-真实大模型 / Embedding / 向量库、OCR 与扫描件、多机部署与备份、性能 P95、MCP jti 跨进程注册表等
-均未验证。`adapters/model`、`adapters/embedding`、`adapters/vector` 是本地确定性实现，**不要**把
-它们当作生产 AI 能力对外宣称。
+真实大模型与真实 Embedding（Qwen3-Embedding-0.6B，1024 维）已接入并实测；仍**未验证/未落地**的是：
+生产向量库（当前 `adapters/vector/local.py` 是本地 JSON 实现）、OCR 与扫描件、多机部署与真实网络下的性能、
+生产规模 binlog 时间点恢复、密钥托管与轮换、登录频率限制。`adapters/model` 与 `adapters/embedding` 的
+`deterministic` 实现只是离线可复现的测试替身，**不要**当作生产 AI 能力对外宣称。

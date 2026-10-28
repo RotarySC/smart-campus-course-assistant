@@ -15,7 +15,7 @@ Vue 3 + TypeScript + Pinia + vue-router 4，Vite 构建。**默认连真实后�
 | `pnpm build` | 生产构建（沙箱内不可运行，见 §1） |
 | `pnpm typecheck` | `vue-tsc` + `tsc`（strict） |
 | `pnpm lint:styles` | stylelint 分层纯度门 |
-| `pnpm check:sfc` | 53 个 `.vue` 的 SFC 编译检查 |
+| `pnpm check:sfc` | 56 个 `.vue` 的 SFC 编译检查 |
 | `pnpm check:invariants` | 10 项机械不变量 |
 | `pnpm check:gates` | 12 项门禁反向注入自测（证明门禁真的会 FAIL） |
 | `pnpm smoke` | 24 项纯函数级流式冒烟（不涉渲染） |
@@ -54,7 +54,7 @@ web/
 ├─ scripts/
 │  ├─ sync-tokens.mjs            # token 生成物同步（逐字节 + md5 校验）
 │  ├─ invariants.mjs             # 10 项机械不变量（可进程内调用 runInvariants()）
-│  ├─ check-sfc.mjs              # 53 个 .vue 的 SFC 编译检查
+│  ├─ check-sfc.mjs              # 56 个 .vue 的 SFC 编译检查
 │  ├─ smoke-sse.mjs              # 24 项纯函数级流式冒烟
 │  ├─ verify-gates.mjs           # 12 项门禁反向注入自测
 │  ├─ gen-types.mjs              # OpenAPI → src/api/types.gen.ts
@@ -126,7 +126,7 @@ pnpm install
 node node_modules\vue-tsc\bin\vue-tsc.js --noEmit -p tsconfig.json   # typecheck（strict）
 node node_modules\typescript\bin\tsc --noEmit -p tsconfig.node.json  # vite.config.ts
 node scripts\sync-tokens.mjs --check                                 # tokens 逐字节一致
-node scripts\check-sfc.mjs                                           # 53 个 .vue 编译
+node scripts\check-sfc.mjs                                           # 56 个 .vue 编译
 node scripts\invariants.mjs                                          # 10 项不变量
 node node_modules\stylelint\bin\stylelint.mjs "src/**/*.{css,vue}"   # 分层纯度门
 node scripts\verify-gates.mjs                                        # 12 项门禁反向注入自测
