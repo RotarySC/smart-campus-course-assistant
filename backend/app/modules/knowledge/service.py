@@ -27,6 +27,7 @@ from app.adapters.db.models import (
 )
 from app.adapters.db.uow import UoW, uow
 from app.adapters.filestore.local import StorageError
+from app.adapters.judge import judge_band, judge_fail_open, SNIPPET_LIMIT
 from app.adapters.vector.local import VectorStoreError
 from app.modules.knowledge.adapters import (
     TASK_KIND_DOC_CLEANUP,
@@ -38,6 +39,7 @@ from app.modules.knowledge.adapters import (
     embedding,
     file_store,
     parser_config_digest,
+    retrieval_judge,
     retrieval_min_score,
     sealed_key,
     upload_max_file_bytes,
@@ -933,6 +935,9 @@ class KnowledgeService:
             selected = rows[:top_k]
             if not selected:
                 return EvidenceSet.empty(corpus_empty=False, revision=revision)
+            if not await self._sufficient(text, selected, score_of):
+                # FR-QA-003：片段只是主题相近、不含答案 → 按"检索过但没命中"处理
+                return EvidenceSet.empty(corpus_empty=False, revision=revision)
             chunks: list[EvidenceChunk] = []
             references: list[EvidenceReference] = []
             seen_documents: set[str] = set()
@@ -969,6 +974,40 @@ class KnowledgeService:
                 references=references,
             )
         return EvidenceSet.empty(corpus_empty=False, revision=0)
+
+    async def _sufficient(
+        self,
+        question: str,
+        selected: list[Any],
+        score_of: dict[str, float],
+    ) -> bool:
+        """依据是否足以作答（两段式：分数门先分流，只有重叠带才问 LLM 判官）。
+
+        - 关闭（``CCA_RETRIEVAL_JUDGE`` 未设）→ 恒 True，行为与旧版逐字一致；
+        - top1 >= HIGH → 放行（分数已经足够高，没必要花一次模型调用）；
+        - top1 <  LOW → 判空（连主题相近都算不上）；
+        - 中间重叠带 → 判官读前 5 条片段正文判断"有没有答案"，失败按 ``FAIL_OPEN``。
+        """
+        judge = retrieval_judge()
+        if judge is None:
+            return True
+        low, high = judge_band()
+        top_score = max((score_of.get(row[0].id, 0.0) for row in selected), default=0.0)
+        if top_score >= high:
+            return True
+        if top_score < low:
+            return False
+        snippets = [row[0].text_content for row in selected[:SNIPPET_LIMIT]]
+        verdict = await judge.decide(question, snippets)
+        if verdict is None:
+            fail_open = judge_fail_open()
+            logger.warning(
+                "检索充分性判官无法判断，按 fail_open=%s 处理 top_score=%.4f", fail_open, top_score
+            )
+            return fail_open
+        if not verdict:
+            logger.info("检索充分性判官判定片段不足以作答 top_score=%.4f", top_score)
+        return verdict
 
     # ------------------------------------------------------------------ 引用
     async def get_citation(self, ctx: ActorContext, reference_id: str) -> dict[str, Any]:

@@ -1,17 +1,18 @@
 """知识链路的 Adapter 装配与内部常量（Phase 2）。
 
 可替换 Seam：FileStore / Parser / EmbeddingGateway / VectorStore。
-本文件只做“按配置构造”，不承载业务规则；测试通过环境变量切换实现根目录。
+本文件只做“按配置构造”，不承载业务规则；装配键走 ``app.config.env_*``
+（进程环境变量优先，其次 ``backend/.env``，P1-5）；测试用环境变量切换实现根目录。
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Final
 
 from app.adapters.embedding.deterministic import embed_text
 from app.adapters.embedding.registry import build_embedding
+from app.adapters.judge import build_judge
 from app.adapters.filestore.local import FileStore
 from app.adapters.parser.document_parser import (
     SUPPORTED_TYPES,
@@ -25,7 +26,7 @@ from app.adapters.parser.document_parser import (
     parser_config_digest,
 )
 from app.adapters.vector.local import LocalVectorStore
-from app.config import get_settings
+from app.config import env_float, env_str, get_settings
 
 # ---- 任务 / 租约参数（后端详细设计 §10.2 BE 初始值）----
 TASK_KIND_PERSIST: Final = "doc_persist"
@@ -67,7 +68,7 @@ def embedding():
 
 
 def corpus_vector_space() -> str:
-    return os.environ.get("CCA_VECTOR_SPACE", "corpus_v1").strip() or "corpus_v1"
+    return env_str("CCA_VECTOR_SPACE", "corpus_v1").strip() or "corpus_v1"
 
 
 def retrieval_min_score() -> float:
@@ -77,12 +78,13 @@ def retrieval_min_score() -> float:
     0.05，任何非零默认值都会误杀正常命中；接真实 Embedding（TBD-04）后须用评测集
     重新标定再打开。设 0 / 负数表示不启用阈值。
     """
-    raw = os.environ.get("CCA_RETRIEVAL_MIN_SCORE", "0").strip()
-    try:
-        value = float(raw)
-    except ValueError:
-        return 0.0
-    return max(0.0, min(value, 1.0))
+    raw_score = env_float("CCA_RETRIEVAL_MIN_SCORE", 0.0)
+    return max(0.0, min(raw_score, 1.0))
+
+
+def retrieval_judge():
+    """检索充分性判官（``CCA_RETRIEVAL_JUDGE=1`` 时装配，否则 None = 完全跳过这一层）。"""
+    return build_judge()
 
 
 def upload_max_files() -> int:
@@ -161,6 +163,7 @@ __all__ = [
     "manifest_payload",
     "parse_bytes",
     "parser_config_digest",
+    "retrieval_judge",
     "retrieval_min_score",
     "sealed_key",
     "upload_max_file_bytes",

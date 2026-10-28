@@ -193,3 +193,133 @@ async def test_retrieval_threshold_filters_weak_candidates(client, seeded, monke
     assert filtered.status == "empty"
     assert filtered.corpus_empty is False
     assert not filtered.chunks
+
+
+# ---------------------------------------------------------------------------
+# 检索充分性判官（CCA_RETRIEVAL_JUDGE）：两段式分数门 + LLM 判「片段能否作为依据」
+# ---------------------------------------------------------------------------
+class _FakeJudge:
+    """记录调用次数的假判官；verdict=None 模拟调用失败。"""
+
+    def __init__(self, verdict):
+        self.verdict = verdict
+        self.calls: list[tuple[str, list[str]]] = []
+
+    async def decide(self, question, snippets):
+        self.calls.append((question, list(snippets)))
+        return self.verdict
+
+
+async def _published_doc(client, seeded, name="判官资料.txt", body="数据结构：数组与链表。"):
+    from _knowledge_helpers import publish_batch, txt_bytes
+
+    await publish_batch(client, seeded["admin_headers"], [(name, txt_bytes(body))])
+
+
+def _actor(seeded, suffix="judge"):
+    from app.shared.context import ActorContext
+
+    return ActorContext(
+        user_id=seeded["student"]["id"],
+        session_id=f"ses_{suffix}",
+        auth_version=1,
+        role="student",
+        trace_request_id=f"req_{suffix}",
+    )
+
+
+async def test_judge_disabled_by_default_keeps_old_behaviour(client, seeded, monkeypatch):
+    from app.modules.knowledge import SearchQuery, knowledge
+
+    monkeypatch.delenv("CCA_RETRIEVAL_JUDGE", raising=False)
+    await _published_doc(client, seeded)
+    evidence = await knowledge.search(_actor(seeded), SearchQuery(query="数据结构 数组 链表"))
+    assert evidence.status == "ok"
+    assert evidence.chunks
+
+
+async def test_judge_rejects_insufficient_evidence(client, seeded, monkeypatch):
+    """判官判不足 → 当"检索过但没命中"（empty，不是 corpus_empty）。"""
+    from app.modules.knowledge import SearchQuery, knowledge
+    from app.modules.knowledge import service as service_mod
+
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE", "1")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_LOW", "0")  # 强制所有分数走判官
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_HIGH", "1")
+    fake = _FakeJudge(verdict=False)
+    monkeypatch.setattr(service_mod, "retrieval_judge", lambda: fake)
+
+    await _published_doc(client, seeded)
+    evidence = await knowledge.search(_actor(seeded), SearchQuery(query="数据结构 数组 链表"))
+
+    assert evidence.status == "empty"
+    assert evidence.corpus_empty is False
+    assert not evidence.chunks
+    assert len(fake.calls) == 1
+    assert fake.calls[0][1], "判官必须看到片段正文，不能只看分数"
+
+
+async def test_judge_accepts_answerable_evidence(client, seeded, monkeypatch):
+    from app.modules.knowledge import SearchQuery, knowledge
+    from app.modules.knowledge import service as service_mod
+
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE", "1")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_LOW", "0")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_HIGH", "1")
+    fake = _FakeJudge(verdict=True)
+    monkeypatch.setattr(service_mod, "retrieval_judge", lambda: fake)
+
+    await _published_doc(client, seeded)
+    evidence = await knowledge.search(_actor(seeded), SearchQuery(query="数据结构 数组 链表"))
+
+    assert evidence.status == "ok"
+    assert evidence.chunks
+    assert len(fake.calls) == 1
+
+
+async def test_judge_failure_fails_open_by_default(client, seeded, monkeypatch):
+    """判官不可用不能把"有答案"变成"没答案"：默认放行。"""
+    from app.modules.knowledge import SearchQuery, knowledge
+    from app.modules.knowledge import service as service_mod
+
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE", "1")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_LOW", "0")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_HIGH", "1")
+    monkeypatch.delenv("CCA_RETRIEVAL_JUDGE_FAIL_OPEN", raising=False)
+    fake = _FakeJudge(verdict=None)
+    monkeypatch.setattr(service_mod, "retrieval_judge", lambda: fake)
+
+    await _published_doc(client, seeded)
+    evidence = await knowledge.search(_actor(seeded), SearchQuery(query="数据结构 数组 链表"))
+    assert evidence.status == "ok"
+
+    # 显式要求 fail-closed 时才判空
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_FAIL_OPEN", "0")
+    closed = await knowledge.search(_actor(seeded, "judge2"), SearchQuery(query="数据结构 数组 链表"))
+    assert closed.status == "empty"
+    assert closed.corpus_empty is False
+
+
+async def test_judge_not_called_outside_ambiguous_band(client, seeded, monkeypatch):
+    """分数在带外时不花模型调用：高到 HIGH 直接放行，低到 LOW 直接判空。"""
+    from app.modules.knowledge import SearchQuery, knowledge
+    from app.modules.knowledge import service as service_mod
+
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE", "1")
+    await _published_doc(client, seeded)
+
+    # 前 1 条：high=0 → 分数必然 >= 0 → 直接放行，不调判官
+    fake = _FakeJudge(verdict=False)
+    monkeypatch.setattr(service_mod, "retrieval_judge", lambda: fake)
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_LOW", "0")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_HIGH", "0")
+    accepted = await knowledge.search(_actor(seeded, "band1"), SearchQuery(query="数据结构 数组 链表"))
+    assert accepted.status == "ok"
+    assert fake.calls == []
+
+    # low=0.999 → 分数必然 < LOW → 直接判空，同样不调判官
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_LOW", "0.999")
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_HIGH", "0.999")
+    rejected = await knowledge.search(_actor(seeded, "band2"), SearchQuery(query="数据结构 数组 链表"))
+    assert rejected.status == "empty"
+    assert fake.calls == []
