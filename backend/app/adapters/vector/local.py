@@ -8,13 +8,15 @@
 - **写入收敛屏障 barrier**：登记 ``(prefix, fence)`` 后，``fence <= barrier_fence``
   的写入被拒绝，已写入的旧代次记录被清除（证明不会出现迟到写入）。
 
-持久化到 ``<root>/vector_store.json``（``CCA_VECTOR_ROOT``，默认 backend/var/vector）。
+持久化到 ``<root>/vector_store.json``（``CCA_VECTOR_ROOT``，默认 backend/var/vector；
+进程环境变量优先，其次 ``backend/.env``，P1-5）。
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import secrets
 from pathlib import Path
@@ -22,10 +24,14 @@ from typing import Any, Final
 
 import numpy as np
 
-from app.config import BACKEND_DIR
+from app.config import BACKEND_DIR, env_str
+
+logger = logging.getLogger("cca.vector.local")
 
 _NS_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:/-")
 _LOCKS: dict[str, asyncio.Lock] = {}
+# 「维度不一致被跳过」只按 (库维度, 查询维度) 告警一次，避免每次检索刷屏
+_DIM_MISMATCH_WARNED: set[tuple[int, int]] = set()
 
 
 class VectorStoreError(Exception):
@@ -37,7 +43,7 @@ class LateWriteRejected(VectorStoreError):
 
 
 def default_root() -> Path:
-    raw = os.environ.get("CCA_VECTOR_ROOT", "").strip()
+    raw = env_str("CCA_VECTOR_ROOT", "").strip()
     return Path(raw) if raw else BACKEND_DIR / "var" / "vector"
 
 
@@ -209,14 +215,31 @@ class LocalVectorStore:
         async with _lock_for(self.data_file):
             payload = self._load()
             candidates: list[tuple[float, str, str]] = []
+            skipped = 0
+            skipped_dims: tuple[int, int] | None = None
             for namespace, entry in payload["namespaces"].items():
                 if not self._under(namespace, prefix):
                     continue
                 for chunk_id, record in entry.get("records", {}).items():
                     arr = np.asarray(record["v"], dtype=np.float32)
                     if arr.shape != query.shape:
+                        # 静默跳过会让检索"看起来正常但什么都召不回来"（2026-10-28
+                        # 排查耗时一小时的真实原因），必须留痕
+                        skipped += 1
+                        skipped_dims = (int(arr.size), int(query.size))
                         continue
                     candidates.append((float(arr @ query), chunk_id, namespace))
+            if skipped:
+                assert skipped_dims is not None
+                if skipped_dims not in _DIM_MISMATCH_WARNED:
+                    _DIM_MISMATCH_WARNED.add(skipped_dims)
+                    logger.warning(
+                        "向量库维度与查询维度不一致，已跳过 %d 条记录（库 %d 维 / 查询 %d 维）："
+                        "索引与当前 CCA_EMBEDDING_* 不是同一套模型或维度，检索会返回空结果",
+                        skipped,
+                        skipped_dims[0],
+                        skipped_dims[1],
+                    )
             candidates.sort(key=lambda item: (-item[0], item[1]))
             return [
                 {"chunk_id": chunk_id, "namespace": namespace, "score": score}

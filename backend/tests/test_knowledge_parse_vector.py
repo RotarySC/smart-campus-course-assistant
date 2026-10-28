@@ -237,6 +237,31 @@ async def test_vector_store_idempotent_upsert_namespace_and_barrier(tmp_path):
     assert await store.delete_prefix("corpus_v1") == 0
 
 
+async def test_vector_store_warns_on_dim_mismatch_instead_of_silent_empty(tmp_path, caplog):
+    """维度不一致必须留痕：2026-10-28 排查时"检索返回空"没有任何日志，白花一小时。"""
+    import logging
+
+    from app.adapters.vector import local as local_mod
+    from app.adapters.vector.local import LocalVectorStore
+
+    local_mod._DIM_MISMATCH_WARNED.clear()
+    store = LocalVectorStore(tmp_path / "vector")
+    await store.upsert("corpus_v1/doc_a/v1/t1/1", [("chk_a", [1.0, 0.0])], fence=1)
+
+    with caplog.at_level(logging.WARNING, logger="cca.vector.local"):
+        hits = await store.search("corpus_v1", [1.0, 0.0, 0.0], limit=10)
+
+    assert hits == []  # 行为不变：仍然跳过，不抛异常
+    assert "维度与查询维度不一致" in caplog.text
+    assert "已跳过 1 条" in caplog.text
+
+    # 同一对维度只告警一次，避免每次检索刷屏
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="cca.vector.local"):
+        await store.search("corpus_v1", [1.0, 0.0, 0.0], limit=10)
+    assert "维度与查询维度不一致" not in caplog.text
+
+
 async def test_vector_store_isolates_namespaces(tmp_path):
     from app.adapters.vector.local import LocalVectorStore
 

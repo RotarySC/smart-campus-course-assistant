@@ -3,7 +3,7 @@
 用途：接真实语义向量（如 Qwen3-Embedding-0.6B，1024 维），替代确定性 Hash Embedding。
 确定性实现只用于可重复测试；真实检索质量必须由本 Adapter 提供（TBD-04 的落地形态）。
 
-配置（环境变量，按 ``CCA_VECTOR_SPACE`` 同样走进程环境，便于 worker/API 各自读到）：
+配置（进程环境变量优先，其次 ``backend/.env``，P1-5 起写进 ``.env`` 即生效）：
 - ``CCA_EMBEDDING_PROVIDER=openai-compatible`` 切换到远端；默认 ``deterministic``
 - ``CCA_EMBEDDING_BASE_URL`` 例如 ``http://127.0.0.1:8892/v1``（经 SSH 隧道的外网入口）
 - ``CCA_EMBEDDING_MODEL`` 例如 ``Qwen3-Embedding-0.6B``（服务端不校验，但用于摘要与日志）
@@ -12,6 +12,15 @@
 - ``CCA_EMBEDDING_BATCH_SIZE`` 单次 HTTP 请求最多几条（默认 16；服务端上限 256）
 - ``CCA_EMBEDDING_TIMEOUT_SECONDS`` 单次请求超时（默认 30）
 - ``CCA_EMBEDDING_MAX_RETRIES`` 连接/5xx 的有界重试次数（默认 2）
+- ``CCA_EMBEDDING_QUERY_PREFIX`` query 侧指令前缀（默认空串 = 行为不变）。
+
+  Qwen3-Embedding 是 instruction-aware 模型：检索时 query 应带 ``Instruct: …\\nQuery: …``
+  前缀，doc 侧不加。只作用于单条 ``embed()``（query 侧），``embed_batch()``（doc 侧）
+  不受影响。默认空串保证不设变量时行为与旧版完全一致。
+- ``CCA_EMBEDDING_VERIFY_BATCH`` 批量内容级自检（默认 0=关；入库任务建议开 1）。
+  开启后每个 >=2 条的批次额外发 1 条单条请求，比对**最短那条**的批量向量与单条向量
+  余弦，>0.999 才接受。理由：2026-10-28 服务端左填充、池化却按下标取
+  时，条数/维度/范数三项校验**全部正常**，只有内容级比对能发现。
 
 设计取舍：
 - **异步**：调用发生在 async 的检索与入库任务里，网络往返不能阻塞事件循环；
@@ -24,66 +33,67 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any
 
 import httpx
 import numpy as np
 
 from app.adapters.embedding.deterministic import EmbeddingError
+from app.config import env_flag, env_float, env_int, env_str
 
 logger = logging.getLogger("cca.embedding.remote")
 
 DEFAULT_DIM: int = 1024
 DEFAULT_BATCH_SIZE: int = 16
-# 服务端 MAX_INPUTS 上限（手册 §6：257 条以上 400，256 条整可以通过）
+# 服务端 MAX_INPUTS 上限：257 条以上返回 400，256 条整可以通过
 MAX_INPUTS: int = 256
 DEFAULT_TIMEOUT_SECONDS: float = 30.0
 DEFAULT_MAX_RETRIES: int = 2
 _RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
-def _env_float(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name, "").strip() or default)
-    except ValueError:
-        return default
-
-
-def _env_int(name: str, default: int, *, low: int, high: int) -> int:
-    try:
-        value = int(os.environ.get(name, "").strip() or default)
-    except ValueError:
-        value = default
-    return max(low, min(value, high))
-
-
 def base_url() -> str:
-    return os.environ.get("CCA_EMBEDDING_BASE_URL", "").strip().rstrip("/")
+    return env_str("CCA_EMBEDDING_BASE_URL", "").strip().rstrip("/")
 
 
 def api_key() -> str:
-    return os.environ.get("CCA_EMBEDDING_API_KEY", "").strip()
+    return env_str("CCA_EMBEDDING_API_KEY", "").strip()
 
 
 def model_name() -> str:
-    return os.environ.get("CCA_EMBEDDING_MODEL", "").strip() or "Qwen3-Embedding-0.6B"
+    return env_str("CCA_EMBEDDING_MODEL", "").strip() or "Qwen3-Embedding-0.6B"
+
+
+def query_prefix() -> str:
+    """query 侧指令前缀（默认空串；doc 侧不使用）。"""
+    return env_str("CCA_EMBEDDING_QUERY_PREFIX", "")
 
 
 def embedding_dim() -> int:
-    return _env_int("CCA_EMBEDDING_DIM", DEFAULT_DIM, low=8, high=MAX_INPUTS * 8)
+    return max(8, min(env_int("CCA_EMBEDDING_DIM", DEFAULT_DIM), MAX_INPUTS * 8))
 
 
 def batch_size() -> int:
-    return _env_int("CCA_EMBEDDING_BATCH_SIZE", DEFAULT_BATCH_SIZE, low=1, high=MAX_INPUTS)
+    return max(1, min(env_int("CCA_EMBEDDING_BATCH_SIZE", DEFAULT_BATCH_SIZE), MAX_INPUTS))
+
+
+# 批量 vs 单条的最小余弦：服务端两种路径在数学上应等价（fp16 差异 <1e-5）
+VERIFY_MIN_COS: float = 0.999
+
+
+def verify_batch_enabled() -> bool:
+    """批量内容级自检开关（默认关；``CCA_EMBEDDING_VERIFY_BATCH=1`` 开启）。"""
+    return env_flag("CCA_EMBEDDING_VERIFY_BATCH", False)
 
 
 def timeout_seconds() -> float:
-    return max(1.0, min(_env_float("CCA_EMBEDDING_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS), 600.0))
+    return max(
+        1.0, min(env_float("CCA_EMBEDDING_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS), 600.0)
+    )
 
 
 def max_retries() -> int:
-    return _env_int("CCA_EMBEDDING_MAX_RETRIES", DEFAULT_MAX_RETRIES, low=0, high=5)
+    return max(0, min(env_int("CCA_EMBEDDING_MAX_RETRIES", DEFAULT_MAX_RETRIES), 5))
 
 
 class RemoteEmbedding:
@@ -101,6 +111,7 @@ class RemoteEmbedding:
         batch_size_: int | None = None,
         timeout: float | None = None,
         retries: int | None = None,
+        verify_batch_: bool | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._url = (base_url_ if base_url_ is not None else base_url()).rstrip("/")
@@ -116,6 +127,9 @@ class RemoteEmbedding:
         self.batch_size = batch_size_ if batch_size_ is not None else batch_size()
         self.timeout = timeout if timeout is not None else timeout_seconds()
         self.retries = retries if retries is not None else max_retries()
+        self.verify_batch = (
+            verify_batch_ if verify_batch_ is not None else verify_batch_enabled()
+        )
         self._transport = transport
         self.provider = f"openai-compatible:{self.model.lower()}"
 
@@ -200,7 +214,8 @@ class RemoteEmbedding:
 
     # ------------------------------------------------------------------ 网关
     async def embed(self, text: str) -> np.ndarray:
-        return (await self.embed_batch([text]))[0]
+        """单条 = query 侧：按 ``CCA_EMBEDDING_QUERY_PREFIX`` 加指令前缀（默认不加）。"""
+        return (await self.embed_batch([f"{query_prefix()}{text}"]))[0]
 
     async def embed_batch(self, texts: list[str]) -> np.ndarray:
         if not texts:
@@ -223,7 +238,29 @@ class RemoteEmbedding:
                     "（检查 CCA_EMBEDDING_DIM 与服务端 /health 的 dim）"
                 )
             rows.extend(self._normalize(row) for row in matrix)
+            if self.verify_batch and len(batch) > 1:
+                await self._verify_batch_alignment(batch, rows[-len(batch) :])
         return np.vstack(rows)
+
+    async def _verify_batch_alignment(
+        self, batch: list[str], vectors: list[np.ndarray]
+    ) -> None:
+        """内容级自检：批量里**最短那条**的向量必须与单条请求一致。
+
+        只比最短的那条不是偷懒：服务端 2026-10-28 的缺陷（左填充却按右填充取池化下标）
+        恰好让批内最长那条免于 padding 污染，其余全错——所以"最短 + 最长"里只能选最短。
+        条数、维度、范数三项校验在那种缺陷下**全部通过**，只有这个判据有效。
+        """
+        index = min(range(len(batch)), key=lambda i: len(batch[i]))
+        solo = await self._post([batch[index]])
+        reference = self._normalize(np.asarray(solo[0], dtype=np.float32))
+        similarity = float(np.dot(vectors[index], reference))
+        if similarity <= VERIFY_MIN_COS:
+            raise EmbeddingError(
+                "Embedding 批量结果与单条不一致（疑似服务端批量错位/池化缺陷）："
+                f"第 {index}/{len(batch)} 条余弦 {similarity:.4f} <= {VERIFY_MIN_COS}；"
+                "可用 scripts/verify_embedding.py 复现（同一批量 vs 单条比对）"
+            )
 
     def describe(self) -> dict:
         return {
@@ -232,6 +269,7 @@ class RemoteEmbedding:
             "production": True,
             "endpoint": self.endpoint,
             "batch_size": self.batch_size,
+            "verify_batch": self.verify_batch,
         }
 
 
@@ -239,11 +277,14 @@ __all__ = [
     "DEFAULT_BATCH_SIZE",
     "DEFAULT_DIM",
     "MAX_INPUTS",
+    "VERIFY_MIN_COS",
     "RemoteEmbedding",
     "batch_size",
     "base_url",
     "embedding_dim",
     "max_retries",
     "model_name",
+    "query_prefix",
     "timeout_seconds",
+    "verify_batch_enabled",
 ]

@@ -1,7 +1,7 @@
 """远端 Embedding Adapter（OpenAI 兼容）单元测试。
 
 全部用 ``httpx.MockTransport`` 在进程内伪造服务端，**不依赖外网/隧道**；
-真实链路的验证放在 ``verification/`` 的脚本与证据里（不是 pytest 的职责）。
+真实链路的内容级比对由 ``scripts/verify_embedding.py`` 负责（不是 pytest 的职责）。
 """
 
 from __future__ import annotations
@@ -171,3 +171,106 @@ def test_registry_switches_provider_and_digest(monkeypatch):
     assert provider_name() == "openai-compatible:qwen3-embedding-0.6b"
     assert current_dim() == 1024
     assert parser_config_digest() != deterministic_digest
+
+
+async def test_query_prefix_default_off_keeps_input_unchanged(monkeypatch):
+    """默认不设 CCA_EMBEDDING_QUERY_PREFIX 时，query 输入与旧行为逐字相同。"""
+    monkeypatch.delenv("CCA_EMBEDDING_QUERY_PREFIX", raising=False)
+    requests: list[dict] = []
+    embedding = _remote(transport=httpx.MockTransport(_handler(requests)))
+    await embedding.embed("课程目标是什么？")
+    assert requests[0]["input"] == ["课程目标是什么？"]
+
+
+async def test_query_prefix_applies_only_to_single_embed_not_docs(monkeypatch):
+    """A/AT-32：指令前缀只加在 query 侧（embed），doc 侧（embed_batch）不加。"""
+    prefix = "Instruct: 给定校园课程问题，检索课程资料\nQuery: "
+    monkeypatch.setenv("CCA_EMBEDDING_QUERY_PREFIX", prefix)
+    requests: list[dict] = []
+    embedding = _remote(transport=httpx.MockTransport(_handler(requests)))
+
+    await embedding.embed("数据库默认隔离级别？")
+    await embedding.embed_batch(["数据库默认可重复读。", "另一段资料。"])
+
+    assert requests[0]["input"] == [prefix + "数据库默认隔离级别？"]
+    assert requests[1]["input"] == ["数据库默认可重复读。", "另一段资料。"]
+
+
+def test_query_prefix_helper_reads_env(monkeypatch):
+    from app.adapters.embedding.remote import query_prefix
+
+    monkeypatch.delenv("CCA_EMBEDDING_QUERY_PREFIX", raising=False)
+    assert query_prefix() == ""
+    monkeypatch.setenv("CCA_EMBEDDING_QUERY_PREFIX", "Instruct: x\nQuery: ")
+    assert query_prefix() == "Instruct: x\nQuery: "
+
+
+# ---------------------------------------------------------------------------
+# 批量内容级自检（2026-10-28 服务端左填充池化缺陷的客户端防线）
+# ---------------------------------------------------------------------------
+def _misaligned_handler(requests: list[dict]):
+    """模拟缺陷：除最长那条外，返回的是**别的文本**的向量（长度/范数/条数全正常）。"""
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        requests.append(payload)
+        texts = payload["input"]
+        data = []
+        for index, text in enumerate(texts):
+            # 最短的那条被"污染"：返回批内最长那条的向量
+            source = max(texts, key=len) if len(texts) > 1 and text != max(texts, key=len) else text
+            data.append({"object": "embedding", "index": index, "embedding": _vector(source)})
+        return httpx.Response(200, json={"object": "list", "data": data, "model": "m"})
+
+    return handle
+
+
+def test_verify_batch_defaults_off(monkeypatch):
+    from app.adapters.embedding.remote import verify_batch_enabled
+
+    monkeypatch.delenv("CCA_EMBEDDING_VERIFY_BATCH", raising=False)
+    assert verify_batch_enabled() is False
+    for value in ("1", "true", "YES", "on"):
+        monkeypatch.setenv("CCA_EMBEDDING_VERIFY_BATCH", value)
+        assert verify_batch_enabled() is True
+    for value in ("0", "false", "off", ""):
+        monkeypatch.setenv("CCA_EMBEDDING_VERIFY_BATCH", value)
+        assert verify_batch_enabled() is False
+
+
+async def test_verify_batch_off_by_default_adds_no_request():
+    requests: list[dict] = []
+    embedding = _remote(transport=httpx.MockTransport(_handler(requests)))
+    await embedding.embed_batch(["第一段", "第二段"])
+    assert [item["input"] for item in requests] == [["第一段", "第二段"]]
+
+
+async def test_verify_batch_accepts_aligned_server():
+    requests: list[dict] = []
+    embedding = _remote(
+        transport=httpx.MockTransport(_handler(requests)), verify_batch_=True
+    )
+    matrix = await embedding.embed_batch(["数据库默认隔离级别？是", "短"])
+    assert matrix.shape == (2, DIM)
+    # 校验请求 = 每个 >=2 条的批次额外 1 条单条请求，且比的是**最短**那条
+    assert [item["input"] for item in requests] == [["数据库默认隔离级别？是", "短"], ["短"]]
+
+
+async def test_verify_batch_rejects_misaligned_server():
+    """缺陷重演：批内最短那条拿到别人的向量 → 必须在写库前失败。"""
+    requests: list[dict] = []
+    embedding = _remote(
+        transport=httpx.MockTransport(_misaligned_handler(requests)), verify_batch_=True
+    )
+    with pytest.raises(EmbeddingError, match="批量结果与单条不一致"):
+        await embedding.embed_batch(["短", "很长很长很长很长的一段课程资料"])
+
+
+async def test_verify_batch_picks_shortest_not_longest():
+    """只比最短那条：最长那条在历史缺陷下必然正确，比它等于没比。"""
+    requests: list[dict] = []
+    embedding = _remote(
+        transport=httpx.MockTransport(_handler(requests)), verify_batch_=True
+    )
+    await embedding.embed_batch(["中等长度的文本", "长" * 40, "短"])
+    assert requests[-1]["input"] == ["短"]
