@@ -5,7 +5,7 @@
     校园课程智能助手 · 一键启动（MySQL 容器 + 后端四服务 + 前端 dev server）
 
 .DESCRIPTION
-    按 docs/STARTUP.md 的启动顺序执行，全部为幂等步骤：
+    按固定顺序执行，全部为幂等步骤（重复执行不会产生重复数据）：
 
       1. 前置检查：.venv / backend/.env / Docker（可跳过）/ 端口
       2. MySQL：拉起容器 cca-mysql（不存在则按国内镜像创建），等就绪，确保演示库 cca 存在

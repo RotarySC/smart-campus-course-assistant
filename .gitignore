@@ -39,8 +39,8 @@ pip-*_/
 docs/
 
 # ---- 根目录文档不纳入版本控制 ----
-# 按项目决定，仓库只跟踪代码（design/ 与 web/）；根目录的文档不再入库。
-# 例外：README.md 是仓库入口（一段最少量的上手说明 + 指向 docs/STARTUP.md），保持跟踪。
+# 按项目决定，仓库只跟踪代码/契约/工程配置与入口 README；docs/ 下文档一律不入库。
+# 例外：README.md 是唯一入口文档，保持跟踪；它只描述产物，不链接 docs/ 等不入库文档。
 # 注意：本文件 .gitignore 自身必须保持被跟踪，否则新克隆会失去全部忽略规则。
 /CONTRIBUTING.md
 /.debug_phase_status_prev.md

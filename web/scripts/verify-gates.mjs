@@ -7,7 +7,7 @@
  *
  * 实现约束：**全程在同一进程内**（`runInvariants()` 直接调用；stylelint 用 Node API）。
  * 不能用子进程 —— 本沙箱禁止管道的子进程 stdio（`spawn ... stdio:'pipe'` → EPERM），
- * 那正是本项目 `pnpm build` 起不来的同一条边界（见 BUILD-REPORT）。
+ * 那正是本项目 `pnpm build` 起不来的同一条边界。
  *
  * 运行： node scripts/verify-gates.mjs
  * 它不修改任何交付物：注入前备份、断言后还原，最后重跑门禁确认回到全绿。

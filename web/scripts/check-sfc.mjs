@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SFC 编译检查（`pnpm build` 在本沙箱不可用时的**代偿证据**，见 BUILD-REPORT）。
+ * SFC 编译检查（`pnpm build` 在本沙箱不可用时的**代偿证据**）。
  *
  * 用 `@vue/compiler-sfc` 在**进程内**把每个 `.vue` 走一遍真实编译管线：
  *   parse → compileScript（`<script setup lang="ts">`）→ compileTemplate → compileStyle（scoped）

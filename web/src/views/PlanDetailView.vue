@@ -163,7 +163,7 @@ onMounted(() => void load())
         </FormGrid>
         <div class="row">
           <!-- 保存按钮复用 content-spec:106 的冻结文案「保存为我的计划」：
-               上游没有为「详情页保存」单独冻结按钮文案，复用比自造安全（见 BUILD-REPORT 登记）。 -->
+               上游没有为「详情页保存」单独冻结按钮文案，复用比自造安全。 -->
           <Btn variant="primary" type="submit" :disabled="saving">{{ S06.saveAsPlan }}</Btn>
           <Btn variant="ghost" @click="router.push({ name: 'plans' })">{{ S09.listTitle }}</Btn>
         </div>

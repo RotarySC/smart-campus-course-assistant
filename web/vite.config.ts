@@ -1,4 +1,4 @@
-// vite.config.ts —— 依据 docs/校园课程智能助手_前端详细设计_v0.1.md §14.1
+// vite.config.ts
 // 硬约束：不引 UI 框架 / 不引 CSS 框架；Admin* 视图动态 import；生产 sourcemap=false。
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
@@ -33,8 +33,8 @@ export default defineConfig({
       ignored: ['**/*.tmp', '**/*.tmpdir/**', '**/.cdp-*/**', '**/reports/artifacts/**'],
     },
     // §14.3：开发期同源代理 → 真实后端。
-    // 端口按 docs/phases/PHASE-PLAN.md §8.2 的分配：公共 API = 8100（设计文档 §14.3 的 8080 是通用示例，
-    // 本项目以阶段计划的端口分配为准）。mock 仅在显式 `VITE_USE_MOCK=true` 时启用，不走本代理。
+    // 端口分配：公共 API = 8100（设计文档里的 8080 是通用示例，本项目以仓库 README 的端口表为准）。
+    // mock 仅在显式 `VITE_USE_MOCK=true` 时启用，不走本代理。
     proxy: {
       '/api': {
         target: process.env.VITE_DEV_PROXY ?? 'http://127.0.0.1:8100',

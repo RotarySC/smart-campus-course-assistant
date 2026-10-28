@@ -11,13 +11,11 @@
  *   本文件不注册任何 Vite 插件、不改 `vite.config.ts` / `tsconfig.json`、不碰 `src/**`。
  * - **不是构建证据**：它的存在只是让 `scripts/smoke-sse.mjs`（**纯函数**级冒烟）
  *   能在没有打包器的进程里 import 到源码。**任何依赖本钩子的结论都不能当作「构建通过」**。
- * - **不渲染任何组件**：没有 `.vue` 加载器、没有 SSR。曾用于渲染的 3 个文件已按 Lead 裁决删除
- *   （清单见 `BUILD-REPORT.md` §7.6）。
+ * - **不渲染任何组件**：没有 `.vue` 加载器、没有 SSR。曾用于渲染的 3 个文件已删除。
  *
  * ## 为什么需要它
  * 本沙箱拒绝 `child_process` 的 `stdio:'pipe'` 通道（`spawn EPERM`），
  * 而 Vite 用该通道起 esbuild 服务、并用来 bundle `vite.config.ts` → `vite build` / `vite dev` 在沙箱内无法启动。
- * 详见 `BUILD-REPORT.md` §1（含三向隔离实验的原始输出）。
  *
  * ## 实现说明
  * 用 `module.registerHooks()`（Node 22.15+ 的**同线程**钩子 API），因此

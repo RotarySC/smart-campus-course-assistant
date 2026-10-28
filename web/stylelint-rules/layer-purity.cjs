@@ -18,7 +18,7 @@
  *   一份文档不会为「不存在的动效」写 reduced-motion 依据，因此这里把 `animation` 收成
  *   **白名单到精确一处**：只允许 `.step--running .step__ico` 使用 animation，且必须消费
  *   `var(--step-running-spin-*)`；第二处即 FAIL。`transition` / `:active` 仍然全禁。
- *   本窄化已登记在 web/BUILD-REPORT.md。
+ *   本窄化是有意的（白名单到精确一处），不要因「统一禁止」再收紧。
  */
 
 const stylelint = require('stylelint')

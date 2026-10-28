@@ -8,7 +8,7 @@
  *
  * **文案**：只用了 content-spec:85 冻结的「展开片段」与 content-spec:89 的失效说明。
  * 「收起片段」这类反向文案**上游没有冻结**，所以不写——展开态由 `aria-expanded="true"` 表达，
- * 视觉上片段正文本身已经说明它是展开的（见 BUILD-REPORT 的未冻结文案登记）。
+ * 视觉上片段正文本身已经说明它是展开的。
  */
 import type { Reference } from '@/domain/sseTypes'
 import { S04 } from '@/domain/copy'

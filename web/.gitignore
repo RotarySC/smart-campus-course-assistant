@@ -1,5 +1,5 @@
 # web 目录本地忽略（Phase 4 联调产物）
-# 截图/JSON 等浏览器取证产物不入库；报告正文（reports/*.md）要入库。
+# 报告、截图、JSON 取证都属于过程性文档：一律不入库（仓库根 .gitignore 已整体忽略 web/reports/）。
 reports/artifacts/
 reports/*.png
 reports/*.json

@@ -286,7 +286,7 @@ export const S15 = {
  *
  * 两条都**逐字取自 content-spec S11**（S12 重叠确认面板的主/次级按钮）：
  * 上游没有为其它表单的「保存」「取消」单独冻结文案，复用它比自造安全。
- * 这是**有意的复用**，已登记在 `web/BUILD-REPORT.md` 的未冻结文案缺口里。
+ * 这是**有意的复用**，属未冻结文案缺口（内容契约补齐后统一替换）。
  */
 export const ACTIONS = {
   cancel: '取消', // content-spec S11
@@ -343,7 +343,7 @@ export const CHROME = {
  *   IDEMPOTENCY_CONFLICT（形态见 S06.idempotencyNote）
  *   CAPACITY_LIMITED / CALL_LIMIT_REACHED（§6.5 只要求「可理解提示」，无冻结句）
  *
- * 这条缺口必须随内容契约补齐（见 web/BUILD-REPORT.md「未覆盖 / 待裁决」）。
+ * 这条缺口必须随内容契约补齐（属「未覆盖 / 待裁决」缺口）。
  */
 export const UNFROZEN_ERROR_CODES = [
   'AUTH_REQUIRED',
