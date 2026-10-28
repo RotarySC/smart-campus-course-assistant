@@ -158,9 +158,9 @@ class McpToolClient:
 
 
 def _env_or(name: str, default: str) -> str:
-    import os
+    from app.config import env_str
 
-    value = os.environ.get(name, "").strip()
+    value = env_str(name, "").strip()
     return value or default
 
 

@@ -24,8 +24,16 @@ from sqlalchemy import text
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
+# P1-5：测试 hermetic —— 绝不读开发者本机 backend/.env。
+# 这里在导入 app / 任何 Settings 之前把 .env 入口指到一个不存在的路径；
+# 需要 .env 语义的用例显式 monkeypatch CCA_ENV_FILE 指向 tmp_path 并调用
+# ``app.config.reset_env_snapshot()``（见 tests/test_config_env.py）。
+os.environ["CCA_ENV_FILE"] = str(BACKEND_DIR.parent / ".worktrees" / "pt" / "absent.env")
+
 # 与本文件同目录的辅助模块（tests/ 不是包，显式把目录放进 sys.path）。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 允许从仓库根执行 `python -m pytest backend\tests\...`：cwd 不在 backend 时 app 包不可见。
+sys.path.insert(0, str(BACKEND_DIR))
 from db_retry import (  # noqa: E402 - 需在固定环境变量前完成 sys.path 调整
     run_with_retry,
     subprocess_error_is_retryable,

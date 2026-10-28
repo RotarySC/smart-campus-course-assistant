@@ -2,10 +2,24 @@
 
 设计依据：后端详细设计 §13.1（配置分层）。开发期只读环境变量 / backend/.env，
 不硬编码秘密；数据库连接串必须由 DATABASE_URL 提供。
+
+P1-5（2026-10-28）：``backend/.env`` 现在对**所有** ``CCA_*`` 键生效，不再只有 pydantic
+``Settings`` 声明的字段。理由：``registry/remote/judge/vector/knowledge`` 等装配键历史上
+直接读 ``os.environ``，写进 ``.env`` 无效、必须启动前手工 export，造成"同一份配置两个入口"。
+
+读取优先级（``env_str/env_flag/env_float/env_int`` 统一遵守）：
+
+1. **进程环境变量**（键存在即采用，显式空串也算显式值 —— 用于覆盖 ``.env``）；
+2. ``CCA_ENV_FILE`` 指向的文件（默认 ``backend/.env``）的快照；
+3. 代码里的默认值。
+
+``.env`` 快照按进程缓存（``dotenv_snapshot``），运行中改文件需重启；测试用
+``CCA_ENV_FILE`` 指向自己的临时文件并调用 ``reset_env_snapshot()``。
 """
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -15,11 +29,78 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+_ENV_FILE_OVERRIDE = "CCA_ENV_FILE"
+
+
+def env_file_path() -> str:
+    """唯一的 ``.env`` 入口：``CCA_ENV_FILE`` 优先，否则 ``backend/.env``。"""
+    return os.environ.get(_ENV_FILE_OVERRIDE) or str(BACKEND_DIR / ".env")
+
+
+@lru_cache(maxsize=1)
+def dotenv_snapshot() -> dict[str, str]:
+    """``.env`` 的只读快照（文件不存在 → 空字典）。
+
+    只给"不进 pydantic Settings 的进程级装配键"使用；进程环境变量优先的规则见
+    :func:`env_str`。运行期改文件不会热更新（与 ``Settings`` 的缓存语义一致）。
+    """
+    from dotenv import dotenv_values  # pydantic-settings 的传递依赖
+
+    path = Path(env_file_path())
+    if not path.is_file():
+        return {}
+    return {
+        str(key): str(value)
+        for key, value in dotenv_values(path).items()
+        if value is not None
+    }
+
+
+def reset_env_snapshot() -> None:
+    """清 ``.env`` 快照（测试切换 ``CCA_ENV_FILE`` 后调用）。"""
+    dotenv_snapshot.cache_clear()
+
+
+def env_str(name: str, default: str = "") -> str:
+    """进程环境变量 > .env > default；显式空串同样视为显式值。"""
+    if name in os.environ:
+        return os.environ[name]
+    return dotenv_snapshot().get(name, default)
+
+
+def env_flag(name: str, default: bool) -> bool:
+    """布尔开关；空值/无法识别回落 default。"""
+    raw = env_str(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
+def env_float(name: str, default: float) -> float:
+    """浮点配置；空值或解析失败回落 default（不抛）。"""
+    raw = env_str(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def env_int(name: str, default: int) -> int:
+    """整数配置；空值或解析失败回落 default（不抛）。"""
+    raw = env_str(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=str(BACKEND_DIR / ".env"),
+        env_file=env_file_path(),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -157,3 +238,18 @@ def get_settings() -> Settings:
 def reset_settings_cache() -> None:
     """测试中切换环境变量后调用。"""
     get_settings.cache_clear()
+
+
+__all__ = [
+    "BACKEND_DIR",
+    "Settings",
+    "dotenv_snapshot",
+    "env_file_path",
+    "env_flag",
+    "env_float",
+    "env_int",
+    "env_str",
+    "get_settings",
+    "reset_env_snapshot",
+    "reset_settings_cache",
+]

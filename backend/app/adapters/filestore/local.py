@@ -20,7 +20,7 @@ import shutil
 from pathlib import Path
 from typing import BinaryIO, Iterable
 
-from app.config import BACKEND_DIR
+from app.config import BACKEND_DIR, env_str
 
 _KEY_PART = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _CHUNK = 1024 * 1024
@@ -31,7 +31,7 @@ class StorageError(Exception):
 
 
 def default_root() -> Path:
-    raw = os.environ.get("CCA_FILESTORE_ROOT", "").strip()
+    raw = env_str("CCA_FILESTORE_ROOT", "").strip()
     return Path(raw) if raw else BACKEND_DIR / "uploads"
 
 

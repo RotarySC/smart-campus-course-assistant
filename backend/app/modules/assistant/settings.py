@@ -1,6 +1,8 @@
 """助手运行时配置（Phase 3 自有；不改 ``app/config.py`` 单写者文件）。
 
-默认值来自设计（§8.2/§8.4 / PHASE-03 §4）；可用环境变量覆盖，便于部署与测试：
+默认值来自设计（§8.2/§8.4 / PHASE-03 §4）；可用环境变量覆盖，便于部署与测试。
+P1-5 起读取走 ``app.config.env_*``：进程环境变量 > ``backend/.env`` > 默认值，
+因此写进 ``.env`` 即生效（不再需要启动前手工 export）。
 
 - ``CCA_INTERNAL_API_URL``（默认 http://127.0.0.1:8101）
 - ``CCA_MCP_URL``（默认 http://127.0.0.1:8102/mcp）
@@ -15,31 +17,20 @@
 
 from __future__ import annotations
 
-import os
 import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
 
+from app.config import env_float, env_int, env_str
+
 
 def _int_env(name: str, default: int, *, minimum: int = 0) -> int:
-    raw = os.environ.get(name, "").strip()
-    if not raw:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        return default
+    value = env_int(name, default)
     return value if value >= minimum else default
 
 
 def _float_env(name: str, default: float, *, minimum: float = 0.0) -> float:
-    raw = os.environ.get(name, "").strip()
-    if not raw:
-        return default
-    try:
-        value = float(raw)
-    except ValueError:
-        return default
+    value = env_float(name, default)
     return value if value >= minimum else default
 
 
@@ -75,12 +66,12 @@ class AssistantSettings:
 
 def load_assistant_settings() -> AssistantSettings:
     return AssistantSettings(
-        internal_api_url=os.environ.get("CCA_INTERNAL_API_URL", "").strip()
+        internal_api_url=env_str("CCA_INTERNAL_API_URL", "").strip()
         or "http://127.0.0.1:8101",
-        mcp_url=os.environ.get("CCA_MCP_URL", "").strip() or "http://127.0.0.1:8102/mcp",
-        mcp_host=os.environ.get("CCA_MCP_HOST", "").strip() or "127.0.0.1",
+        mcp_url=env_str("CCA_MCP_URL", "").strip() or "http://127.0.0.1:8102/mcp",
+        mcp_host=env_str("CCA_MCP_HOST", "").strip() or "127.0.0.1",
         mcp_port=_int_env("CCA_MCP_PORT", 8102, minimum=1),
-        mcp_path=os.environ.get("CCA_MCP_PATH", "").strip() or "/mcp",
+        mcp_path=env_str("CCA_MCP_PATH", "").strip() or "/mcp",
         capacity_slots=_int_env("CCA_ASSISTANT_CAPACITY_SLOTS", 5, minimum=1),
         deadline_seconds=_int_env("CCA_ASSISTANT_DEADLINE_SECONDS", 60, minimum=1),
         model_decision_limit=_int_env("CCA_ASSISTANT_MODEL_DECISIONS", 6, minimum=1),

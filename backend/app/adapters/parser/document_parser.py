@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import hashlib
 import io
-import os
 from dataclasses import dataclass, field
 from typing import Final
 
+from app.config import env_int
 from app.shared.ids import PREFIX_CHUNK, new_id
 
 CHUNK_SIZE_DEFAULT: Final = 500
@@ -59,11 +59,11 @@ class ChunkDraft:
 
 
 def chunk_size() -> int:
-    return int(os.environ.get("CCA_CHUNK_SIZE", CHUNK_SIZE_DEFAULT))
+    return env_int("CCA_CHUNK_SIZE", CHUNK_SIZE_DEFAULT)
 
 
 def chunk_overlap() -> int:
-    return int(os.environ.get("CCA_CHUNK_OVERLAP", CHUNK_OVERLAP_DEFAULT))
+    return env_int("CCA_CHUNK_OVERLAP", CHUNK_OVERLAP_DEFAULT)
 
 
 def parser_config_digest() -> bytes:

@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import math
-import os
 import re
 from collections import Counter
 from typing import Final
 
 import numpy as np
+
+from app.config import env_int
 
 PROVIDER_NAME: Final = "deterministic-sha256"
 _DEFAULT_DIM: Final = 64
@@ -26,10 +27,7 @@ class EmbeddingError(Exception):
 
 
 def embedding_dim() -> int:
-    try:
-        value = int(os.environ.get("CCA_EMBEDDING_DIM", _DEFAULT_DIM))
-    except ValueError:
-        value = _DEFAULT_DIM
+    value = env_int("CCA_EMBEDDING_DIM", _DEFAULT_DIM)
     return max(8, min(value, 1024))
 
 
