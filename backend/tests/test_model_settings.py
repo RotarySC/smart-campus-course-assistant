@@ -3,15 +3,17 @@
 约定（与 ``backend/.env.example`` 的助手模型小节一一对应）：
 - 默认 ``deterministic``：离线、可复现，不是生产 AI；
 - ``openai-compatible``：必须同时给出 BASE_URL / API_KEY / NAME，缺一项启动期就报错；
-- 配置了真实供应商后**不得**静默回退到确定性 Provider，调用一律 ``MODEL_UNAVAILABLE``。
+- 配置了真实供应商后**不得**静默回退到确定性 Provider；上游不可用时以
+  ``MODEL_UNAVAILABLE`` 显式失败（真实调用见 ``test_model_real_provider.py``）。
 
 用例全部用 ``Settings(_env_file=None)``，不依赖开发者本机 ``backend/.env``。
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
@@ -44,9 +46,15 @@ REAL_ENV = {
 
 @pytest.fixture(autouse=True)
 def fresh_settings(monkeypatch):
-    """每个用例都从干净的模型配置起步（清缓存 + 清掉外部残留的 CCA_MODEL_*）。"""
+    """每个用例都从干净的模型配置起步（清缓存 + 清掉外部残留的 CCA_MODEL_*）。
+
+    同时屏蔽开发者本机 ``backend/.env``：接真实供应商时该文件会写入
+    ``CCA_MODEL_PROVIDER=openai-compatible`` 等真实配置，本文件只验证「配置 → 装配 →
+    错误映射」，不能随本机 .env 漂移（与文件头"不依赖开发者本机 backend/.env"一致）。
+    """
     for key in MODEL_KEYS:
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
     reset_settings_cache()
     yield
     reset_settings_cache()
@@ -66,10 +74,13 @@ def _context() -> ModelContext:
 
 
 def _budget() -> ModelBudget:
+    # 相对当下给 60s：真实 Provider 会先查预算，固定的历史时刻会被判 EXECUTION_TIMEOUT，
+    # 而本组用例只验证「配置/装配/错误映射」，不验证预算语义（预算用例在
+    # test_model_real_provider.py）。
     return ModelBudget(
         remaining_decisions=6,
         remaining_tools=10,
-        deadline_at=datetime(2026, 10, 23, 15, 31, tzinfo=timezone.utc),
+        deadline_at=datetime.now(timezone.utc) + timedelta(seconds=60),
     )
 
 
@@ -111,7 +122,7 @@ def test_env_selects_openai_compatible(monkeypatch):
     assert desc["endpoint"] == "https://api.example.com/v1"
     assert desc["model"] == "deepseek-chat"
     assert desc["api_key_configured"] is True
-    assert desc["implemented"] is False
+    assert desc["implemented"] is True
 
 
 def test_runtime_uses_configured_provider(monkeypatch):
@@ -174,13 +185,26 @@ def test_temperature_out_of_range(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# 已配置但未实现：显式 MODEL_UNAVAILABLE（不静默回退）
+# 已配置但上游拒绝/不可用：显式 MODEL_UNAVAILABLE（不静默回退）
 # --------------------------------------------------------------------------- #
+def _upstream_unauthorized(calls: dict[str, int] | None = None):
+    """伪装上游 401：断言适配器真的发起了 HTTP 调用，并把它映射成稳定错误码。"""
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        if calls is not None:
+            calls["n"] += 1
+        return httpx.Response(401, json={"error": "invalid api key"})
+
+    return handle
+
+
 async def test_configured_provider_raises_model_unavailable():
+    calls = {"n": 0}
     provider = RealProviderAdapter(
         endpoint="https://api.example.com/v1",
         api_key="sk-test-not-a-real-key",
         model="deepseek-chat",
+        transport=httpx.MockTransport(_upstream_unauthorized(calls)),
     )
 
     with pytest.raises(ApiError) as action_error:
@@ -188,13 +212,17 @@ async def test_configured_provider_raises_model_unavailable():
     assert action_error.value.code == "MODEL_UNAVAILABLE"
     assert action_error.value.status_code == 503
     assert action_error.value.message == "模型服务暂不可用"
+    assert calls["n"] == 1, "4xx 不重试：应恰好一次上游调用"
 
-    async def _emit(_: str) -> None:  # pragma: no cover - 不应被调用
-        raise AssertionError("未实现的适配器不应输出正文")
+    emitted: list[str] = []
+
+    async def _emit(delta: str) -> None:  # pragma: no cover - 401 不应输出正文
+        emitted.append(delta)
 
     with pytest.raises(ApiError) as stream_error:
         await provider.stream_answer(Answer(text="x"), _emit)
     assert stream_error.value.code == "MODEL_UNAVAILABLE"
+    assert emitted == []
 
 
 def test_describe_never_leaks_api_key():
@@ -225,6 +253,7 @@ async def test_configured_model_fails_loudly_through_sse(client, seeded):
         endpoint="https://api.example.com/v1",
         api_key="sk-test-not-a-real-key",
         model="deepseek-chat",
+        transport=httpx.MockTransport(_upstream_unauthorized()),
     )
     set_runtime(Runtime(provider=provider, executor=StubToolExecutor()))
     try:
