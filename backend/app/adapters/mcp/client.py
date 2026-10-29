@@ -51,8 +51,14 @@ SERVICE_HEADER = "X-Service-Credential"
 DEFAULT_INTERNAL_URL = "http://127.0.0.1:8101"
 DEFAULT_MCP_URL = "http://127.0.0.1:8102/mcp"
 
+# 超时预算必须**沿调用链单调放宽**：公共进程 → MCP(20s) → 内部 API(这里)。
+# 内部这一跳跑的是真实检索（embedding + 精排 + 可选 LLM 判官），判官自身超时
+# CCA_RETRIEVAL_JUDGE_TIMEOUT_SECONDS 默认 12s，实测 p90 8.0s / 最大 12.5s；
+# 原来这里写 10s，比它下游的最坏耗时还小 → 判官稍慢就整条工具调用失败，
+# 表现为 MCP_UNAVAILABLE /「检索服务暂不可用」（2026-10-29 留出集 H-U09 复现）。
+# 与 MCP 跳对齐到 20s：检索最坏 12.5s + embedding/精排各 <1s 仍有 ~6s 余量。
 MCP_CALL_TIMEOUT_SECONDS = 20.0
-INTERNAL_CALL_TIMEOUT_SECONDS = 10.0
+INTERNAL_CALL_TIMEOUT_SECONDS = 20.0
 
 
 class ToolExecutor(Protocol):
