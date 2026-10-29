@@ -221,7 +221,7 @@ node scripts\check-sfc.mjs                                                      
 
 ### 已测结果
 
-- 后端 **465 个用例**全绿：2026-10-29 全量一次跑出 **465 passed / 823.71 s**（真实 MySQL，0 failed / 0 skipped；
+- 后端 **472 个用例**全绿：2026-10-29 全量一次跑出 **472 passed / 941.14 s**（真实 MySQL，0 failed / 0 skipped；
   唯一告警是 `test_release_migration.py` 用 GBK 读子进程输出，用例本身通过）。
 - 前端门禁：类型检查、SFC 编译（56 个 `.vue`）、10 项不变量、stylelint 分层纯度、类型/契约漂移全过；
   `pnpm build` 生产构建需在无 `child_process` 管道限制的机器上执行（本机沙箱内不可用，原因见 `web/README.md`）。
