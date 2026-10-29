@@ -34,7 +34,15 @@ from typing import Any
 
 import httpx
 
-from app.config import env_flag, env_float, env_int, env_str, get_settings
+from app.config import (
+    RETRIEVAL_JUDGE_TIMEOUT_DEFAULT_S,
+    env_flag,
+    env_float,
+    env_int,
+    env_str,
+    get_settings,
+    judge_timeout_s,
+)
 
 logger = logging.getLogger("cca.judge.retrieval")
 
@@ -43,7 +51,7 @@ DEFAULT_LOW: float = 0.45
 # 依据：判官在 0.58–0.65 段把三条"关键词即可作答"的题判成依据不足（B09/B19/B20），
 # 而它保住 uncovered 的收益主要来自 <0.58 那部分；两害相权取保守。
 DEFAULT_HIGH: float = 0.58
-DEFAULT_TIMEOUT_SECONDS: float = 12.0
+DEFAULT_TIMEOUT_SECONDS: float = RETRIEVAL_JUDGE_TIMEOUT_DEFAULT_S
 DEFAULT_MAX_TOKENS: int = 1024
 SNIPPET_LIMIT: int = 5
 SNIPPET_CHARS: int = 600
@@ -173,12 +181,7 @@ class RetrievalJudge:
             model or env_str("CCA_RETRIEVAL_JUDGE_MODEL", "").strip() or settings.model_name
         )
         self.timeout_seconds = (
-            timeout_seconds
-            if timeout_seconds is not None
-            else max(
-                1.0,
-                env_float("CCA_RETRIEVAL_JUDGE_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS),
-            )
+            timeout_seconds if timeout_seconds is not None else judge_timeout_s()
         )
         self.max_tokens = (
             max_tokens

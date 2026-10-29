@@ -381,6 +381,10 @@ async def test_cancel_during_run_ends_once_with_cancelled(client, seeded, runtim
     cancel_data = cancel_response.json()["data"]
     assert cancel_data["accepted"] is True
     assert cancel_data["request"]["cancel_requested"] is True
+    # 契约 required：finished_at 必填可空。请求还在跑 → 必须是显式的 null，
+    # 不能因为 exclude_none 把键抹掉（HTTP 响应与工具payload 是同一类缺陷）。
+    assert "finished_at" in cancel_data["request"]
+    assert cancel_data["request"]["finished_at"] is None
 
     gate.set()
     status, events, _ = await asyncio.wait_for(stream_task, timeout=25)

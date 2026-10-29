@@ -18,7 +18,12 @@ from app.modules.assistant.accept import (
     cancel_request,
     get_request_state,
 )
-from app.modules.assistant.contracts import CancelOutput, ChatInput, ChatState
+from app.modules.assistant.contracts import (
+    CancelOutput,
+    ChatInput,
+    ChatState,
+    contract_dump,
+)
 from app.modules.assistant.runtime import get_runtime
 from app.modules.assistant.sse import iter_sse
 from app.modules.identity.interface import get_actor
@@ -70,7 +75,7 @@ async def get_chat_state(
     actor: ActorContext = Depends(get_actor),
 ):
     state = await get_request_state(actor, request_id)
-    return envelope(request, state.model_dump(mode="json", exclude_none=True))
+    return envelope(request, contract_dump(state))
 
 
 @router.post(
@@ -86,7 +91,7 @@ async def cancel_chat(
 ):
     accepted, state = await cancel_request(actor, request_id)
     output = CancelOutput(accepted=accepted, request=state)
-    return envelope(request, output.model_dump(mode="json", exclude_none=True))
+    return envelope(request, contract_dump(output))
 
 
 __all__ = ["router"]

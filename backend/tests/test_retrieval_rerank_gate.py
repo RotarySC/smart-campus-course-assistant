@@ -25,6 +25,7 @@ from _knowledge_helpers import (
 )
 from app.adapters.rerank import RerankUnavailable
 from app.modules.knowledge import service as service_mod
+from app.shared.errors import ApiError
 
 LOW = 0.40
 HIGH = 0.80
@@ -234,20 +235,100 @@ async def test_rerank_unavailable_fail_open_falls_back_to_cosine_and_judge(
 
 
 # --------------------------------------------------------------------------- #
-# 7) 精排不可用 + FAIL_OPEN=0 → 直接判空，不带引用
+# 7) 精排不可用 + FAIL_OPEN=0 → 显式失败（不能伪装成"没找到"，FR-QA-003）
 # --------------------------------------------------------------------------- #
-async def test_rerank_unavailable_strict_returns_empty(client, seeded, monkeypatch):
+async def test_rerank_unavailable_strict_fails_loudly(client, seeded, monkeypatch):
     await _seed_three_docs(client, seeded)
     fake_reranker = FakeReranker({}, error=RerankUnavailable("service down"))
     fake_judge = FakeJudge(True)  # 判官即便会放行也不该被问
     _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
     monkeypatch.setenv("CCA_RERANK_FAIL_OPEN", "0")
 
+    with pytest.raises(ApiError) as excinfo:
+        await _search(seeded, "资料")
+
+    assert excinfo.value.code == "RETRIEVAL_UNAVAILABLE"
+    assert excinfo.value.status_code == 503
+    assert fake_judge.calls == 0
+
+
+# --------------------------------------------------------------------------- #
+# 7b) 精排"没抛错但也没给分数"（空列表）→ 同样算不可用，走 FAIL_OPEN 同一套口径
+# --------------------------------------------------------------------------- #
+async def test_rerank_empty_scores_treated_as_unavailable(client, seeded, monkeypatch):
+    await _seed_three_docs(client, seeded)
+    fake_reranker = FakeReranker({})  # 不抛错，但所有分数都是 0 → FakeReranker 仍会返回等长列表
+
+    class EmptyReranker(FakeReranker):
+        async def rerank(self, query, documents, top_n=None):
+            self.calls += 1
+            self.seen.append(list(documents))
+            return []  # 契约被破坏：空列表
+
+    empty = EmptyReranker({})
+    _install(monkeypatch, reranker=empty, judge=FakeJudge(True))
+    monkeypatch.setenv("CCA_RERANK_FAIL_OPEN", "0")
+    with pytest.raises(ApiError) as excinfo:
+        await _search(seeded, "资料")
+    assert excinfo.value.code == "RETRIEVAL_UNAVAILABLE"
+
+    # FAIL_OPEN=1：退回余弦路径，判官仍然生效（与"长度不符"同等对待）
+    _force_legacy_judge_band(monkeypatch)
+    monkeypatch.setenv("CCA_RERANK_FAIL_OPEN", "1")
+    monkeypatch.delenv("CCA_RETRIEVAL_MIN_SCORE", raising=False)
+    fake_judge = FakeJudge(True)
+    _install(monkeypatch, reranker=empty, judge=fake_judge)
+    evidence = await _search(seeded, "资料")
+    assert evidence.status == "ok"
+    assert fake_judge.calls == 1
+
+
+# --------------------------------------------------------------------------- #
+# 7c) 检索预算不足以跑完判官 → 跳过判官，按 CCA_RETRIEVAL_JUDGE_FAIL_OPEN 给结果
+# --------------------------------------------------------------------------- #
+async def test_exhausted_retrieval_budget_skips_judge(client, seeded, monkeypatch):
+    await _seed_three_docs(client, seeded)
+    monkeypatch.setenv("CCA_RETRIEVAL_BUDGET_S", "0")  # 预算立即耗尽
+    fake_reranker = FakeReranker({"甲": 0.60})  # 中段，正常会问判官
+    fake_judge = FakeJudge(False)  # 若被问到会否决
+    _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_FAIL_OPEN", "1")
+    opened = await _search(seeded, "资料")
+    assert opened.status == "ok"  # fail_open=1 → 放行
+    assert fake_judge.calls == 0  # 但没花判官调用
+
+    monkeypatch.setenv("CCA_RETRIEVAL_JUDGE_FAIL_OPEN", "0")
+    closed = await _search(seeded, "资料")
+    assert closed.status == "empty"
+    assert fake_judge.calls == 0
+
+
+# 7d) NOISE > LOW（配错）时夹取到 LOW，[LOW, NOISE) 不能被"低于噪声底"吃掉
+async def test_noise_floor_above_low_is_clamped(client, seeded, monkeypatch):
+    await _seed_three_docs(client, seeded)
+    monkeypatch.setenv("CCA_RERANK_NOISE_FLOOR", "0.50")  # 大于 LOW=0.40
+    fake_reranker = FakeReranker({"甲": 0.45})  # 落在 [LOW, NOISE)
+    fake_judge = FakeJudge(True)
+    _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+
+    evidence = await _search(seeded, "资料")
+
+    assert evidence.status == "ok"
+    assert fake_judge.calls == 1, "0.45 属中段，应交给判官而不是被噪声底判空"
+
+
+# 7e) 低分带 + 余弦有候选但判官未装配 → 判空（精排分数门是唯一口径）
+async def test_low_band_without_judge_returns_empty(client, seeded, monkeypatch):
+    await _seed_three_docs(client, seeded)
+    fake_reranker = FakeReranker({"甲": 0.05})
+    _install(monkeypatch, reranker=fake_reranker, judge=None)
+    _force_cos_floor(monkeypatch, 0.0)  # 余弦认为有候选
+
     evidence = await _search(seeded, "资料")
 
     assert evidence.status == "empty"
-    assert evidence.chunks == [] and evidence.references == []
-    assert fake_judge.calls == 0
+    assert fake_reranker.calls == 1
 
 
 # --------------------------------------------------------------------------- #

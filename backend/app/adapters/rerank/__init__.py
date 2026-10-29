@@ -1,8 +1,10 @@
 """检索精排（Reranker）Adapter 包。
 
 跨编码器精排：给定「问题 + 候选文档」，用一次模型调用重新打分，弥补向量检索
-"主题相近但答非所问"的缺陷。本层**不接入** ``knowledge/service.py``——由检索侧
-在阈值标定后按 ``CCA_RERANK_ENABLED`` 决定是否调用。
+"主题相近但答非所问"的缺陷。本包只负责"怎么打分"，**何时调用由检索侧决定**：
+``app/modules/knowledge/adapters.py:retrieval_reranker()`` 按 ``CCA_RERANK_ENABLED``
+装配，``app/modules/knowledge/service.py:_decide`` 用它与余弦分做双信号裁决
+（详细裁决表见该方法的 docstring）。
 
 两种实现：
 - ``remote``：局域网 GPU 机的 ``POST {CCA_RERANK_BASE_URL}{CCA_RERANK_PATH}``

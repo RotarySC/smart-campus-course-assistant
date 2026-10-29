@@ -31,10 +31,12 @@ from app.config import (
     env_float,
     env_str,
     get_settings,
+    judge_timeout_s,
     rerank_band,
     rerank_fail_open,
     rerank_noise_floor,
     rerank_top_k,
+    retrieval_budget_s,
 )
 
 # ---- 任务 / 租约参数（后端详细设计 §10.2 BE 初始值）----
@@ -123,6 +125,16 @@ def rerank_noise() -> float:
     return rerank_noise_floor()
 
 
+def retrieval_budget() -> float:
+    """一次检索（精排 + 判官）的总时间预算，默认 18 s；须小于内层调用超时 20 s。"""
+    return retrieval_budget_s()
+
+
+def judge_reserve() -> float:
+    """判官单次超时——预算不足这份预留时就不问判官（见 ``_decide``）。"""
+    return judge_timeout_s()
+
+
 def rerank_on_failure() -> bool:
     """精排不可用时是否退回余弦分数门（默认 1=退回）。"""
     return rerank_fail_open()
@@ -204,6 +216,8 @@ __all__ = [
     "manifest_payload",
     "parse_bytes",
     "parser_config_digest",
+    "judge_reserve",
+    "retrieval_budget",
     "retrieval_judge",
     "retrieval_min_score",
     "retrieval_reranker",

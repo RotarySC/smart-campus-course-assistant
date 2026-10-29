@@ -21,16 +21,13 @@ from __future__ import annotations
 from typing import Sequence
 
 from app.adapters.embedding.deterministic import tokens_of
+from app.adapters.rerank._text import normalize_documents
 
 
 class DeterministicReranker:
     """按词重叠率打分的确定性精排器（``name="deterministic"``）。"""
 
     name = "deterministic"
-
-    def __init__(self, *, top_n_default: int | None = None) -> None:
-        # 允许构造时给一个默认 top_n；调用时显式 top_n 优先。
-        self.top_n_default = top_n_default
 
     @staticmethod
     def _score(query_tokens: set[str], document: str) -> float:
@@ -48,13 +45,13 @@ class DeterministicReranker:
         top_n: int | None = None,
     ) -> list[float]:
         """返回与 ``documents`` 等长、同序的 ``[0,1]`` 分数。"""
-        cleaned = ["" if text is None else str(text) for text in documents]
+        cleaned = normalize_documents(documents)
         if not cleaned:
             return []
         query_tokens = set(tokens_of(query or ""))
         scores = [self._score(query_tokens, text) for text in cleaned]
 
-        limit = top_n if top_n is not None else self.top_n_default
+        limit = top_n
         if limit is not None:
             limit = max(0, min(int(limit), len(scores)))
             # 并列时按下标稳定排序：同一输入永远得到同一结果，便于断言。

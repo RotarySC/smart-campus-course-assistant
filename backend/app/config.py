@@ -107,7 +107,10 @@ def env_int(name: str, default: int) -> int:
 RERANK_DEFAULT_BASE_URL = "http://127.0.0.1:8892"
 RERANK_DEFAULT_PATH = "/rerank"
 RERANK_DEFAULT_MODEL = "bge-reranker-v2-m3"
-RERANK_DEFAULT_TIMEOUT_S = 20.0
+# 单次超时 ×（1 + 1 次重试）= 最坏耗时，必须落在 MCP→内部 API 的调用预算之内；
+# 否则重试路径必然先撞内层超时，CCA_RERANK_FAIL_OPEN 的退回分支永远走不到。
+# 实测局域网精排 8 条文档 < 0.3 s，8 s 已有 25 倍以上余量。
+RERANK_DEFAULT_TIMEOUT_S = 8.0
 RERANK_DEFAULT_TOP_K = 8
 # 精排分数门（2026-10-29 用评测主集 30 条标定；明细见 verification/ai-eval/rerank-probe/）：
 #   LOW  = 0.30  跨编码器认为"连主题相近都算不上" → 直接判空，不花一次 LLM 判官；
@@ -124,6 +127,15 @@ RERANK_DEFAULT_HIGH = 0.90
 RERANK_DEFAULT_NOISE_FLOOR = 0.01
 RERANK_DEFAULT_MAX_DOC_CHARS = 1200
 RERANK_DEFAULT_MAX_DOCS = 32
+
+# ---- 检索侧时间预算（精排与判官是一次检索里仅有的两次外部调用）----
+# 预算不是限速，而是保证 worst case 不把上游的内层调用超时撞穿：
+#   精排 8 s ×（1+1 次重试）= 16 s；判官最坏 12.5 s（实测），串起来可达 28 s，
+#   而 MCP→内部 API 的调用预算只有 20 s。所以检索先给自己 18 s 总预算：
+#   精排回来时若剩余时间不够判官跑完，就不再问判官、按 fail_open 口径给结果——
+#   宁可少一次复核，也不要让整条工具调用被上游切掉（那会变成 MCP_UNAVAILABLE）。
+RETRIEVAL_BUDGET_DEFAULT_S = 18.0
+RETRIEVAL_JUDGE_TIMEOUT_DEFAULT_S = 12.0
 
 
 def rerank_enabled() -> bool:
@@ -185,6 +197,22 @@ def rerank_noise_floor() -> float:
     落在 ``[noise_floor, LOW)`` 的分数往往是有答案被问句形式压低了，不该单凭它判空。
     """
     return max(0.0, min(env_float("CCA_RERANK_NOISE_FLOOR", RERANK_DEFAULT_NOISE_FLOOR), 1.0))
+
+
+def retrieval_budget_s() -> float:
+    """一次检索（精排 + 判官）允许占用的总时间预算，默认 18 s。
+
+    必须小于 MCP→内部 API 的调用超时（``INTERNAL_CALL_TIMEOUT_SECONDS``，20 s），
+    否则预算形同虚设：上游会先超时。
+    """
+    raw = env_float("CCA_RETRIEVAL_BUDGET_S", RETRIEVAL_BUDGET_DEFAULT_S)
+    return max(1.0, min(raw, 600.0))
+
+
+def judge_timeout_s() -> float:
+    """判官单次调用超时（默认 12 s）；检索预算不足时用它判断还来不来得及问。"""
+    raw = env_float("CCA_RETRIEVAL_JUDGE_TIMEOUT_SECONDS", RETRIEVAL_JUDGE_TIMEOUT_DEFAULT_S)
+    return max(1.0, min(raw, 600.0))
 
 
 def rerank_fail_open() -> bool:
@@ -354,6 +382,7 @@ __all__ = [
     "env_int",
     "env_str",
     "get_settings",
+    "judge_timeout_s",
     "reset_env_snapshot",
     "reset_settings_cache",
     "RERANK_DEFAULT_BASE_URL",
@@ -366,6 +395,8 @@ __all__ = [
     "RERANK_DEFAULT_PATH",
     "RERANK_DEFAULT_TIMEOUT_S",
     "RERANK_DEFAULT_TOP_K",
+    "RETRIEVAL_BUDGET_DEFAULT_S",
+    "RETRIEVAL_JUDGE_TIMEOUT_DEFAULT_S",
     "rerank_band",
     "rerank_base_url",
     "rerank_enabled",
@@ -379,4 +410,5 @@ __all__ = [
     "rerank_path",
     "rerank_timeout_s",
     "rerank_top_k",
+    "retrieval_budget_s",
 ]

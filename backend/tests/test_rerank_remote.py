@@ -341,9 +341,12 @@ def test_rerank_config_defaults(monkeypatch):
         "CCA_RERANK_TOP_K",
         "CCA_RERANK_LOW",
         "CCA_RERANK_HIGH",
+        "CCA_RERANK_NOISE_FLOOR",
         "CCA_RERANK_FAIL_OPEN",
         "CCA_RERANK_MAX_DOC_CHARS",
         "CCA_RERANK_MAX_DOCS",
+        "CCA_RETRIEVAL_BUDGET_S",
+        "CCA_RETRIEVAL_JUDGE_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -351,7 +354,13 @@ def test_rerank_config_defaults(monkeypatch):
     assert config.rerank_base_url() == "http://127.0.0.1:8892"
     assert config.rerank_path() == "/rerank"
     assert config.rerank_model() == "bge-reranker-v2-m3"
-    assert config.rerank_timeout_s() == 20.0
+    # 8 s × (1+1 次重试) = 16 s ≤ 检索预算 18 s ≤ 内层调用预算 20 s
+    assert config.rerank_timeout_s() == 8.0
+    assert config.retrieval_budget_s() == 18.0
+    assert config.judge_timeout_s() == 12.0
+    assert config.rerank_timeout_s() * 2 <= config.retrieval_budget_s()
+    assert config.retrieval_budget_s() < 20.0
+    assert config.rerank_noise_floor() == 0.01
     assert config.rerank_top_k() == 8
     # 2026-10-29 用评测主集标定后的默认值（占位 0.5/0.5 已废弃）
     assert config.rerank_low() == 0.30

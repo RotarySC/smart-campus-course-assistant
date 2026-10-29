@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import codecs
 import logging
+import time
 from datetime import timedelta
 from typing import Any, Iterable
 
@@ -28,7 +29,7 @@ from app.adapters.db.models import (
 from app.adapters.db.uow import UoW, uow
 from app.adapters.filestore.local import StorageError
 from app.adapters.judge import judge_band, judge_fail_open, SNIPPET_LIMIT
-from app.adapters.rerank import RerankUnavailable
+from app.adapters.rerank import Reranker, RerankUnavailable
 from app.adapters.vector.local import VectorStoreError
 from app.modules.knowledge.adapters import (
     TASK_KIND_DOC_CLEANUP,
@@ -43,10 +44,12 @@ from app.modules.knowledge.adapters import (
     retrieval_judge,
     retrieval_min_score,
     retrieval_reranker,
+    judge_reserve,
     rerank_limit,
     rerank_noise,
     rerank_on_failure,
     rerank_thresholds,
+    retrieval_budget,
     sealed_key,
     upload_max_file_bytes,
     upload_max_files,
@@ -72,6 +75,7 @@ from app.modules.knowledge.tasks import new_task, start_compensation
 from app.modules.operations.service import append_audit, append_outbox
 from app.shared.clock import now_utc, to_db
 from app.shared.context import ActorContext
+from app.shared.errors import ApiError
 from app.shared.errors import ApiError, field_error, map_integrity_error, validation_error
 from app.shared.ids import (
     PREFIX_BATCH,
@@ -990,7 +994,7 @@ class KnowledgeService:
         question: str,
         rows: list[Any],
         score_of: dict[str, float],
-        reranker: Any,
+        reranker: Reranker | None,
     ) -> tuple[list[Any], bool]:
         """依据是否足以作答 + 候选该按什么顺序摆给模型。
 
@@ -999,16 +1003,24 @@ class KnowledgeService:
         - 精排开启（``CCA_RERANK_ENABLED=1``）：跨编码器重新打分，按**两个信号**
           裁决（``top`` = 精排最高分，``cos_top1`` = 余弦 top-1）：
 
-          ===================  ====================  ================================
+          ===================  ====================  ======================================
           精排 top              余弦 cos_top1          处置
-          ===================  ====================  ================================
-          ``>= HIGH``          任意                  放行（判官无权否决接近满分的片段）
-          ``[NOISE, LOW)``     ``< JUDGE_LOW``       判空（两个信号一致：无依据，不花 LLM）
-          ``[NOISE, LOW)``     ``>= JUDGE_LOW``      **判官**（精排说不相关、余弦说有候选）
-          ``< NOISE``          任意                  判空（精排输出等于噪声，模型没找到）
-          ``[LOW, HIGH)``      ``< 向量置信门``       放行（判官对弱证据会随机否决，实测 B01）
-          ``[LOW, HIGH)``      ``>= 向量置信门``      判官
-          ===================  ====================  ================================
+          ===================  ====================  ======================================
+          ``>= HIGH``          任意                   放行（判官无权否决接近满分的片段）
+          ``< NOISE``          任意                   判空（精排输出等于噪声，模型没找到）
+          ``[NOISE, LOW)``     ``< JUDGE_LOW``        判空（两信号一致：无依据，不花 LLM）
+          ``[NOISE, LOW)``     ``>= JUDGE_LOW``       判官复核；判官未装配则判空
+          ``[LOW, HIGH)``      ``< 向量置信门``        放行（判官对弱证据会随机否决，实测 B01）
+          ``[LOW, HIGH)``      ``>= 向量置信门``       判官
+          ===================  ====================  ======================================
+
+          两处容易踩的细节：
+
+          - ``NOISE`` 超过 ``LOW``（配错）时按 ``min(NOISE, LOW)`` 夹取，否则
+            ``< NOISE`` 那一行会把 ``[LOW, NOISE)`` 整段吃掉。
+          - "向量置信门"就是 ``CCA_RETRIEVAL_MIN_SCORE``（默认 0 = 关闭）。**默认配置下
+            它等于关闭，中段必然交判官**；B01 那条"中段 + 低余弦放行"只在显式把
+            ``CCA_RETRIEVAL_MIN_SCORE`` 设成 > 0（如 dev 的 0.55）时才生效。
 
           为什么低分不再单独一票否决：实测 bge-reranker-v2-m3 的中文 logit 余量很薄，
           同一个片段换个问法就能从 0.99 掉到 0.05（「题型和分值」0.83 → 「题型和分值
@@ -1016,21 +1028,25 @@ class KnowledgeService:
           单看绝对分的 ``top < LOW → 判空`` 会稳定误杀这类"有答案但问法不讨喜"的问题
           （实测 H-B09 题型分值、INJ01 评分规则）；因此在噪声底与 LOW 之间引入
           "余弦复核"——余弦也说没依据才允许不读正文就判空。
+
+          时间预算：精排回来时若剩余预算不够判官跑完，就不再问判官、按
+          ``CCA_RETRIEVAL_JUDGE_FAIL_OPEN`` 给结果（见 ``app.config.retrieval_budget_s``）。
         - 精排关闭：保持 2026-10-28 的"余弦分数门 + 判官"行为，逐字不变。
 
         ``reranker`` 由调用方构造后传入：一次检索只构造一次，避免工厂将来变重时翻倍。
+        精排不可用且 ``CCA_RERANK_FAIL_OPEN=0`` 时抛 ``RETRIEVAL_UNAVAILABLE``：
+        依赖失败要说"暂时不可用"，不能伪装成"没找到"（SRS FR-QA-003）。
         """
         if reranker is not None:
+            started = time.monotonic()
             probe = rows[: rerank_limit()]
             texts = [row[0].text_content for row in probe]
+            scores: list[float] = []
+            unavailable = ""
             try:
                 scores = await reranker.rerank(question, texts)
-            except RerankUnavailable:
-                fail_open = rerank_on_failure()
-                logger.warning("检索精排不可用（fail_open=%s），本次退回余弦分数门", fail_open)
-                if not fail_open:
-                    return [], False
-                scores = []
+            except RerankUnavailable as exc:
+                unavailable = str(exc) or "精排服务不可用"
             if scores and len(scores) == len(probe):
                 low, high = rerank_thresholds()
                 pairs = sorted(zip(probe, scores), key=lambda pair: -float(pair[1]))
@@ -1046,7 +1062,8 @@ class KnowledgeService:
                 #   ``cos_confidence``  = "余弦高到足以替精排的中段分背书吗" → 用向量置信门。
                 cos_corroborates = cos_top1 >= judge_band()[0]
                 cos_confidence = cos_top1 >= retrieval_min_score()
-                noise = rerank_noise()
+                # 配错时（NOISE > LOW）夹取，否则 < NOISE 那一行会吃掉 [LOW, NOISE)
+                noise = min(rerank_noise(), low)
                 if top < noise:
                     logger.info("精排分低于噪声底 top=%.4f < %.3f，判空", top, noise)
                     return ordered, False
@@ -1058,19 +1075,29 @@ class KnowledgeService:
                         )
                         return ordered, False
                     if judge is None:
-                        # 判官没装配（``CCA_RETRIEVAL_JUDGE=0``）时精排分数门就是唯一口径。
+                        # 判官没装配（``CCA_RETRIEVAL_JUDGE=0``）时精排分数门就是唯一口径：
+                        # 低分即判空，不做"余弦复核"（那一步本身就要判官来完成）。
                         return ordered, False
                     logger.info(
                         "精排低但余弦有候选 top=%.4f < %.2f cos=%.4f，交判官复核",
                         top, low, cos_top1,
                     )
                 elif not cos_confidence:
-                    # 中段精排 + 余弦没到向量置信门：两个信号都不强但也不算无关 → 放行，不花 LLM。
-                    # 这一支实测保护的是 main 集 B01：余弦 0.43、精排 0.44 的片段会被判官
-                    # 随机否决（同一个问题两次跑出"有引用/无引用"两种结果）。
+                    # 中段精排 + 余弦没到向量置信门：两个信号都不强但也不算无关 → 放行，
+                    # 不花 LLM。这一支实测保护 main 集 B01（余弦 0.43、精排 0.44 的片段
+                    # 会被判官随机否决）；注意向量置信门默认 0=关闭，此支默认不生效。
                     return ordered, True
                 elif judge is None:
                     return ordered, True
+                reserve = judge_reserve()
+                remaining = retrieval_budget() - (time.monotonic() - started)
+                if remaining < reserve:
+                    fail_open = judge_fail_open()
+                    logger.warning(
+                        "检索预算不足（剩余 %.1fs < 判官预留 %.1fs），跳过判官，按 fail_open=%s",
+                        remaining, reserve, fail_open,
+                    )
+                    return ordered, fail_open
                 snippets = [row[0].text_content for row in ordered[:SNIPPET_LIMIT]]
                 verdict = await judge.decide(question, snippets)
                 if verdict is None:
@@ -1082,14 +1109,18 @@ class KnowledgeService:
                         "精排中段但判官否决 cos_top1=%.4f rerank_top=%.4f", cos_top1, top
                     )
                 return ordered, verdict
-            if scores:
-                # 契约被破坏（长度与输入不对齐）：不能当作"精排没意见"静默退回，
-                # 否则半坏的 reranker 会长期隐身。
-                logger.warning(
-                    "检索精排返回长度不符（%d != %d），本次退回余弦分数门",
-                    len(scores),
-                    len(probe),
+            if not unavailable:
+                # 精排没抛错却没给出可用分数（空列表 / 长度对不齐）同样是"依赖不可用"：
+                # 不能当作"精排没意见"静默退回，否则半坏的精排会长期隐身。
+                unavailable = (
+                    f"精排返回长度不符（{len(scores)} != {len(probe)}）"
+                    if scores
+                    else "精排未返回分数（空列表）"
                 )
+            if not rerank_on_failure():
+                logger.error("检索精排不可用且 FAIL_OPEN=0，显式失败：%s", unavailable)
+                raise ApiError("RETRIEVAL_UNAVAILABLE", message="检索服务暂不可用，请稍后重试")
+            logger.warning("检索精排不可用（FAIL_OPEN=1），本次退回余弦分数门：%s", unavailable)
 
         judge = retrieval_judge()
         if judge is None:

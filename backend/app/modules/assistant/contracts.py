@@ -314,18 +314,23 @@ def sse_dump(model: BaseModel) -> dict[str, Any]:
 
 
 def contract_dump(model: BaseModel) -> dict[str, Any]:
-    """按 ``contracts/mcp_tools_v0.1.json`` 序列化工具输入输出。
+    """按契约序列化（``contracts/mcp_tools_v0.1.json`` 与 ``contracts/openapi_v0.1.json``）。
 
-    ``exclude_none`` 会连"**必填但可空**"的字段一起抹掉，而契约只把"可选非 nullable"
-    的字段从 ``required`` 里去掉。两者混用就会出现下面这种事故（2026-10-29 实测）：
+    两份契约的 ``required`` 都来自 pydantic 的 ``field.is_required()``，所以同一条规则
+    对工具输出与 HTTP 响应都成立：**必填但可空**的字段必须出现（值可以是 null），
+    **可选非 nullable** 的字段继续省略。
+
+    ``exclude_none`` 会连"必填但可空"的字段一起抹掉，两者混用就会出现下面这种事故
+    （2026-10-29 实测）：
 
     - ``ScheduleItem.location`` 在契约里是 ``required: true`` + ``anyOf [string, null]``；
     - 内部端点 ``exclude_none=True`` 抹掉 ``location`` → MCP 侧 pydantic 报
       ``items.N.location Field required`` → 兜底成 ``MCP_UNAVAILABLE``；
     - 结果是**只要某天有一节课没填地点，整个课表工具就 100% 不可用**。
 
-    所以判据必须是 pydantic 的 ``field.is_required()``（它与输出 schema 的 required
-    列表同源）：必填且值为 None 的字段补回 null，可选字段继续省略。
+    同类字段还有 ``ChatState.finished_at``（运行中的请求就是 null），所以 HTTP 响应
+    （``/chat/requests/{id}``、取消、内部工具端点）也一律走这里，不再手写
+    ``model_dump(exclude_none=True)``。
     """
     payload = model.model_dump(mode="json", exclude_none=True)
     _restore_required_nones(model, payload)
@@ -351,7 +356,6 @@ def _restore_required_nones(model: Any, payload: Any) -> None:
 
 
 __all__ = [
-    "contract_dump",
     "CancelOutput",
     "ChatInput",
     "ChatState",
@@ -376,6 +380,7 @@ __all__ = [
     "ToolEndData",
     "ToolStartData",
     "WriteOperationOut",
+    "contract_dump",
     "sse_dump",
     "validate_tool_call",
 ]

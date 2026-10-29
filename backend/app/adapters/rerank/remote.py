@@ -44,6 +44,7 @@ from typing import Any, Sequence
 import httpx
 
 from app.adapters.rerank import RerankUnavailable
+from app.adapters.rerank._text import normalize_documents
 from app.config import (
     rerank_base_url,
     rerank_max_doc_chars,
@@ -60,11 +61,6 @@ DEFAULT_RETRIES: int = 1
 _RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
 _SCORE_MIN = 0.0
 _SCORE_MAX = 1.0
-
-
-def endpoint_path() -> str:
-    """拼出端点路径；``BASE_URL`` 去尾斜杠、``PATH`` 补前导斜杠（配置侧已处理）。"""
-    return f"{rerank_base_url()}{rerank_path()}"
 
 
 class RemoteReranker:
@@ -220,7 +216,7 @@ class RemoteReranker:
         top_n: int | None = None,
     ) -> list[float]:
         """对 ``documents`` 打分，返回与输入等长、同序的 ``[0,1]`` 分数。"""
-        cleaned = ["" if text is None else str(text) for text in documents]
+        cleaned = normalize_documents(documents)
         if not cleaned:
             return []
         trimmed, sent = self._trim(cleaned)
@@ -244,5 +240,4 @@ class RemoteReranker:
 __all__ = [
     "DEFAULT_RETRIES",
     "RemoteReranker",
-    "endpoint_path",
 ]

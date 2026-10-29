@@ -195,7 +195,7 @@ async def exchange_delegation(request: Request, body: DelegationExchangeInput):
         audience="cca-internal",
         expires_at=isoformat(internal_claims.expires_at) or "",
     )
-    return envelope(request, output.model_dump(mode="json", exclude_none=True))
+    return envelope(request, contract_dump(output))
 
 
 # --------------------------------------------------------------------------- #
@@ -317,7 +317,7 @@ async def internal_search(request: Request, body: SearchToolInput):
         request_id=request_id_of(request),
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
-    return envelope(request, output.model_dump(mode="json", exclude_none=True))
+    return envelope(request, contract_dump(output))
 
 
 @router.post(
@@ -373,7 +373,7 @@ async def internal_save(request: Request, body: SaveToolInput):
         request_id=request_id_of(request),
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
-    return envelope(request, output.model_dump(mode="json", exclude_none=True))
+    return envelope(request, contract_dump(output))
 
 
 __all__ = ["router"]
