@@ -42,6 +42,7 @@ from app.modules.assistant.contracts import (
     SaveToolOutput,
     ScheduleToolOutput,
     SearchToolOutput,
+    contract_dump,
     validate_tool_call,
 )
 from app.modules.assistant.settings import get_assistant_settings
@@ -161,7 +162,7 @@ def _tool_success(output: Any) -> CallToolResult:
     序列化成 ``null`` → 校验失败（Invalid structured content）。因此显式按
     ``exclude_none=True`` 序列化：缺省键省略，与 outputSchema/设计包一致。
     """
-    payload = output.model_dump(mode="json", exclude_none=True)
+    payload = contract_dump(output)
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))],
         structuredContent=payload,

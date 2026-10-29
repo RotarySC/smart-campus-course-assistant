@@ -35,6 +35,7 @@ from app.config import get_settings
 from app.modules.assistant.contracts import (
     DelegationExchangeInput,
     DelegationExchangeOutput,
+    EvidenceChunkOut,
     ReferenceOut,
     SaveToolInput,
     SaveToolOutput,
@@ -43,7 +44,7 @@ from app.modules.assistant.contracts import (
     ScheduleToolOutput,
     SearchToolInput,
     SearchToolOutput,
-    EvidenceChunkOut,
+    contract_dump,
 )
 from app.modules.assistant.retrieval import search_course_docs
 from app.modules.assistant.save import save_study_plan
@@ -244,7 +245,7 @@ async def internal_schedule(request: Request, body: ScheduleToolInput):
         request_id=request_id_of(request),
         duration_ms=int((time.perf_counter() - started) * 1000),
     )
-    return envelope(request, output.model_dump(mode="json", exclude_none=True))
+    return envelope(request, contract_dump(output))
 
 
 @router.post(
