@@ -2,8 +2,10 @@
 
 被验对象是 ``KnowledgeService._decide`` 的两条路径（精排开启 / 精排关闭）：
 
-- 精排开启：余弦硬门让位 → 余弦 top-N 送精排 → ``top < LOW`` 判空、``>= HIGH`` 放行、
-  中间交给判官；精排不可用时按 ``CCA_RERANK_FAIL_OPEN`` 退回余弦路径或判空。
+- 精排开启：余弦硬门让位 → 余弦 top-N 送精排 → 按「精排分 + 余弦复核」两个信号裁决：
+  ``>= HIGH`` 放行；``< 噪声底`` 判空；``[噪声底, LOW)`` 需要余弦替它作证，作证则由判官
+  读正文决定、不作证才判空；中段 ``[LOW, HIGH)`` 里余弦没依据时直接放行（B01 实测：
+  判官会随机否决弱证据）。精排不可用时按 ``CCA_RERANK_FAIL_OPEN`` 退回余弦路径或判空。
 - 精排关闭：保持 2026-10-28 的「余弦硬门 + 判官带」行为。
 
 全部用 Fake 替换装配点（``service.retrieval_reranker`` / ``service.retrieval_judge`` /
@@ -94,6 +96,15 @@ def _force_legacy_judge_band(monkeypatch) -> None:
     monkeypatch.setattr(service_mod, "judge_band", lambda: (0.0, 1.0))
 
 
+def _force_cos_floor(monkeypatch, floor: float) -> None:
+    """固定"余弦侧明确无依据"的下界（精排路径的余弦复核线）。
+
+    下界取 ``judge_band()[0]``（与 legacy 路径同一常量），所以这里改 ``judge_band``
+    就能控制"余弦这侧会不会替精排的低分作证"，无需真去凑余弦分数。
+    """
+    monkeypatch.setattr(service_mod, "judge_band", lambda: (floor, 1.0))
+
+
 async def _seed_three_docs(client, seeded) -> None:
     await publish_batch(
         client,
@@ -124,13 +135,15 @@ async def test_rerank_disabled_never_calls_reranker(client, seeded, monkeypatch)
 
 
 # --------------------------------------------------------------------------- #
-# 2) 精排分低于 LOW → 判空，且不调用判官
+# 2) 精排分低于噪声底，或低于 LOW 且余弦也说无依据 → 判空，且不调用判官
 # --------------------------------------------------------------------------- #
 async def test_top_below_low_returns_empty_without_judge(client, seeded, monkeypatch):
     await _seed_three_docs(client, seeded)
     fake_reranker = FakeReranker({"甲": 0.10, "乙": 0.20, "丙": 0.05})
     fake_judge = FakeJudge(True)
     _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+    # 余弦侧也"明确无依据"（下界拉到 0.999）→ 两个信号一致，不必问判官
+    _force_cos_floor(monkeypatch, 0.999)
 
     evidence = await _search(seeded, "资料")
 
@@ -280,3 +293,81 @@ async def test_rerank_path_orders_chunks_by_rerank_score(client, seeded, monkeyp
     # 精排送进去的是"余弦 top-N 的正文"，顺序可以不同，但条数应与候选一致（<=8）
     assert 1 <= fake_reranker.calls == 1
     assert len(fake_reranker.seen[0]) == 3
+
+
+# --------------------------------------------------------------------------- #
+# 10) 精排低（>= 噪声底）+ 余弦有候选 → 判官复核，判 True 就放行（H-B09 形态）
+# --------------------------------------------------------------------------- #
+async def test_low_rerank_with_cosine_support_asks_judge(client, seeded, monkeypatch):
+    await _seed_three_docs(client, seeded)
+    # 精排把有答案的片段压到 0.04（实测 bge-reranker 对问句改写极敏感），余弦仍高于复核线
+    fake_reranker = FakeReranker({"甲": 0.04, "乙": 0.01, "丙": 0.00})
+    fake_judge = FakeJudge(True)
+    _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+    _force_cos_floor(monkeypatch, 0.0)  # 余弦侧确认"有候选"
+
+    evidence = await _search(seeded, "资料")
+
+    assert evidence.status == "ok"
+    assert evidence.chunks
+    assert fake_judge.calls == 1  # 精排低分不再一票否决，必须让判官读正文
+    assert "甲档案" in fake_judge.seen[0]
+
+
+# --------------------------------------------------------------------------- #
+# 11) 同一形态但判官否认 → 仍然判空（不是"低分一律放行"）
+# --------------------------------------------------------------------------- #
+async def test_low_rerank_with_cosine_support_still_denied_by_judge(
+    client, seeded, monkeypatch
+):
+    await _seed_three_docs(client, seeded)
+    fake_reranker = FakeReranker({"甲": 0.04, "乙": 0.01, "丙": 0.00})
+    fake_judge = FakeJudge(False)
+    _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+    _force_cos_floor(monkeypatch, 0.0)
+
+    evidence = await _search(seeded, "资料")
+
+    assert evidence.status == "empty"
+    assert evidence.chunks == []
+    assert fake_judge.calls == 1
+
+
+# --------------------------------------------------------------------------- #
+# 12) 精排分落在噪声底以下 → 直接判空，不问判官，也不放行
+# --------------------------------------------------------------------------- #
+async def test_rerank_below_noise_floor_returns_empty_without_judge(
+    client, seeded, monkeypatch
+):
+    await _seed_three_docs(client, seeded)
+    # 实测噪声底以下（无关片段 1e-4~1e-3）；余弦侧即便"有候选"也不该救
+    fake_reranker = FakeReranker({"甲": 0.0004, "乙": 0.0002, "丙": 0.0001})
+    fake_judge = FakeJudge(True)
+    _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+    _force_cos_floor(monkeypatch, 0.0)
+
+    evidence = await _search(seeded, "资料")
+
+    assert evidence.status == "empty"
+    assert evidence.chunks == []
+    assert fake_judge.calls == 0
+
+
+# --------------------------------------------------------------------------- #
+# 13) 中段精排 + 余弦没到向量置信门 → 放行且不问判官（B01 实测：判官会随机否决）
+# --------------------------------------------------------------------------- #
+async def test_mid_band_without_cosine_support_passes_without_judge(
+    client, seeded, monkeypatch
+):
+    await _seed_three_docs(client, seeded)
+    # 余弦没到向量置信门（硬门 0.99；精排开启时该门只当"余弦够不够强"的尺子用）
+    monkeypatch.setenv("CCA_RETRIEVAL_MIN_SCORE", "0.99")
+    fake_reranker = FakeReranker({"甲": 0.60, "乙": 0.40, "丙": 0.30})
+    fake_judge = FakeJudge(False)  # 判官若被问到会否决
+    _install(monkeypatch, reranker=fake_reranker, judge=fake_judge)
+
+    evidence = await _search(seeded, "资料")
+
+    assert evidence.status == "ok"
+    assert evidence.chunks
+    assert fake_judge.calls == 0

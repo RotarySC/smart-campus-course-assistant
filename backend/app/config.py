@@ -117,6 +117,11 @@ RERANK_DEFAULT_TOP_K = 8
 # 不是单点巧合；改这两个值前请先重跑 rerank_probe.py + rerank_thresholds.py。
 RERANK_DEFAULT_LOW = 0.30
 RERANK_DEFAULT_HIGH = 0.90
+# 精排输出的“噪声底”：低于它的分数等于模型完全没找到对应关系，不是“分数偏低”。
+# 0.01 来自 main 集实测——无关片段集中在 1e-4~1e-3（同一批候选里最低 0.0001），
+# 而“问句改写导致被低估”的相关片段仍有 0.03~0.05，两者差一个量级以上。
+# 低于噪声底直接判空（省一次 LLM 判官）；高于噪声底但低于 LOW 的，交由判官读正文。
+RERANK_DEFAULT_NOISE_FLOOR = 0.01
 RERANK_DEFAULT_MAX_DOC_CHARS = 1200
 RERANK_DEFAULT_MAX_DOCS = 32
 
@@ -170,6 +175,16 @@ def rerank_band() -> tuple[float, float]:
     low = rerank_low()
     high = rerank_high()
     return low, max(low, high)
+
+
+def rerank_noise_floor() -> float:
+    """精排分低于此值视为“模型没找到对应关系”（而不是“分数偏低”）。
+
+    与 ``LOW`` 的区别：``LOW`` 是“连主题相近都算不上”的判空线，但实测跨编码器对
+    问句改写极敏感（同一片段「题型和分值」0.83 / 「题型和分值是怎么分布的」0.05），
+    落在 ``[noise_floor, LOW)`` 的分数往往是有答案被问句形式压低了，不该单凭它判空。
+    """
+    return max(0.0, min(env_float("CCA_RERANK_NOISE_FLOOR", RERANK_DEFAULT_NOISE_FLOOR), 1.0))
 
 
 def rerank_fail_open() -> bool:
@@ -347,6 +362,7 @@ __all__ = [
     "RERANK_DEFAULT_MAX_DOC_CHARS",
     "RERANK_DEFAULT_MAX_DOCS",
     "RERANK_DEFAULT_MODEL",
+    "RERANK_DEFAULT_NOISE_FLOOR",
     "RERANK_DEFAULT_PATH",
     "RERANK_DEFAULT_TIMEOUT_S",
     "RERANK_DEFAULT_TOP_K",
@@ -359,6 +375,7 @@ __all__ = [
     "rerank_max_doc_chars",
     "rerank_max_docs",
     "rerank_model",
+    "rerank_noise_floor",
     "rerank_path",
     "rerank_timeout_s",
     "rerank_top_k",

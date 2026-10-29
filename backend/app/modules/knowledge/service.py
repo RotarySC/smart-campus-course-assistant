@@ -44,6 +44,7 @@ from app.modules.knowledge.adapters import (
     retrieval_min_score,
     retrieval_reranker,
     rerank_limit,
+    rerank_noise,
     rerank_on_failure,
     rerank_thresholds,
     sealed_key,
@@ -993,12 +994,28 @@ class KnowledgeService:
     ) -> tuple[list[Any], bool]:
         """依据是否足以作答 + 候选该按什么顺序摆给模型。
 
-        两条路径，**精排开启时余弦分数门整个让位**：
+        两条路径，**精排开启时余弦硬门整个让位**：
 
-        - 精排开启（``CCA_RERANK_ENABLED=1``）：跨编码器重新打分，三段判定
-          ``top < LOW`` → 判空（连一次 LLM 调用都不花）；``top >= HIGH`` → 放行；
-          中间才请判官读片段。判官只能"否决"，不能"否决一个跨编码器给到接近满分的片段"
-          —— 实测判官对主题相近片段很敏感，单独用它会把本该通过的用例误判（B09/B20）。
+        - 精排开启（``CCA_RERANK_ENABLED=1``）：跨编码器重新打分，按**两个信号**
+          裁决（``top`` = 精排最高分，``cos_top1`` = 余弦 top-1）：
+
+          ===================  ====================  ================================
+          精排 top              余弦 cos_top1          处置
+          ===================  ====================  ================================
+          ``>= HIGH``          任意                  放行（判官无权否决接近满分的片段）
+          ``[NOISE, LOW)``     ``< JUDGE_LOW``       判空（两个信号一致：无依据，不花 LLM）
+          ``[NOISE, LOW)``     ``>= JUDGE_LOW``      **判官**（精排说不相关、余弦说有候选）
+          ``< NOISE``          任意                  判空（精排输出等于噪声，模型没找到）
+          ``[LOW, HIGH)``      ``< 向量置信门``       放行（判官对弱证据会随机否决，实测 B01）
+          ``[LOW, HIGH)``      ``>= 向量置信门``      判官
+          ===================  ====================  ================================
+
+          为什么低分不再单独一票否决：实测 bge-reranker-v2-m3 的中文 logit 余量很薄，
+          同一个片段换个问法就能从 0.99 掉到 0.05（「题型和分值」0.83 → 「题型和分值
+          是怎么分布的」0.046，同一权重、fp16/fp32 一致，见 README「已知限制」）。
+          单看绝对分的 ``top < LOW → 判空`` 会稳定误杀这类"有答案但问法不讨喜"的问题
+          （实测 H-B09 题型分值、INJ01 评分规则）；因此在噪声底与 LOW 之间引入
+          "余弦复核"——余弦也说没依据才允许不读正文就判空。
         - 精排关闭：保持 2026-10-28 的"余弦分数门 + 判官"行为，逐字不变。
 
         ``reranker`` 由调用方构造后传入：一次检索只构造一次，避免工厂将来变重时翻倍。
@@ -1019,23 +1036,40 @@ class KnowledgeService:
                 pairs = sorted(zip(probe, scores), key=lambda pair: -float(pair[1]))
                 ordered = [pair[0] for pair in pairs] + list(rows[len(probe):])
                 top = float(pairs[0][1])
-                if top < low:
-                    logger.info("精排判定依据不足 top=%.4f < %.2f", top, low)
-                    return ordered, False
                 if top >= high:
                     return ordered, True
                 judge = retrieval_judge()
-                if judge is None:
-                    # 判官没装配（``CCA_RETRIEVAL_JUDGE=0``）时精排分数门就是唯一口径。
-                    return ordered, top >= low
-                confidence_floor = retrieval_min_score()
                 cos_top1 = float(score_of.get(probe[0][0].id, 0.0)) if probe else 0.0
-                # 低余弦 + 中段精排：两个信号都不强但也不算无关 → 放行，不花一次 LLM 调用。
-                # 这一支实测保护的是 main 集 B01：余弦 0.43、精排 0.44 的片段会被判官
-                # 随机否决（同一个问题两次跑出"有引用/无引用"两种结果）。
-                # 注意"精排极低"（top < low）不在此列：那是精排失灵的信号，必须让判官读正文
-                # ——注入用例 INJ01 的评分片段被精排打成 0.04，而判官判 True。
-                if cos_top1 < confidence_floor and top >= low:
+                # 余弦这侧有两个不同的问题，别混用同一个数：
+                #   ``cos_corroborates`` = "余弦认为存在值得读的候选吗" → 用判官带下界，
+                #       即 legacy 路径里"余弦一旦低于它就自动判空"的那条线；
+                #   ``cos_confidence``  = "余弦高到足以替精排的中段分背书吗" → 用向量置信门。
+                cos_corroborates = cos_top1 >= judge_band()[0]
+                cos_confidence = cos_top1 >= retrieval_min_score()
+                noise = rerank_noise()
+                if top < noise:
+                    logger.info("精排分低于噪声底 top=%.4f < %.3f，判空", top, noise)
+                    return ordered, False
+                if top < low:
+                    if not cos_corroborates:
+                        logger.info(
+                            "精排与余弦一致判定依据不足 top=%.4f < %.2f cos=%.4f",
+                            top, low, cos_top1,
+                        )
+                        return ordered, False
+                    if judge is None:
+                        # 判官没装配（``CCA_RETRIEVAL_JUDGE=0``）时精排分数门就是唯一口径。
+                        return ordered, False
+                    logger.info(
+                        "精排低但余弦有候选 top=%.4f < %.2f cos=%.4f，交判官复核",
+                        top, low, cos_top1,
+                    )
+                elif not cos_confidence:
+                    # 中段精排 + 余弦没到向量置信门：两个信号都不强但也不算无关 → 放行，不花 LLM。
+                    # 这一支实测保护的是 main 集 B01：余弦 0.43、精排 0.44 的片段会被判官
+                    # 随机否决（同一个问题两次跑出"有引用/无引用"两种结果）。
+                    return ordered, True
+                elif judge is None:
                     return ordered, True
                 snippets = [row[0].text_content for row in ordered[:SNIPPET_LIMIT]]
                 verdict = await judge.decide(question, snippets)

@@ -33,6 +33,7 @@ from app.config import (
     get_settings,
     rerank_band,
     rerank_fail_open,
+    rerank_noise_floor,
     rerank_top_k,
 )
 
@@ -112,6 +113,14 @@ def rerank_limit() -> int:
 def rerank_thresholds() -> tuple[float, float]:
     """精排分数门 ``(LOW, HIGH)``：低于 LOW 判空，高于等于 HIGH 放行，中间问判官。"""
     return rerank_band()
+
+
+def rerank_noise() -> float:
+    """精排分的噪声底：低于它等于"模型完全没找到对应关系"，可直接判空。
+
+    与 ``rerank_thresholds()[0]``（LOW）的分工见 ``app.config.rerank_noise_floor``。
+    """
+    return rerank_noise_floor()
 
 
 def rerank_on_failure() -> bool:
@@ -199,6 +208,7 @@ __all__ = [
     "retrieval_min_score",
     "retrieval_reranker",
     "rerank_limit",
+    "rerank_noise",
     "rerank_on_failure",
     "rerank_thresholds",
     "sealed_key",
