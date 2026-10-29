@@ -13,6 +13,7 @@ from typing import Final
 from app.adapters.embedding.deterministic import embed_text
 from app.adapters.embedding.registry import build_embedding
 from app.adapters.judge import build_judge
+from app.adapters.rerank import build_reranker
 from app.adapters.filestore.local import FileStore
 from app.adapters.parser.document_parser import (
     SUPPORTED_TYPES,
@@ -26,7 +27,14 @@ from app.adapters.parser.document_parser import (
     parser_config_digest,
 )
 from app.adapters.vector.local import LocalVectorStore
-from app.config import env_float, env_str, get_settings
+from app.config import (
+    env_float,
+    env_str,
+    get_settings,
+    rerank_band,
+    rerank_fail_open,
+    rerank_top_k,
+)
 
 # ---- 任务 / 租约参数（后端详细设计 §10.2 BE 初始值）----
 TASK_KIND_PERSIST: Final = "doc_persist"
@@ -85,6 +93,30 @@ def retrieval_min_score() -> float:
 def retrieval_judge():
     """检索充分性判官（``CCA_RETRIEVAL_JUDGE=1`` 时装配，否则 None = 完全跳过这一层）。"""
     return build_judge()
+
+
+def retrieval_reranker():
+    """检索精排器（``CCA_RERANK_ENABLED=1`` 时装配，否则 None = 完全跳过这一层）。
+
+    开启后检索侧的裁决顺序变为"精排分门 → 判官"，余弦硬门（``CCA_RETRIEVAL_MIN_SCORE``）
+    不再生效：那道门会把余弦偏低但确实含答案的片段一起挡掉（main 集 B01 实测）。
+    """
+    return build_reranker()
+
+
+def rerank_limit() -> int:
+    """送入精排的候选上限（精排关闭时本函数不会被调用）。"""
+    return rerank_top_k()
+
+
+def rerank_thresholds() -> tuple[float, float]:
+    """精排分数门 ``(LOW, HIGH)``：低于 LOW 判空，高于等于 HIGH 放行，中间问判官。"""
+    return rerank_band()
+
+
+def rerank_on_failure() -> bool:
+    """精排不可用时是否退回余弦分数门（默认 1=退回）。"""
+    return rerank_fail_open()
 
 
 def upload_max_files() -> int:
@@ -165,6 +197,10 @@ __all__ = [
     "parser_config_digest",
     "retrieval_judge",
     "retrieval_min_score",
+    "retrieval_reranker",
+    "rerank_limit",
+    "rerank_on_failure",
+    "rerank_thresholds",
     "sealed_key",
     "upload_max_file_bytes",
     "upload_max_files",

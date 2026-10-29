@@ -28,6 +28,7 @@ from app.adapters.db.models import (
 from app.adapters.db.uow import UoW, uow
 from app.adapters.filestore.local import StorageError
 from app.adapters.judge import judge_band, judge_fail_open, SNIPPET_LIMIT
+from app.adapters.rerank import RerankUnavailable
 from app.adapters.vector.local import VectorStoreError
 from app.modules.knowledge.adapters import (
     TASK_KIND_DOC_CLEANUP,
@@ -41,6 +42,10 @@ from app.modules.knowledge.adapters import (
     parser_config_digest,
     retrieval_judge,
     retrieval_min_score,
+    retrieval_reranker,
+    rerank_limit,
+    rerank_on_failure,
+    rerank_thresholds,
     sealed_key,
     upload_max_file_bytes,
     upload_max_files,
@@ -888,14 +893,19 @@ class KnowledgeService:
             candidates = await vs.search(
                 vector_space, await emb.embed(text), limit=top_k * 8
             )
-            min_score = retrieval_min_score()
-            if min_score > 0 and candidates:
-                # FR-QA-003：低于相关性阈值的候选不算依据，"检索过但没命中"要说没找到。
-                candidates = [
-                    item
-                    for item in candidates
-                    if float(item.get("score", 0.0)) >= min_score
-                ]
+            # 每次检索只构造一次精排器（开关/地址都在这里定下来，后面按对象复用）
+            reranker = retrieval_reranker()
+            if reranker is None:
+                # 旧路径（精排关闭）才有余弦硬门。精排开启时不能先过滤：
+                # 实测 main 集 B01 的答案片段余弦只有 0.43，被这道门挡掉后整题判空。
+                min_score = retrieval_min_score()
+                if min_score > 0 and candidates:
+                    # FR-QA-003：低于相关性阈值的候选不算依据，"检索过但没命中"要说没找到。
+                    candidates = [
+                        item
+                        for item in candidates
+                        if float(item.get("score", 0.0)) >= min_score
+                    ]
             if not candidates:
                 return EvidenceSet.empty(corpus_empty=False, revision=revision)
             score_of = {item["chunk_id"]: item["score"] for item in candidates}
@@ -932,12 +942,11 @@ class KnowledgeService:
             if revision_after != revision:
                 continue  # 检索期间语料变更：重新核实（设计 §11.1）
             rows.sort(key=lambda row: (-score_of.get(row[0].id, 0.0), row[0].id))
-            selected = rows[:top_k]
-            if not selected:
-                return EvidenceSet.empty(corpus_empty=False, revision=revision)
-            if not await self._sufficient(text, selected, score_of):
+            ordered, sufficient = await self._decide(text, rows, score_of, reranker)
+            if not sufficient:
                 # FR-QA-003：片段只是主题相近、不含答案 → 按"检索过但没命中"处理
                 return EvidenceSet.empty(corpus_empty=False, revision=revision)
+            selected = ordered[:top_k]
             chunks: list[EvidenceChunk] = []
             references: list[EvidenceReference] = []
             seen_documents: set[str] = set()
@@ -975,39 +984,99 @@ class KnowledgeService:
             )
         return EvidenceSet.empty(corpus_empty=False, revision=0)
 
-    async def _sufficient(
+    async def _decide(
         self,
         question: str,
-        selected: list[Any],
+        rows: list[Any],
         score_of: dict[str, float],
-    ) -> bool:
-        """依据是否足以作答（两段式：分数门先分流，只有重叠带才问 LLM 判官）。
+        reranker: Any,
+    ) -> tuple[list[Any], bool]:
+        """依据是否足以作答 + 候选该按什么顺序摆给模型。
 
-        - 关闭（``CCA_RETRIEVAL_JUDGE`` 未设）→ 恒 True，行为与旧版逐字一致；
-        - top1 >= HIGH → 放行（分数已经足够高，没必要花一次模型调用）；
-        - top1 <  LOW → 判空（连主题相近都算不上）；
-        - 中间重叠带 → 判官读前 5 条片段正文判断"有没有答案"，失败按 ``FAIL_OPEN``。
+        两条路径，**精排开启时余弦分数门整个让位**：
+
+        - 精排开启（``CCA_RERANK_ENABLED=1``）：跨编码器重新打分，三段判定
+          ``top < LOW`` → 判空（连一次 LLM 调用都不花）；``top >= HIGH`` → 放行；
+          中间才请判官读片段。判官只能"否决"，不能"否决一个跨编码器给到接近满分的片段"
+          —— 实测判官对主题相近片段很敏感，单独用它会把本该通过的用例误判（B09/B20）。
+        - 精排关闭：保持 2026-10-28 的"余弦分数门 + 判官"行为，逐字不变。
+
+        ``reranker`` 由调用方构造后传入：一次检索只构造一次，避免工厂将来变重时翻倍。
         """
+        if reranker is not None:
+            probe = rows[: rerank_limit()]
+            texts = [row[0].text_content for row in probe]
+            try:
+                scores = await reranker.rerank(question, texts)
+            except RerankUnavailable:
+                fail_open = rerank_on_failure()
+                logger.warning("检索精排不可用（fail_open=%s），本次退回余弦分数门", fail_open)
+                if not fail_open:
+                    return [], False
+                scores = []
+            if scores and len(scores) == len(probe):
+                low, high = rerank_thresholds()
+                pairs = sorted(zip(probe, scores), key=lambda pair: -float(pair[1]))
+                ordered = [pair[0] for pair in pairs] + list(rows[len(probe):])
+                top = float(pairs[0][1])
+                if top < low:
+                    logger.info("精排判定依据不足 top=%.4f < %.2f", top, low)
+                    return ordered, False
+                if top >= high:
+                    return ordered, True
+                judge = retrieval_judge()
+                if judge is None:
+                    # 判官没装配（``CCA_RETRIEVAL_JUDGE=0``）时精排分数门就是唯一口径。
+                    return ordered, top >= low
+                confidence_floor = retrieval_min_score()
+                cos_top1 = float(score_of.get(probe[0][0].id, 0.0)) if probe else 0.0
+                # 低余弦 + 中段精排：两个信号都不强但也不算无关 → 放行，不花一次 LLM 调用。
+                # 这一支实测保护的是 main 集 B01：余弦 0.43、精排 0.44 的片段会被判官
+                # 随机否决（同一个问题两次跑出"有引用/无引用"两种结果）。
+                # 注意"精排极低"（top < low）不在此列：那是精排失灵的信号，必须让判官读正文
+                # ——注入用例 INJ01 的评分片段被精排打成 0.04，而判官判 True。
+                if cos_top1 < confidence_floor and top >= low:
+                    return ordered, True
+                snippets = [row[0].text_content for row in ordered[:SNIPPET_LIMIT]]
+                verdict = await judge.decide(question, snippets)
+                if verdict is None:
+                    fail_open = judge_fail_open()
+                    logger.warning("检索充分性判官无法判断，按 fail_open=%s 处理", fail_open)
+                    return ordered, fail_open
+                if not verdict:
+                    logger.info(
+                        "精排中段但判官否决 cos_top1=%.4f rerank_top=%.4f", cos_top1, top
+                    )
+                return ordered, verdict
+            if scores:
+                # 契约被破坏（长度与输入不对齐）：不能当作"精排没意见"静默退回，
+                # 否则半坏的 reranker 会长期隐身。
+                logger.warning(
+                    "检索精排返回长度不符（%d != %d），本次退回余弦分数门",
+                    len(scores),
+                    len(probe),
+                )
+
         judge = retrieval_judge()
         if judge is None:
-            return True
+            return rows, True
         low, high = judge_band()
-        top_score = max((score_of.get(row[0].id, 0.0) for row in selected), default=0.0)
+        top_score = max((score_of.get(row[0].id, 0.0) for row in rows), default=0.0)
         if top_score >= high:
-            return True
+            return rows, True
         if top_score < low:
-            return False
-        snippets = [row[0].text_content for row in selected[:SNIPPET_LIMIT]]
+            return rows, False
+        snippets = [row[0].text_content for row in rows[:SNIPPET_LIMIT]]
         verdict = await judge.decide(question, snippets)
         if verdict is None:
             fail_open = judge_fail_open()
             logger.warning(
                 "检索充分性判官无法判断，按 fail_open=%s 处理 top_score=%.4f", fail_open, top_score
             )
-            return fail_open
+            return rows, fail_open
         if not verdict:
             logger.info("检索充分性判官判定片段不足以作答 top_score=%.4f", top_score)
-        return verdict
+        return rows, verdict
 
     # ------------------------------------------------------------------ 引用
     async def get_citation(self, ctx: ActorContext, reference_id: str) -> dict[str, Any]:

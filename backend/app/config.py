@@ -98,6 +98,95 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+# ---- 检索精排 Reranker（跨编码器；默认关闭，接入点在 knowledge/service.py:_decide）----
+# 这些键只描述"怎么连服务端 + 检索侧用什么口径"：
+# ``CCA_RERANK_ENABLED=0``（默认）时 ``build_reranker()`` 返回 None，检索走 2026-10-28 的
+# "余弦分数门 + 判官"路径，行为不变；开启后余弦硬门（``CCA_RETRIEVAL_MIN_SCORE``）不再生效，
+# 由精排分决定放行/判空（否则会把答案片段一起挡掉，实测 main 集 B01）。
+# 服务端契约（POST {BASE_URL}{PATH}）与分数语义见 ``app/adapters/rerank/remote.py``。
+RERANK_DEFAULT_BASE_URL = "http://127.0.0.1:8892"
+RERANK_DEFAULT_PATH = "/rerank"
+RERANK_DEFAULT_MODEL = "bge-reranker-v2-m3"
+RERANK_DEFAULT_TIMEOUT_S = 20.0
+RERANK_DEFAULT_TOP_K = 8
+# 精排分数门（2026-10-29 用评测主集 30 条标定；明细见 verification/ai-eval/rerank-probe/）：
+#   LOW  = 0.30  跨编码器认为"连主题相近都算不上" → 直接判空，不花一次 LLM 判官；
+#   HIGH = 0.90  接近满分 → 单次判官否定不足以推翻，直接放行。实测判官对"检索到的
+#                是主题相近片段"很敏感，会对本该通过的用例误判（B09/B20），需要这道上限。
+# 达标区是成片的（LOW 0.10–0.40 × HIGH 0.80–0.95 在 main 上全部 based 20/20、uncovered 10/10），
+# 不是单点巧合；改这两个值前请先重跑 rerank_probe.py + rerank_thresholds.py。
+RERANK_DEFAULT_LOW = 0.30
+RERANK_DEFAULT_HIGH = 0.90
+RERANK_DEFAULT_MAX_DOC_CHARS = 1200
+RERANK_DEFAULT_MAX_DOCS = 32
+
+
+def rerank_enabled() -> bool:
+    """是否启用精排层；默认关（行为与未引入时一致）。"""
+    return env_flag("CCA_RERANK_ENABLED", False)
+
+
+def rerank_base_url() -> str:
+    """服务根地址（不含 path）；去掉尾部斜杠，避免拼出 ``//rerank``。"""
+    raw = env_str("CCA_RERANK_BASE_URL", RERANK_DEFAULT_BASE_URL).strip().rstrip("/")
+    return raw or RERANK_DEFAULT_BASE_URL
+
+
+def rerank_path() -> str:
+    """端点路径；空值回落 ``/rerank``，缺前导斜杠时补上。"""
+    raw = env_str("CCA_RERANK_PATH", RERANK_DEFAULT_PATH).strip()
+    if not raw:
+        return RERANK_DEFAULT_PATH
+    return raw if raw.startswith("/") else f"/{raw}"
+
+
+def rerank_model() -> str:
+    """模型标识；只用于日志/``name``，不作为请求字段（契约里没有 model）。"""
+    return env_str("CCA_RERANK_MODEL", RERANK_DEFAULT_MODEL).strip() or RERANK_DEFAULT_MODEL
+
+
+def rerank_timeout_s() -> float:
+    return max(1.0, min(env_float("CCA_RERANK_TIMEOUT_S", RERANK_DEFAULT_TIMEOUT_S), 600.0))
+
+
+def rerank_top_k() -> int:
+    """检索侧送入精排的候选上限（截断数），不是服务端 top_n。"""
+    return max(1, min(env_int("CCA_RERANK_TOP_K", RERANK_DEFAULT_TOP_K), 256))
+
+
+def rerank_low() -> float:
+    return max(0.0, min(env_float("CCA_RERANK_LOW", RERANK_DEFAULT_LOW), 1.0))
+
+
+def rerank_high() -> float:
+    return max(0.0, min(env_float("CCA_RERANK_HIGH", RERANK_DEFAULT_HIGH), 1.0))
+
+
+def rerank_band() -> tuple[float, float]:
+    """``(LOW, HIGH)`` 分数门：低于 LOW 直接判空，高于等于 HIGH 直接放行，中间问判官。
+
+    与判官一致：配反（HIGH < LOW）时把 HIGH 抬到 LOW，避免把整段检索随机判空。
+    """
+    low = rerank_low()
+    high = rerank_high()
+    return low, max(low, high)
+
+
+def rerank_fail_open() -> bool:
+    """精排不可用时是否放行（保留检索分数）；默认 1=放行。"""
+    return env_flag("CCA_RERANK_FAIL_OPEN", True)
+
+
+def rerank_max_doc_chars() -> int:
+    """单条文档送精排前的最大字符数（超出截断，控制服务端 token 预算）。"""
+    return max(1, min(env_int("CCA_RERANK_MAX_DOC_CHARS", RERANK_DEFAULT_MAX_DOC_CHARS), 100_000))
+
+
+def rerank_max_docs() -> int:
+    """单次请求最多送几条文档（超出部分不送、分数按 0.0 对齐）。"""
+    return max(1, min(env_int("CCA_RERANK_MAX_DOCS", RERANK_DEFAULT_MAX_DOCS), 256))
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=env_file_path(),
@@ -252,4 +341,25 @@ __all__ = [
     "get_settings",
     "reset_env_snapshot",
     "reset_settings_cache",
+    "RERANK_DEFAULT_BASE_URL",
+    "RERANK_DEFAULT_HIGH",
+    "RERANK_DEFAULT_LOW",
+    "RERANK_DEFAULT_MAX_DOC_CHARS",
+    "RERANK_DEFAULT_MAX_DOCS",
+    "RERANK_DEFAULT_MODEL",
+    "RERANK_DEFAULT_PATH",
+    "RERANK_DEFAULT_TIMEOUT_S",
+    "RERANK_DEFAULT_TOP_K",
+    "rerank_band",
+    "rerank_base_url",
+    "rerank_enabled",
+    "rerank_fail_open",
+    "rerank_high",
+    "rerank_low",
+    "rerank_max_doc_chars",
+    "rerank_max_docs",
+    "rerank_model",
+    "rerank_path",
+    "rerank_timeout_s",
+    "rerank_top_k",
 ]
